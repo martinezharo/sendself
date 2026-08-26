@@ -1,8 +1,6 @@
 import {
   ArrowRight,
-  CheckCheck,
   EyeOff,
-  FileText,
   FileUp,
   Link2,
   Lock,
@@ -16,6 +14,7 @@ import {
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { APP_PATH, followLink } from "../state/route";
+import { ChatPreview } from "./ChatPreview";
 import { Logo, Toasts, cx } from "./components";
 
 interface Feature {
@@ -116,8 +115,9 @@ const FAQS: Faq[] = [
  *
  * Prerendered into index.html at build time (scripts/prerender.mjs), so it is
  * what crawlers and no-JS clients see. Every call to action leads to `/app`,
- * where the spaces live — nothing here creates or touches one, which is also
- * why this page needs no state beyond the header's scroll flourish.
+ * where the spaces live — nothing here creates or touches one. The hero's chat
+ * (see ChatPreview.tsx) is a self-contained demo for the same reason: it looks
+ * and behaves like the app, but talks to nothing.
  *
  * `prerendered` marks that baked-in copy, the one that paints before any of
  * the app's code has run. Only it hides itself inside an installed app (see
@@ -267,73 +267,6 @@ function Hero(): JSX.Element {
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * A still of the app, so the hero shows what the product *is* rather than a
- * form. Deliberately inert markup: it is prerendered into the public HTML, and
- * every real action on this page leads to /app.
- */
-function ChatPreview(): JSX.Element {
-  return (
-    <div
-      aria-hidden="true"
-      class="surface-card w-full overflow-hidden rounded-xl3 !shadow-float max-md:rounded-xl2"
-    >
-      <div class="flex items-center gap-2.5 border-b border-line px-4 py-3">
-        <span class="grid size-8 flex-none place-items-center rounded-[10px] bg-accent-soft text-accent [&_svg]:size-[17px]">
-          <MonitorSmartphone />
-        </span>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate font-display text-body font-semibold tracking-[-0.02em]">
-            Personal
-          </span>
-          <span class="block font-mono text-meta uppercase tracking-[0.14em] text-muted">
-            3 devices
-          </span>
-        </span>
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--c-success)_14%,transparent)] px-2.5 py-1 font-mono text-meta font-medium uppercase tracking-[0.12em] text-success-ink [&_svg]:size-3">
-          <Lock />
-          Encrypted
-        </span>
-      </div>
-
-      <div class="flex flex-col gap-2.5 px-4 py-5">
-        <div class="max-w-[85%] self-start rounded-xl2 rounded-bl-[6px] bg-surface-3 px-3.5 py-2.5 text-note leading-relaxed">
-          https://rankmaker.net/template/best-video-game-sagas
-          <span class="mt-1 block font-mono text-meta text-muted">From My laptop · 09:41</span>
-        </div>
-
-        <div class="flex max-w-[85%] items-center gap-3 self-start rounded-xl2 rounded-bl-[6px] bg-surface-3 px-3.5 py-3">
-          <span class="grid size-9 flex-none place-items-center rounded-[10px] bg-accent-soft text-accent [&_svg]:size-[18px]">
-            <FileText />
-          </span>
-          <span class="min-w-0">
-            <span class="block truncate text-note font-medium">contract-signed.pdf</span>
-            <span class="block font-mono text-meta text-muted">1.2 MB · downloaded</span>
-          </span>
-        </div>
-
-        <div class="max-w-[85%] self-end rounded-xl2 rounded-br-[6px] bg-accent px-3.5 py-2.5 text-note leading-relaxed text-on-accent">
-          Marta · +1 (202) 555-0147
-          <span class="mt-1 flex items-center justify-end gap-1 font-mono text-meta text-on-accent-muted">
-            09:42
-            <CheckCheck class="size-3" />
-          </span>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2.5 border-t border-line px-4 py-3">
-        <span class="grid size-8 flex-none place-items-center rounded-full bg-surface-3 text-muted [&_svg]:size-[17px]">
-          <Plus />
-        </span>
-        <span class="flex-1 text-note text-muted">Write a message…</span>
-        <span class="grid size-8 flex-none place-items-center rounded-full bg-accent text-on-accent [&_svg]:size-[15px]">
-          <Send />
-        </span>
-      </div>
-    </div>
   );
 }
 
