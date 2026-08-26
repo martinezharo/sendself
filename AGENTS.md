@@ -1,6 +1,6 @@
 # AGENTS.md
 ## Project
-file-sharer is the temporary name for a web app designed to share files and text between your own devices in a fast and intuitive way, with a UI/UX closer to a messaging app than to other tools with the same purpose.
+SendSelf is the name of a web app designed to share files and text between your own devices in a fast and intuitive way, with a UI/UX closer to a messaging app than to other tools with the same purpose.
 This repository is a VERY EARLY WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 ## Key features
 * Connect your devices once and forget about it.

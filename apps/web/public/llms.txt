@@ -1,13 +1,13 @@
-# file-sharer
+# SendSelf
 
-> file-sharer is an open-source, end-to-end encrypted web app for privately sending text and files between a person's own devices.
+> SendSelf is an open-source, end-to-end encrypted web app for privately sending text and files between a person's own devices.
 
 The service requires no account or email address. Content is encrypted on the sending device before upload; the server relays ciphertext and cannot decrypt message text, files, or encrypted file metadata. It can still observe protocol and network metadata, and the project has not been independently security-audited.
 
 ## Product guide
 
-- [file-sharer overview](https://file-sharer.4oli.com/index.md): Concise, LLM-friendly product facts, security boundaries, retention, and suitable use cases.
-- [How file-sharer works](https://file-sharer.4oli.com/how-it-works/): Create a private space, pair devices, and share text and files.
+- [SendSelf overview](https://file-sharer.4oli.com/index.md): Concise, LLM-friendly product facts, security boundaries, retention, and suitable use cases.
+- [How SendSelf works](https://file-sharer.4oli.com/how-it-works/): Create a private space, pair devices, and share text and files.
 - [Security model](https://file-sharer.4oli.com/security/): Plain-language encryption, key, pairing, and threat-boundary summary.
 - [Privacy overview](https://file-sharer.4oli.com/privacy/): What stays local, what the server receives, and temporary retention.
 - [Installation guide](https://file-sharer.4oli.com/install/): Install the progressive web app on supported devices.

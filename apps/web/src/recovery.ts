@@ -92,7 +92,7 @@ export class NoExportableKeysError extends Error {
 }
 
 export class BadRecoveryFileError extends Error {
-  constructor(message = "That file isn't a file-sharer recovery file.") {
+  constructor(message = "That file isn't a SendSelf recovery file.") {
     super(message);
     this.name = "BadRecoveryFileError";
   }
@@ -170,7 +170,7 @@ export async function createRecoveryFile(): Promise<{ file: RecoveryFile; code: 
 /** Suggested file name: dated, and obvious about what it is. */
 export function recoveryFileName(file: RecoveryFile): string {
   const date = new Date(file.createdAt).toISOString().slice(0, 10);
-  return `file-sharer-recovery-${date}.json`;
+  return `sendsel-recovery-${date}.json`;
 }
 
 export function parseRecoveryFile(text: string): RecoveryFile {

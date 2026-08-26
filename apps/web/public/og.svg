@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="file-sharer — end-to-end encrypted sharing across your devices">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="SendSelf — end-to-end encrypted sharing across your devices">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0d0d11"/>
@@ -23,7 +23,7 @@
     <path d="M35 46l8 8 14-16.5" fill="none" stroke="#5b5bd6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
-  <text x="200" y="148" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="30" letter-spacing="8" fill="#f3f3f5" font-weight="600">FILE·SHARER</text>
+  <text x="200" y="148" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="30" letter-spacing="8" fill="#f3f3f5" font-weight="600">SENDSELF</text>
 
   <text x="80" y="320" font-family="'Bricolage Grotesque', system-ui, sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">Share files &amp; text between</text>
   <text x="80" y="402" font-family="'Bricolage Grotesque', system-ui, sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">your devices, <tspan fill="#8c8cf3">privately</tspan>.</text>

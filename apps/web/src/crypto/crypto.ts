@@ -38,7 +38,7 @@ const IV_BYTES = 12;
 export class SecureContextRequiredError extends Error {
   constructor() {
     super(
-      "End-to-end encryption requires a secure connection. Open file-sharer over HTTPS; HTTP only works on localhost during development.",
+      "End-to-end encryption requires a secure connection. Open SendSelf over HTTPS; HTTP only works on localhost during development.",
     );
     this.name = "SecureContextRequiredError";
   }

@@ -4,7 +4,7 @@ This document describes the security properties intended by the current implemen
 
 ## Security goals
 
-file-sharer is designed to keep message and file contents out of the application server and to limit the damage caused by losing one device. It also aims to make tampering visible to recipient devices when the relevant signing identity is already trusted.
+SendSelf is designed to keep message and file contents out of the application server and to limit the damage caused by losing one device. It also aims to make tampering visible to recipient devices when the relevant signing identity is already trusted.
 
 The model assumes that the user can trust the browser, operating system, device storage, and the JavaScript delivered by the application origin. A server or deployment that can replace the application code can potentially read plaintext while the app is running; application-level encryption cannot defend against a malicious client.
 

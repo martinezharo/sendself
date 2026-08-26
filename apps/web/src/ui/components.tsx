@@ -115,8 +115,8 @@ export function Logo({ size = "md" }: { size?: "md" | "lg" }): JSX.Element {
         <Shield strokeWidth={2.25} fill="currentColor" stroke="none" />
       </span>
       {!lg && (
-        <span class="font-mono text-caption font-medium uppercase tracking-[0.16em] text-ink">
-          file<span class="text-accent">·</span>sharer
+        <span class="font-display text-[1.05rem] font-semibold tracking-[-0.04em] text-ink">
+          Send<span class="text-accent">Self</span>
         </span>
       )}
     </span>

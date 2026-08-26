@@ -1,4 +1,4 @@
-# TODO — file-sharer
+# TODO — SendSelf
 
 > Remaining work only. Anything that is done has been removed from this file:
 > the crypto and authorization model is documented in docs/security.md, and the

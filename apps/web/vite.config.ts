@@ -84,8 +84,8 @@ export default defineConfig(({ command, isSsrBuild }) => {
                 "og.png",
               ],
               manifest: {
-                name: "file-sharer",
-                short_name: "file-sharer",
+                name: "SendSelf",
+                short_name: "SendSelf",
                 description:
                   "Private, end-to-end encrypted text & file sharing between your devices",
                 lang: "en",

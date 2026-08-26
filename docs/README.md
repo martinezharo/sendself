@@ -1,6 +1,6 @@
 # Documentation
 
-This directory documents the current implementation of file-sharer. It is written for contributors and operators, not as a product manual.
+This directory documents the current implementation of SendSelf. It is written for contributors and operators, not as a product manual.
 
 If documentation and code disagree, treat the code and its tests as the current behavior and update the documentation as part of the same change. Avoid documenting roadmap ideas as if they were shipped features.
 

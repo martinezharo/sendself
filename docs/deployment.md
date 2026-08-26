@@ -1,6 +1,6 @@
 # Deployment
 
-file-sharer deploys as one Cloudflare Worker. The Worker serves the built PWA and `/api/*`; D1 stores metadata, R2 stores encrypted file blobs, a cron trigger performs cleanup, and a Durable Object provides per-space WebSocket notifications.
+SendSelf deploys as one Cloudflare Worker. The Worker serves the built PWA and `/api/*`; D1 stores metadata, R2 stores encrypted file blobs, a cron trigger performs cleanup, and a Durable Object provides per-space WebSocket notifications.
 
 ## How a release happens
 

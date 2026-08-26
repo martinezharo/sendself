@@ -1,6 +1,6 @@
-# file-sharer
+# SendSelf
 
-file-sharer is an end-to-end encrypted PWA for sharing text and files between your own devices. It is designed to feel like a private chat that works asynchronously: devices can be offline when a message is sent and catch up later.
+SendSelf is an end-to-end encrypted PWA for sharing text and files between your own devices. It is designed to feel like a private chat that works asynchronously: devices can be offline when a message is sent and catch up later.
 
 ## What it provides
 

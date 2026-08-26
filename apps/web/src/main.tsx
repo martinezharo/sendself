@@ -41,8 +41,8 @@ if (root) {
   // clients.
   render(<App />, root);
   void bootstrap().catch((error: unknown) => {
-    console.error("Could not start file-sharer", error);
-    startupError.value = error instanceof Error ? error.message : "Could not start file-sharer";
+    console.error("Could not start SendSelf", error);
+    startupError.value = error instanceof Error ? error.message : "Could not start SendSelf";
     ready.value = true;
   });
 }

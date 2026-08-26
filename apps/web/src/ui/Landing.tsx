@@ -82,7 +82,7 @@ interface Faq {
 
 const FAQS: Faq[] = [
   {
-    q: "Is file-sharer end-to-end encrypted?",
+    q: "Is SendSelf end-to-end encrypted?",
     a: "Yes. Messages, files, and file metadata are encrypted on your device with AES-GCM before upload. The server receives ciphertext and cannot decrypt the content.",
   },
   {
@@ -231,9 +231,9 @@ function Hero(): JSX.Element {
             <span class="text-accent">privately</span>.
           </h1>
           <p class="mt-5 max-w-xl text-lead leading-relaxed text-subtle max-md:mx-auto">
-            file-sharer is a private, end-to-end encrypted space for your phone, laptop, and tablet.
-            No account required: your content is encrypted on your device before upload, and the
-            server never receives it in readable form.
+            SendSelf is a private, end-to-end encrypted space for your phone, laptop, and tablet. No
+            account required: your content is encrypted on your device before upload, and the server
+            never receives it in readable form.
           </p>
           {/* Stacked on a phone, the two buttons match widths instead of
               centring two different-length pills under each other. */}
@@ -364,7 +364,7 @@ function Features(): JSX.Element {
     <section id="features" class="scroll-mt-20 px-6 py-16 max-md:px-4 md:py-24">
       <div class="mx-auto max-w-6xl">
         <SectionHeading
-          kicker="Why file-sharer"
+          kicker="Why SendSelf"
           title="Your content stays yours"
           subtitle="Messages and files are encrypted on your devices before they leave them. The server can deliver ciphertext, but cannot decrypt it."
         />
@@ -520,7 +520,7 @@ function SiteFooter(): JSX.Element {
             Install
           </a>
         </nav>
-        <p class="text-caption text-muted">© {new Date().getFullYear()} file-sharer</p>
+        <p class="text-caption text-muted">© {new Date().getFullYear()} SendSelf</p>
       </div>
     </footer>
   );

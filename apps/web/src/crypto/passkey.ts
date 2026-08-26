@@ -16,7 +16,7 @@ import { base64UrlToBuf, bufToBase64Url } from "./crypto";
 
 /** The relying-party id is the origin's host: this is a same-device credential. */
 function relyingParty(): PublicKeyCredentialRpEntity {
-  return { id: window.location.hostname, name: "file-sharer" };
+  return { id: window.location.hostname, name: "SendSelf" };
 }
 
 /** WebAuthn's PRF extension is not in the DOM lib yet. */

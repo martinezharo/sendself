@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   file-sharer — design tokens
+   SendSelf — design tokens
    Map Tailwind theme colors to semantic CSS variables so utilities like
    `bg-surface` / `text-ink` automatically switch with the color scheme.
    ========================================================================== */

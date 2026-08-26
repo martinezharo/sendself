@@ -27,7 +27,7 @@ const MOUNT = '<div id="app"></div>';
 const LANDING_ONLY =
   /[ \t]*<!-- prerender:landing-only:start -->[\s\S]*?<!-- prerender:landing-only:end -->\n/g;
 /** What the app shell says about itself instead. */
-const APP_HEAD = `    <title>file-sharer</title>
+const APP_HEAD = `    <title>SendSelf</title>
     <meta name="robots" content="noindex" />
 `;
 

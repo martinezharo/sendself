@@ -271,7 +271,7 @@ export async function enableLock(options: EnableLockOptions): Promise<void> {
   let keys: { vaultKey: CryptoKey; contentKey: CryptoKey };
 
   if (options.method === "passkey") {
-    const passkey = await createPasskey(options.deviceName ?? "file-sharer", base64UrlToBuf(salt));
+    const passkey = await createPasskey(options.deviceName ?? "SendSelf", base64UrlToBuf(salt));
     credentialId = passkey.credentialId;
     keys = await keysFromSecret(passkey.secret, salt);
   } else {
