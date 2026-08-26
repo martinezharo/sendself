@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { tailnetDevServer } from "./scripts/dev-https.mjs";
+import { devStaticPages } from "./scripts/dev-static-pages.mjs";
 import { prerender } from "./scripts/prerender.mjs";
 
 function cliValue(flag: string): string | undefined {
@@ -55,6 +56,10 @@ export default defineConfig(({ command, isSsrBuild }) => {
     plugins: [
       tailwindcss(),
       preact(),
+      // Dev only: makes `public/<dir>/index.html` reachable, which Vite's static
+      // layer does not resolve on its own. Without it every marketing page in
+      // `public/` falls through to the SPA fallback.
+      devStaticPages(),
       ...(isSsrBuild
         ? []
         : [
