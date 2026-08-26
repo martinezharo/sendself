@@ -1,6 +1,18 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
-import { AlertCircle, CheckCircle2, X } from "lucide-preact";
+import {
+  AlertCircle,
+  CheckCircle2,
+  FileArchive,
+  FileAudio,
+  FileCode,
+  File as FileIcon,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
+  X,
+} from "lucide-preact";
 import { toasts } from "../state/ui";
 
 /** Tiny className joiner. */
@@ -29,6 +41,28 @@ export function initials(name: string | undefined | null): string {
   const first = parts[0]?.[0] ?? "?";
   const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return (first + second).toUpperCase();
+}
+
+const ARCHIVE_MIME_RE = /zip|rar|7z|tar|gzip|compressed/;
+const CODE_MIME_RE = /json|javascript|typescript|xml|html|css/;
+const SPREADSHEET_MIME_RE = /spreadsheet|csv|excel|ms-excel/;
+const DOCUMENT_MIME_RE = /pdf|msword|wordprocessing|rtf/;
+
+/**
+ * Pick an icon that matches an attachment's MIME type.
+ *
+ * Shared: the chat, the composer's staging strip, and the landing page's chat
+ * preview all label the same kinds of file, and they have to label them alike.
+ */
+export function FileTypeIcon({ mime }: { mime: string }): JSX.Element {
+  if (mime.startsWith("image/")) return <FileImage />;
+  if (mime.startsWith("video/")) return <FileVideo />;
+  if (mime.startsWith("audio/")) return <FileAudio />;
+  if (ARCHIVE_MIME_RE.test(mime)) return <FileArchive />;
+  if (SPREADSHEET_MIME_RE.test(mime)) return <FileSpreadsheet />;
+  if (CODE_MIME_RE.test(mime)) return <FileCode />;
+  if (mime.startsWith("text/") || DOCUMENT_MIME_RE.test(mime)) return <FileText />;
+  return <FileIcon />;
 }
 
 /* --------------------------------------------------------------------------

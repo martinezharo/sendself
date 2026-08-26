@@ -5,18 +5,9 @@ import {
   CircleDashed,
   Clock,
   Download,
-  FileArchive,
-  FileAudio,
-  FileCode,
-  File as FileIcon,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  FileVideo,
   Lock,
   MoreVertical,
   Paperclip,
-  Plus,
   RotateCw,
   ShieldAlert,
   X,
@@ -47,7 +38,16 @@ import { syncNow } from "../sync/sync";
 import type { FileRef, LocalMessage, MessageStatus } from "../types";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
-import { Button, IconButton, Modal, Spinner, cx, formatBytes, formatTime } from "./components";
+import {
+  Button,
+  FileTypeIcon,
+  IconButton,
+  Modal,
+  Spinner,
+  cx,
+  formatBytes,
+  formatTime,
+} from "./components";
 
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
 
@@ -618,23 +618,6 @@ function fileStateLabel(message: LocalMessage): string | null {
     default:
       return null;
   }
-}
-
-const ARCHIVE_MIME_RE = /zip|rar|7z|tar|gzip|compressed/;
-const CODE_MIME_RE = /json|javascript|typescript|xml|html|css/;
-const SPREADSHEET_MIME_RE = /spreadsheet|csv|excel|ms-excel/;
-const DOCUMENT_MIME_RE = /pdf|msword|wordprocessing|rtf/;
-
-/** Pick an icon that matches the attachment's MIME type. */
-function FileTypeIcon({ mime }: { mime: string }): JSX.Element {
-  if (mime.startsWith("image/")) return <FileImage />;
-  if (mime.startsWith("video/")) return <FileVideo />;
-  if (mime.startsWith("audio/")) return <FileAudio />;
-  if (ARCHIVE_MIME_RE.test(mime)) return <FileArchive />;
-  if (SPREADSHEET_MIME_RE.test(mime)) return <FileSpreadsheet />;
-  if (CODE_MIME_RE.test(mime)) return <FileCode />;
-  if (mime.startsWith("text/") || DOCUMENT_MIME_RE.test(mime)) return <FileText />;
-  return <FileIcon />;
 }
 
 /**
