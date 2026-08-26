@@ -34,6 +34,7 @@
   --color-danger-soft: var(--c-danger-soft);
   --color-success: var(--c-success);
   --color-success-ink: var(--c-success-ink);
+  --color-warning: var(--c-warning);
 
   --radius-card: 14px;
   --radius-xl2: 20px;
@@ -622,6 +623,7 @@
   --c-danger-soft: color-mix(in srgb, var(--c-danger) 12%, transparent);
   --c-success: #30a46c;
   --c-success-ink: #18794e;
+  --c-warning: #ffb224;
 
   --c-on-bubble: var(--c-ink);
   /* Anchored to the bubble, not to `muted`. `muted` is calibrated against the
@@ -675,6 +677,7 @@
     --c-danger-soft: color-mix(in srgb, var(--c-danger) 16%, transparent);
     --c-success: #3dd68c;
     --c-success-ink: #69e0a5;
+    --c-warning: #ffcb47;
   }
 }
 
@@ -755,6 +758,7 @@
   --c-danger-soft: color-mix(in srgb, var(--c-danger) 16%, transparent);
   --c-success: #3dd68c;
   --c-success-ink: #69e0a5;
+  --c-warning: #ffcb47;
 }
 
 /* ============================================================================

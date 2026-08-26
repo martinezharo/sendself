@@ -1,7 +1,24 @@
-import { signal } from "@preact/signals";
+import { computed, signal } from "@preact/signals";
+import { realtimeState } from "../sync/realtime";
 
-/** Connectivity hint shown in the header (best-effort). */
+/** Whether the browser believes it has a network at all. */
 export const online = signal(typeof navigator === "undefined" ? true : navigator.onLine);
+
+export type ConnectionState = "connected" | "connecting" | "offline";
+
+/**
+ * What the app can honestly claim about its link to the other devices.
+ *
+ * `navigator.onLine` alone only ever rules connectivity *out*: it is true on a
+ * captive-portal Wi-Fi and on a laptop whose server is down. So "connected" is
+ * reserved for the one thing that proves the round trip — an open realtime
+ * socket — and everything between the two is "connecting", which is what a
+ * device falling back to the polling loop is actually doing.
+ */
+export const connection = computed<ConnectionState>(() => {
+  if (!online.value) return "offline";
+  return realtimeState.value === "open" ? "connected" : "connecting";
+});
 
 export interface Toast {
   id: number;

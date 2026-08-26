@@ -13,6 +13,7 @@
  * a proxy that quietly killed the socket costs latency and never a message.
  */
 
+import { signal } from "@preact/signals";
 import {
   REALTIME_AUTH_PROTOCOL_PREFIX,
   REALTIME_PATH,
@@ -28,6 +29,17 @@ const MAX_RETRY_MS = 60_000;
 const PONG_TIMEOUT_MS = 10_000;
 
 type Listener = () => void;
+
+/**
+ * The socket's state, as the UI needs to describe it.
+ *
+ * `stopped` is "no session to connect with"; `connecting` covers both the first
+ * attempt and every backoff retry, since to the user they are the same thing —
+ * nothing is being pushed yet. Kept here rather than derived from `socket`
+ * because a retry timer has no socket to inspect.
+ */
+export type RealtimeState = "stopped" | "connecting" | "open";
+export const realtimeState = signal<RealtimeState>("stopped");
 
 let socket: WebSocket | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,6 +79,7 @@ function scheduleRetry(): void {
 
 function teardown(): void {
   clearTimers();
+  realtimeState.value = wanted ? "connecting" : "stopped";
   const dying = socket;
   socket = null;
   if (dying) {
@@ -115,6 +128,7 @@ function open(): void {
   socket = next;
 
   next.onopen = () => {
+    realtimeState.value = "open";
     attempt = 0;
     heartbeat();
     // Anything that happened while this device was disconnected is waiting in
@@ -158,6 +172,7 @@ export function startRealtime(auth: Auth, listener: Listener): void {
   currentAuth = auth;
   onEvent = listener;
   wanted = true;
+  if (realtimeState.value !== "open") realtimeState.value = "connecting";
   if (!socket) open();
 }
 

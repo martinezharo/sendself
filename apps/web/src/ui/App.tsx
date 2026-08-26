@@ -23,14 +23,14 @@ import {
 } from "../state/route";
 import { ready, session, sessionRevoked, startupError } from "../state/session";
 import { activeSpace } from "../state/spaces";
+import { type ConnectionState, connection } from "../state/ui";
 import { renameActiveSpace } from "../sync/spaceName";
-import { online } from "../state/ui";
 import { Chat } from "./Chat";
 import { DeviceManager } from "./DeviceManager";
 import { DropZone } from "./DropZone";
 import { Landing } from "./Landing";
 import { LockScreen } from "./LockScreen";
-import { type MenuAnchor, Menu, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
+import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { Spaces } from "./Spaces";
 import { Button, IconButton, Loading, Modal, Toasts, cx } from "./components";
 
@@ -155,17 +155,7 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
           ))}
         </nav>
 
-        <div class="mt-auto flex items-center gap-2.5 px-[25px] pt-2 font-mono text-meta font-medium uppercase tracking-[0.14em] text-muted">
-          <span
-            class={cx(
-              "size-2 flex-none rounded-full",
-              online.value
-                ? "bg-success shadow-[0_0_0_3px_color-mix(in_srgb,var(--c-success)_22%,transparent)]"
-                : "bg-muted",
-            )}
-          />
-          {online.value ? "Connected" : "Offline"}
-        </div>
+        <ConnectionBadge />
       </aside>
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -390,6 +380,47 @@ function RevokedNotice(): JSX.Element {
         </Button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * The foot of the sidebar: what this device's link to the others is doing.
+ *
+ * Three states rather than two, because "not offline" is not the same as
+ * "delivering". `connecting` is the honest middle — the browser has a network
+ * but the push channel is down (server unreachable, proxy eating WebSockets,
+ * backoff between retries), and messages are moving on the polling fallback if
+ * they are moving at all. The title says that in words for the case where it
+ * persists.
+ */
+const CONNECTION_COPY: Record<ConnectionState, { label: string; dot: string; title: string }> = {
+  connected: {
+    label: "Connected",
+    dot: "bg-success shadow-[0_0_0_3px_color-mix(in_srgb,var(--c-success)_22%,transparent)]",
+    title: "Live: new messages arrive as they are sent",
+  },
+  connecting: {
+    label: "Connecting",
+    dot: "animate-pulse bg-warning shadow-[0_0_0_3px_color-mix(in_srgb,var(--c-warning)_22%,transparent)]",
+    title: "Reaching the server. Messages still sync, but with a delay",
+  },
+  offline: {
+    label: "Offline",
+    dot: "bg-muted",
+    title: "No network. Anything you send waits on this device",
+  },
+};
+
+function ConnectionBadge(): JSX.Element {
+  const { label, dot, title } = CONNECTION_COPY[connection.value];
+  return (
+    <div
+      title={title}
+      class="mt-auto flex items-center gap-2.5 px-[25px] pt-2 font-mono text-meta font-medium uppercase tracking-[0.14em] text-muted"
+    >
+      <span aria-hidden="true" class={cx("size-2 flex-none rounded-full", dot)} />
+      <span role="status">{label}</span>
+    </div>
   );
 }
 
