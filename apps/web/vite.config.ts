@@ -76,7 +76,9 @@ export default defineConfig(({ command, isSsrBuild }) => {
               },
               includeAssets: [
                 "favicon.svg",
+                "icon.svg",
                 "icon-maskable.svg",
+                "apple-touch-icon.png",
                 "icon-192.png",
                 "icon-512.png",
                 "icon-maskable-192.png",
@@ -89,8 +91,8 @@ export default defineConfig(({ command, isSsrBuild }) => {
                 description:
                   "Private, end-to-end encrypted text & file sharing between your devices",
                 lang: "en",
-                theme_color: "#5b5bd6",
-                background_color: "#f6f6f7",
+                theme_color: "#c2410c",
+                background_color: "#f8f4f2",
                 display: "standalone",
                 // The app opens on the spaces of this device, not the marketing
                 // page: an installed PWA has already been "landed on".
@@ -114,7 +116,9 @@ export default defineConfig(({ command, isSsrBuild }) => {
                     type: "image/png",
                     purpose: "maskable",
                   },
-                  { src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+                  // The tab favicon is a bare, transparent mark; the manifest wants the
+                  // boxed one, which is what an installed icon should look like.
+                  { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
                   {
                     src: "/icon-maskable.svg",
                     sizes: "any",
