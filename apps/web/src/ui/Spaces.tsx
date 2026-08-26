@@ -7,6 +7,7 @@ import { lockConfigured, lockNow } from "../state/lock";
 import { followLink, spacePath } from "../state/route";
 import { spaces } from "../state/spaces";
 import { OnboardingCard } from "./Onboarding";
+import { AppearanceMenu } from "./AppearanceMenu";
 import { Button, IconButton, Logo, Toasts, cx } from "./components";
 
 /**
@@ -27,11 +28,14 @@ export function Spaces(): JSX.Element {
           <a href="/" class="flex items-center" onClick={(e) => followLink(e as MouseEvent, "/")}>
             <Logo />
           </a>
-          {lockConfigured.value && (
-            <IconButton label="Lock this device" onClick={lockNow}>
-              <LockKeyhole />
-            </IconButton>
-          )}
+          <div class="flex items-center gap-1">
+            <AppearanceMenu />
+            {lockConfigured.value && (
+              <IconButton label="Lock this device" onClick={lockNow}>
+                <LockKeyhole />
+              </IconButton>
+            )}
+          </div>
         </div>
       </header>
 

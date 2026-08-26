@@ -1,6 +1,7 @@
 import { effect, untracked } from "@preact/signals";
 import { applyRoute, handleAuthFailure, hasPendingShare, noteSharedContent } from "./actions";
 import { setAuthFailureHandler } from "./api/client";
+import { initAppearance } from "./state/appearance";
 import { assertWebCryptoAvailable } from "./crypto/crypto";
 import { claimSharedContent } from "./share/incoming";
 import { loadLockState } from "./state/lock";
@@ -10,6 +11,11 @@ import { adoptLegacySpace, lastOpenedSpace, refreshSpaces, spaces } from "./stat
 
 /** Load local state before the interactive app replaces the prerendered page. */
 export async function bootstrap(): Promise<void> {
+  // Before anything renders: the stored scheme and palette are only data
+  // attributes on <html>, and applying them first keeps the first paint from
+  // showing a brand the user already changed away from.
+  initAppearance();
+
   // The rest of the app is built around Web Crypto. Check it before touching
   // local state so an insecure-origin failure cannot surface halfway through
   // onboarding as `Cannot read properties of undefined`.

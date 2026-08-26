@@ -325,11 +325,9 @@ function MessageBubble({
           "msg-bubble max-w-[min(80%,540px)] rounded-card text-body leading-normal transition-shadow max-md:max-w-[86%] max-md:text-lead",
           message.file || album ? "p-[7px]" : "px-[13px] py-[9px]",
           mine
-            ? "rounded-br-[5px] bg-accent text-on-accent shadow-soft"
+            ? "rounded-br-[5px] bg-bubble text-on-bubble shadow-soft"
             : "surface-card rounded-bl-[5px] text-ink",
-          // An accent ring is invisible on an accent bubble, so the highlight
-          // has to come from whichever side the bubble is not.
-          menu && (mine ? "ring-2 ring-white/70" : "ring-2 ring-accent/60"),
+          menu && "ring-2 ring-accent/60",
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -342,7 +340,7 @@ function MessageBubble({
           <div
             class={cx(
               "mb-1 max-w-full truncate text-meta font-medium leading-tight max-md:text-caption",
-              mine ? "text-on-accent-muted" : "text-subtle",
+              mine ? "text-on-bubble-muted" : "text-subtle",
             )}
             title={displayDeviceName}
           >
@@ -352,8 +350,7 @@ function MessageBubble({
         {message.senderVerified === "invalid" && (
           <div
             class={cx(
-              "mb-1.5 flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-meta font-medium leading-tight max-md:text-caption [&_svg]:size-[13px]",
-              mine ? "bg-black/15 text-on-accent dark:bg-white/15" : "bg-danger-soft text-danger",
+              "mb-1.5 flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-meta font-medium leading-tight max-md:text-caption bg-danger-soft text-danger [&_svg]:size-[13px]",
             )}
             title="This message's signature doesn't match the sending device's key, so it may not come from the device it claims."
           >
@@ -368,7 +365,7 @@ function MessageBubble({
               "flex items-center gap-1.5 text-note italic [&_svg]:size-[14px]",
               // `opacity` here dimmed the text below 4.5:1 on a sent bubble;
               // the muted token is the same intent at a legible contrast.
-              mine ? "text-on-accent-muted" : "text-muted",
+              mine ? "text-on-bubble-muted" : "text-muted",
             )}
           >
             <AlertCircle class="flex-none" />
@@ -385,7 +382,7 @@ function MessageBubble({
                 <div
                   class={cx(
                     "px-1.5 py-1 text-meta max-md:text-caption",
-                    mine ? "text-on-accent-muted" : "text-muted",
+                    mine ? "text-on-bubble-muted" : "text-muted",
                   )}
                 >
                   {album.expected - album.messages.length} more on the way…
@@ -411,7 +408,7 @@ function MessageBubble({
         <div
           class={cx(
             "mt-1 flex items-center justify-end gap-[5px] font-mono text-meta tracking-[0.03em] [&_svg]:size-[14px]",
-            mine ? "text-on-accent-muted" : "text-muted",
+            mine ? "text-on-bubble-muted" : "text-muted",
           )}
         >
           <span>{formatTime(message.createdAt)}</span>
@@ -479,14 +476,14 @@ function ViewOnceSeal({
       <span
         class={cx(
           "grid size-9 flex-none place-items-center rounded-full [&_svg]:size-[18px]",
-          mine ? "bg-white/90 text-accent" : "bg-accent-soft text-accent",
+          "bg-accent-soft text-accent",
         )}
       >
         <CircleDashed />
       </span>
       <span class="min-w-0 text-left">
         <span class="block font-medium">Temporary</span>
-        <span class={cx("block text-caption", mine ? "text-on-accent-muted" : "text-muted")}>
+        <span class={cx("block text-caption", mine ? "text-on-bubble-muted" : "text-muted")}>
           {openable ? "Tap to open once" : "Disappears once opened"}
         </span>
       </span>
@@ -708,7 +705,7 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
         <div
           class={cx(
             "font-mono text-meta tracking-[0.02em] max-md:text-caption",
-            mine ? "text-on-accent-muted" : "text-muted",
+            mine ? "text-on-bubble-muted" : "text-muted",
           )}
         >
           {formatBytes(file.size)}
@@ -724,10 +721,7 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
           ) : message.status === "failed" ? (
             <IconButton
               label="Retry upload"
-              class={cx(
-                "size-[34px]",
-                mine && "text-on-accent hover:bg-black/15 dark:hover:bg-white/25",
-              )}
+              class={cx("size-[34px]", mine && "text-on-bubble hover:bg-accent-soft")}
               onClick={() => void retryMessage(message)}
             >
               <RotateCw />
@@ -735,10 +729,7 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
           ) : (
             <IconButton
               label="Save file"
-              class={cx(
-                "size-[34px]",
-                mine && "text-on-accent hover:bg-black/15 dark:hover:bg-white/25",
-              )}
+              class={cx("size-[34px]", mine && "text-on-bubble hover:bg-accent-soft")}
               onClick={() => void saveFile(message)}
             >
               <Download />

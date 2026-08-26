@@ -26,6 +26,10 @@
   --color-on-accent: var(--c-on-accent);
   --color-on-accent-muted: var(--c-on-accent-muted);
 
+  --color-bubble: var(--c-bubble);
+  --color-on-bubble: var(--c-on-bubble);
+  --color-on-bubble-muted: var(--c-on-bubble-muted);
+
   --color-danger: var(--c-danger);
   --color-danger-soft: var(--c-danger-soft);
   --color-success: var(--c-success);
@@ -70,96 +74,734 @@
   --text-display: 1.5rem; /* 24px */
   --text-display-lg: 1.625rem; /* 26px */
 
+  /* The project's one easing curve. It was written out literally at each of
+     its three call sites; naming it is what stops the next component from
+     inventing a fourth curve. */
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  /* For motion that crosses the whole viewport. `emphasized` front-loads its
+     travel, which is right for a menu appearing in place and wrong for a sweep:
+     the edge covers most of the screen in the first fifth of the duration and
+     then crawls. This is close to linear, so the sweep moves at a readable pace
+     for its whole path. */
+  --ease-sweep: cubic-bezier(0.35, 0.02, 0.25, 1);
+
   --animate-spin-fast: spin 0.65s linear infinite;
 }
 
+/* ============================================================================
+   Brand palettes
+
+   Every palette states both of its modes at once, as `--l-*` / `--d-*` pairs.
+   The light-or-dark decision is then made once, below, instead of each palette
+   repeating itself inside a media query — which is what keeps adding an
+   eleventh palette a single block of hex values and nothing else.
+
+   Only these tokens vary. Everything derived from them — `accent-soft`, the
+   bubble fill, the focus ring, the page gradient — is expressed as a
+   `color-mix()` of `--c-accent` further down and follows automatically.
+   ========================================================================== */
+/* Óxido */
 :root {
-  --c-accent: #5b5bd6;
-  --c-accent-hover: #5151c9;
-  --c-accent-press: #4848b8;
-  --c-accent-soft: color-mix(in srgb, var(--c-accent) 12%, transparent);
-  --c-accent-glow: color-mix(in srgb, var(--c-accent) 45%, transparent);
-  --c-on-accent: #ffffff;
-  /* Secondary copy on an accent fill. This has to be a solid colour, not
-     `on-accent` at reduced alpha: the accent background only clears white by
-     5.4:1 to begin with, so any alpha under ~90% drops the text below the
-     4.5:1 that WCAG 1.4.3 asks of small text. Verified at 4.74:1 on `accent`
-     and 6.08:1 on the darkened attachment surface inside a sent bubble. */
-  --c-on-accent-muted: #f0f0fb;
+  /* Default. Bare `:root` carries it so the app has a brand before
+     any preference is read. */
+  --l-accent: #c2410c;
+  --d-accent: #ff7a45;
+  --l-accent-hover: #a5370a;
+  --d-accent-hover: #ff9166;
+  --l-accent-press: #8a2e08;
+  --d-accent-press: #ffa885;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #2a1008;
+  --l-on-accent-muted: #fdf0e9;
+  --d-on-accent-muted: #3d1b10;
+  --l-bg: #f8f4f2;
+  --d-bg: #0c0a09;
+  --l-surface: #ffffff;
+  --d-surface: #171412;
+  --l-surface-2: #fdfaf9;
+  --d-surface-2: #1d1a17;
+  --l-surface-3: #f2ecea;
+  --d-surface-3: #26221f;
+  --l-elevated: #ffffff;
+  --d-elevated: #1f1c19;
+  --l-ink: #1d1917;
+  --d-ink: #f5f1ef;
+  --l-subtle: #57504c;
+  --d-subtle: #bab1ab;
+  --l-muted: #726862;
+  --d-muted: #948b85;
+  --l-line: rgba(29, 25, 23, 0.08);
+  --d-line: rgba(255, 250, 247, 0.08);
+  --l-line-strong: rgba(29, 25, 23, 0.14);
+  --d-line-strong: rgba(255, 250, 247, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #191512;
+  --l-grad-2: #f8f3f1;
+  --d-grad-2: #110e0c;
+  --l-grad-3: #f1eae7;
+  --d-grad-3: #0a0908;
+}
 
-  --c-bg: #f6f6f7;
-  --c-surface: #ffffff;
-  --c-surface-2: #fbfbfc;
-  --c-surface-3: #f1f1f3;
-  --c-elevated: #ffffff;
+/* Named form of the default, so the picker can select it explicitly. */
+[data-palette="rust"] {
+  --l-accent: #c2410c;
+  --d-accent: #ff7a45;
+  --l-accent-hover: #a5370a;
+  --d-accent-hover: #ff9166;
+  --l-accent-press: #8a2e08;
+  --d-accent-press: #ffa885;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #2a1008;
+  --l-on-accent-muted: #fdf0e9;
+  --d-on-accent-muted: #3d1b10;
+  --l-bg: #f8f4f2;
+  --d-bg: #0c0a09;
+  --l-surface: #ffffff;
+  --d-surface: #171412;
+  --l-surface-2: #fdfaf9;
+  --d-surface-2: #1d1a17;
+  --l-surface-3: #f2ecea;
+  --d-surface-3: #26221f;
+  --l-elevated: #ffffff;
+  --d-elevated: #1f1c19;
+  --l-ink: #1d1917;
+  --d-ink: #f5f1ef;
+  --l-subtle: #57504c;
+  --d-subtle: #bab1ab;
+  --l-muted: #726862;
+  --d-muted: #948b85;
+  --l-line: rgba(29, 25, 23, 0.08);
+  --d-line: rgba(255, 250, 247, 0.08);
+  --l-line-strong: rgba(29, 25, 23, 0.14);
+  --d-line-strong: rgba(255, 250, 247, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #191512;
+  --l-grad-2: #f8f3f1;
+  --d-grad-2: #110e0c;
+  --l-grad-3: #f1eae7;
+  --d-grad-3: #0a0908;
+}
 
-  --c-ink: #1a1a1e;
-  --c-subtle: #52525b;
-  /* Keep secondary copy readable on both white and surface-3 backgrounds. */
-  --c-muted: #6b6b75;
+/* Ámbar quemado */
+[data-palette="amber"] {
+  --l-accent: #b45309;
+  --d-accent: #f0a857;
+  --l-accent-hover: #9a4708;
+  --d-accent-hover: #f4b978;
+  --l-accent-press: #813b06;
+  --d-accent-press: #f7c894;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #241a0a;
+  --l-on-accent-muted: #fdf4e6;
+  --d-on-accent-muted: #3a2a12;
+  --l-bg: #f7f5f2;
+  --d-bg: #0c0b09;
+  --l-surface: #ffffff;
+  --d-surface: #171613;
+  --l-surface-2: #fbfaf8;
+  --d-surface-2: #1d1b17;
+  --l-surface-3: #f1eeea;
+  --d-surface-3: #26231e;
+  --l-elevated: #ffffff;
+  --d-elevated: #1f1d19;
+  --l-ink: #1c1a17;
+  --d-ink: #f5f3ef;
+  --l-subtle: #55504a;
+  --d-subtle: #bab4ab;
+  --l-muted: #6f6860;
+  --d-muted: #948d84;
+  --l-line: rgba(28, 26, 23, 0.08);
+  --d-line: rgba(255, 252, 245, 0.08);
+  --l-line-strong: rgba(28, 26, 23, 0.14);
+  --d-line-strong: rgba(255, 252, 245, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #191712;
+  --l-grad-2: #f7f4f0;
+  --d-grad-2: #110f0c;
+  --l-grad-3: #f0ece6;
+  --d-grad-3: #0a0908;
+}
 
-  --c-line: rgba(17, 17, 26, 0.08);
-  --c-line-strong: rgba(17, 17, 26, 0.14);
+/* Granate */
+[data-palette="garnet"] {
+  --l-accent: #9f1239;
+  --d-accent: #fb7185;
+  --l-accent-hover: #870f30;
+  --d-accent-hover: #fc93a3;
+  --l-accent-press: #700c28;
+  --d-accent-press: #fdb0bc;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #2c0710;
+  --l-on-accent-muted: #fce8ee;
+  --d-on-accent-muted: #43101c;
+  --l-bg: #f8f4f5;
+  --d-bg: #0b0708;
+  --l-surface: #ffffff;
+  --d-surface: #171012;
+  --l-surface-2: #fdfafb;
+  --d-surface-2: #1d1518;
+  --l-surface-3: #f2eaed;
+  --d-surface-3: #271d20;
+  --l-elevated: #ffffff;
+  --d-elevated: #20171a;
+  --l-ink: #1f161a;
+  --d-ink: #f5eeef;
+  --l-subtle: #564b4f;
+  --d-subtle: #b8a8ac;
+  --l-muted: #6f6266;
+  --d-muted: #918285;
+  --l-line: rgba(31, 22, 26, 0.08);
+  --d-line: rgba(255, 245, 247, 0.08);
+  --l-line-strong: rgba(31, 22, 26, 0.14);
+  --d-line-strong: rgba(255, 245, 247, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #1c1215;
+  --l-grad-2: #f8f3f5;
+  --d-grad-2: #120b0d;
+  --l-grad-3: #f0e8eb;
+  --d-grad-3: #0a0607;
+}
 
-  --c-danger: #e5484d;
-  --c-danger-soft: color-mix(in srgb, var(--c-danger) 12%, transparent);
-  --c-success: #30a46c;
-  /* Small success labels need a darker ink than the status fill itself. */
-  --c-success-ink: #18794e;
+/* Oliva */
+[data-palette="olive"] {
+  --l-accent: #4d7c0f;
+  --d-accent: #a3e635;
+  --l-accent-hover: #41690c;
+  --d-accent-hover: #b4eb5c;
+  --l-accent-press: #35560a;
+  --d-accent-press: #c3f07f;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #16200a;
+  --l-on-accent-muted: #eff7dd;
+  --d-on-accent-muted: #26310f;
+  --l-bg: #f5f6f1;
+  --d-bg: #0a0b08;
+  --l-surface: #ffffff;
+  --d-surface: #141610;
+  --l-surface-2: #fafbf7;
+  --d-surface-2: #1a1c15;
+  --l-surface-3: #eef1e8;
+  --d-surface-3: #23261c;
+  --l-elevated: #ffffff;
+  --d-elevated: #1c1f17;
+  --l-ink: #1a1c16;
+  --d-ink: #f2f4ee;
+  --l-subtle: #4f5349;
+  --d-subtle: #b3b8aa;
+  --l-muted: #686d5f;
+  --d-muted: #8d9285;
+  --l-line: rgba(26, 28, 22, 0.08);
+  --d-line: rgba(250, 255, 245, 0.08);
+  --l-line-strong: rgba(26, 28, 22, 0.14);
+  --d-line-strong: rgba(250, 255, 245, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #16190f;
+  --l-grad-2: #f4f6f0;
+  --d-grad-2: #0f110b;
+  --l-grad-3: #ecefe5;
+  --d-grad-3: #080a07;
+}
 
+/* Pino */
+[data-palette="pine"] {
+  --l-accent: #166534;
+  --d-accent: #4ade80;
+  --l-accent-hover: #12552c;
+  --d-accent-hover: #6ee79b;
+  --l-accent-press: #0e4523;
+  --d-accent-press: #8fefb4;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #07200f;
+  --l-on-accent-muted: #e4f5e9;
+  --d-on-accent-muted: #0f3019;
+  --l-bg: #f3f6f4;
+  --d-bg: #080b09;
+  --l-surface: #ffffff;
+  --d-surface: #111713;
+  --l-surface-2: #f9fbfa;
+  --d-surface-2: #161d18;
+  --l-surface-3: #eaf0ec;
+  --d-surface-3: #1f2822;
+  --l-elevated: #ffffff;
+  --d-elevated: #19211b;
+  --l-ink: #15201a;
+  --d-ink: #eef4f0;
+  --l-subtle: #48564e;
+  --d-subtle: #a8b8ae;
+  --l-muted: #5f6f66;
+  --d-muted: #84948a;
+  --l-line: rgba(21, 32, 26, 0.08);
+  --d-line: rgba(240, 255, 245, 0.08);
+  --l-line-strong: rgba(21, 32, 26, 0.14);
+  --d-line-strong: rgba(240, 255, 245, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #121a15;
+  --l-grad-2: #f2f6f3;
+  --d-grad-2: #0c110e;
+  --l-grad-3: #e8efea;
+  --d-grad-3: #070a08;
+}
+
+/* Petróleo */
+[data-palette="petrol"] {
+  --l-accent: #0f766e;
+  --d-accent: #2dd4bf;
+  --l-accent-hover: #0c635c;
+  --d-accent-hover: #5ce0d0;
+  --l-accent-press: #0a514b;
+  --d-accent-press: #86e9dd;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #04211e;
+  --l-on-accent-muted: #e2f5f2;
+  --d-on-accent-muted: #0b3230;
+  --l-bg: #f2f6f6;
+  --d-bg: #070b0b;
+  --l-surface: #ffffff;
+  --d-surface: #101717;
+  --l-surface-2: #f8fbfb;
+  --d-surface-2: #151d1d;
+  --l-surface-3: #e9f0f0;
+  --d-surface-3: #1e2827;
+  --l-elevated: #ffffff;
+  --d-elevated: #182121;
+  --l-ink: #14201f;
+  --d-ink: #edf4f3;
+  --l-subtle: #465655;
+  --d-subtle: #a5b8b6;
+  --l-muted: #5d6e6d;
+  --d-muted: #819392;
+  --l-line: rgba(20, 32, 31, 0.08);
+  --d-line: rgba(240, 255, 253, 0.08);
+  --l-line-strong: rgba(20, 32, 31, 0.14);
+  --d-line-strong: rgba(240, 255, 253, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #111a1a;
+  --l-grad-2: #f1f6f6;
+  --d-grad-2: #0b1111;
+  --l-grad-3: #e6eeee;
+  --d-grad-3: #060a0a;
+}
+
+/* Denim */
+[data-palette="denim"] {
+  --l-accent: #31597d;
+  --d-accent: #8ab4dc;
+  --l-accent-hover: #294a69;
+  --d-accent-hover: #a5c6e6;
+  --l-accent-press: #213c55;
+  --d-accent-press: #bfd7ee;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #0b1620;
+  --l-on-accent-muted: #e8eef4;
+  --d-on-accent-muted: #152430;
+  --l-bg: #f4f5f7;
+  --d-bg: #08090b;
+  --l-surface: #ffffff;
+  --d-surface: #131619;
+  --l-surface-2: #fafbfc;
+  --d-surface-2: #181c20;
+  --l-surface-3: #eceff2;
+  --d-surface-3: #22272c;
+  --l-elevated: #ffffff;
+  --d-elevated: #1b2024;
+  --l-ink: #181c21;
+  --d-ink: #eff2f5;
+  --l-subtle: #4d545c;
+  --d-subtle: #aab3bc;
+  --l-muted: #666e77;
+  --d-muted: #858e97;
+  --l-line: rgba(24, 28, 33, 0.08);
+  --d-line: rgba(245, 250, 255, 0.08);
+  --l-line-strong: rgba(24, 28, 33, 0.14);
+  --d-line-strong: rgba(245, 250, 255, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #141a20;
+  --l-grad-2: #f3f5f7;
+  --d-grad-2: #0d1114;
+  --l-grad-3: #eaedf1;
+  --d-grad-3: #07090b;
+}
+
+/* Ultramarino */
+[data-palette="klein"] {
+  --l-accent: #002fa7;
+  --d-accent: #6c8cff;
+  --l-accent-hover: #00278c;
+  --d-accent-hover: #869fff;
+  --l-accent-press: #001f73;
+  --d-accent-press: #a0b3ff;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #0a1030;
+  --l-on-accent-muted: #e6eaf7;
+  --d-on-accent-muted: #101c40;
+  --l-bg: #f4f5f8;
+  --d-bg: #08090c;
+  --l-surface: #ffffff;
+  --d-surface: #121419;
+  --l-surface-2: #fafbfd;
+  --d-surface-2: #181b21;
+  --l-surface-3: #ecedf2;
+  --d-surface-3: #21242c;
+  --l-elevated: #ffffff;
+  --d-elevated: #1a1d24;
+  --l-ink: #16181f;
+  --d-ink: #f0f2f7;
+  --l-subtle: #4c505e;
+  --d-subtle: #adb3c0;
+  --l-muted: #666b7a;
+  --d-muted: #878e9c;
+  --l-line: rgba(22, 24, 31, 0.08);
+  --d-line: rgba(245, 248, 255, 0.08);
+  --l-line-strong: rgba(22, 24, 31, 0.14);
+  --d-line-strong: rgba(245, 248, 255, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #141721;
+  --l-grad-2: #f3f5f9;
+  --d-grad-2: #0d0f15;
+  --l-grad-3: #e9ecf3;
+  --d-grad-3: #07080b;
+}
+
+/* Índigo */
+[data-palette="indigo"] {
+  --l-accent: #5b5bd6;
+  --d-accent: #7c7cf0;
+  --l-accent-hover: #5151c9;
+  --d-accent-hover: #8c8cf3;
+  --l-accent-press: #4848b8;
+  --d-accent-press: #9a9af5;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #0c0c14;
+  --l-on-accent-muted: #f0f0fb;
+  --d-on-accent-muted: #17172a;
+  --l-bg: #f6f6f7;
+  --d-bg: #0a0a0c;
+  --l-surface: #ffffff;
+  --d-surface: #141417;
+  --l-surface-2: #fbfbfc;
+  --d-surface-2: #1a1a1e;
+  --l-surface-3: #f1f1f3;
+  --d-surface-3: #222228;
+  --l-elevated: #ffffff;
+  --d-elevated: #1c1c21;
+  --l-ink: #1a1a1e;
+  --d-ink: #f3f3f5;
+  --l-subtle: #52525b;
+  --d-subtle: #b8b8c0;
+  --l-muted: #6b6b75;
+  --d-muted: #92929c;
+  --l-line: rgba(17, 17, 26, 0.08);
+  --d-line: rgba(255, 255, 255, 0.08);
+  --l-line-strong: rgba(17, 17, 26, 0.14);
+  --d-line-strong: rgba(255, 255, 255, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #15151b;
+  --l-grad-2: #f4f4f6;
+  --d-grad-2: #0d0d11;
+  --l-grad-3: #eeeef1;
+  --d-grad-3: #08080a;
+}
+
+/* Ciruela */
+[data-palette="plum"] {
+  --l-accent: #86198f;
+  --d-accent: #e879f9;
+  --l-accent-hover: #71157a;
+  --d-accent-hover: #ee9bfb;
+  --l-accent-press: #5d1164;
+  --d-accent-press: #f3b6fc;
+  --l-on-accent: #ffffff;
+  --d-on-accent: #2a0730;
+  --l-on-accent-muted: #f9e9fb;
+  --d-on-accent-muted: #3d1044;
+  --l-bg: #f7f4f7;
+  --d-bg: #0a070b;
+  --l-surface: #ffffff;
+  --d-surface: #161016;
+  --l-surface-2: #fcfafd;
+  --d-surface-2: #1c151d;
+  --l-surface-3: #f0eaf1;
+  --d-surface-3: #261d27;
+  --l-elevated: #ffffff;
+  --d-elevated: #1f1720;
+  --l-ink: #1e1620;
+  --d-ink: #f4eef5;
+  --l-subtle: #544b57;
+  --d-subtle: #b6a8b8;
+  --l-muted: #6d626f;
+  --d-muted: #90838f;
+  --l-line: rgba(30, 22, 32, 0.08);
+  --d-line: rgba(252, 245, 255, 0.08);
+  --l-line-strong: rgba(30, 22, 32, 0.14);
+  --d-line-strong: rgba(252, 245, 255, 0.14);
+  --l-grad-1: #ffffff;
+  --d-grad-1: #1a1220;
+  --l-grad-2: #f7f3f8;
+  --d-grad-2: #100b13;
+  --l-grad-3: #efe8f0;
+  --d-grad-3: #09060a;
+}
+
+/* A single representative colour for an element that carries `data-palette`
+   without being the document root — the palette swatches in the appearance
+   menu. It tracks the resolved mode so the dot stays visible against whichever
+   surface it is sitting on; a light-mode accent on a dark panel disappears. */
+[data-palette] {
+  --swatch: var(--l-accent);
+  --on-swatch: var(--l-on-accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-palette] {
+    --swatch: var(--d-accent);
+    --on-swatch: var(--d-on-accent);
+  }
+}
+
+:root[data-theme="light"] [data-palette] {
+  --swatch: var(--l-accent);
+  --on-swatch: var(--l-on-accent);
+}
+
+:root[data-theme="dark"] [data-palette] {
+  --swatch: var(--d-accent);
+  --on-swatch: var(--d-on-accent);
+}
+
+/* ============================================================================
+   Mode resolution
+
+   Three states, in the order a user expects them to win:
+
+     1. `:root`                     — light, the floor.
+     2. `@media (prefers-color-scheme: dark)` — the system's opinion, applied
+        unless the user explicitly asked for light.
+     3. `[data-theme]`              — the user's explicit choice, last so it
+        beats the media query it ties with on specificity.
+
+   The `:not([data-theme="light"])` guard is what makes a manual "light" hold
+   on a machine set to dark. Without it the media query would silently win.
+   ========================================================================== */
+:root {
+  --c-accent: var(--l-accent);
+  --c-accent-hover: var(--l-accent-hover);
+  --c-accent-press: var(--l-accent-press);
+  --c-on-accent: var(--l-on-accent);
+  --c-on-accent-muted: var(--l-on-accent-muted);
+  --c-bg: var(--l-bg);
+  --c-surface: var(--l-surface);
+  --c-surface-2: var(--l-surface-2);
+  --c-surface-3: var(--l-surface-3);
+  --c-elevated: var(--l-elevated);
+  --c-ink: var(--l-ink);
+  --c-subtle: var(--l-subtle);
+  --c-muted: var(--l-muted);
+  --c-line: var(--l-line);
+  --c-line-strong: var(--l-line-strong);
   --bg-grad: radial-gradient(
       80% 55% at 50% -8%,
       color-mix(in srgb, var(--c-accent) 14%, transparent) 0%,
       transparent 60%
-    ), radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f4f4f6 55%, #eeeef1 100%);
+    ),
+    radial-gradient(
+      120% 120% at 50% 0%,
+      var(--l-grad-1) 0%,
+      var(--l-grad-2) 55%,
+      var(--l-grad-3) 100%
+    );
+  --c-accent-soft: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  --c-accent-glow: color-mix(in srgb, var(--c-accent) 45%, transparent);
+  --c-bubble: color-mix(in srgb, var(--c-accent) 15%, var(--c-surface));
   --grain-opacity: 0.03;
+  --shadow-soft: 0 1px 2px rgba(17, 17, 26, 0.04), 0 1px 3px rgba(17, 17, 26, 0.06);
+  --shadow-pop: 0 4px 14px rgba(17, 17, 26, 0.07), 0 2px 6px rgba(17, 17, 26, 0.05);
+  --shadow-float: 0 24px 48px -12px rgba(17, 17, 26, 0.18), 0 8px 16px -8px rgba(17, 17, 26, 0.1);
+  color-scheme: light;
+
+  --c-danger: #e5484d;
+  --c-danger-soft: color-mix(in srgb, var(--c-danger) 12%, transparent);
+  --c-success: #30a46c;
+  --c-success-ink: #18794e;
+
+  --c-on-bubble: var(--c-ink);
+  /* Anchored to the bubble, not to `muted`. `muted` is calibrated against the
+     page background; measured on the tinted bubble it lands between 3.0:1 and
+     4.5:1 depending on the brand, which is under what WCAG 1.4.3 asks of the
+     timestamps and delivery labels that use it. Mixing ink into the bubble
+     instead holds the ratio steady whatever the accent is. */
+  --c-on-bubble-muted: color-mix(in srgb, var(--c-ink) 72%, var(--c-bubble));
+
   --ring: 0 0 0 3px color-mix(in srgb, var(--c-accent) 35%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --c-accent: #7c7cf0;
-    --c-accent-hover: #8c8cf3;
-    --c-accent-press: #9a9af5;
+  :root:not([data-theme="light"]) {
+    --c-accent: var(--d-accent);
+    --c-accent-hover: var(--d-accent-hover);
+    --c-accent-press: var(--d-accent-press);
+    --c-on-accent: var(--d-on-accent);
+    --c-on-accent-muted: var(--d-on-accent-muted);
+    --c-bg: var(--d-bg);
+    --c-surface: var(--d-surface);
+    --c-surface-2: var(--d-surface-2);
+    --c-surface-3: var(--d-surface-3);
+    --c-elevated: var(--d-elevated);
+    --c-ink: var(--d-ink);
+    --c-subtle: var(--d-subtle);
+    --c-muted: var(--d-muted);
+    --c-line: var(--d-line);
+    --c-line-strong: var(--d-line-strong);
+    --bg-grad: radial-gradient(
+        80% 55% at 50% -8%,
+        color-mix(in srgb, var(--c-accent) 22%, transparent) 0%,
+        transparent 62%
+      ),
+      radial-gradient(
+        120% 120% at 50% 0%,
+        var(--d-grad-1) 0%,
+        var(--d-grad-2) 52%,
+        var(--d-grad-3) 100%
+      );
     --c-accent-soft: color-mix(in srgb, var(--c-accent) 16%, transparent);
     --c-accent-glow: color-mix(in srgb, var(--c-accent) 40%, transparent);
-    --c-on-accent: #0c0c14;
-    /* Dark theme inverts the relationship — the accent is light and the text
-       on it is near-black — but the margin is just as thin, so this is a
-       solid colour here too. 5.03:1 on `accent`, 6.25:1 on the lightened
-       attachment surface. */
-    --c-on-accent-muted: #17172a;
-
-    --c-bg: #0a0a0c;
-    --c-surface: #141417;
-    --c-surface-2: #1a1a1e;
-    --c-surface-3: #222228;
-    --c-elevated: #1c1c21;
-
-    --c-ink: #f3f3f5;
-    --c-subtle: #b8b8c0;
-    --c-muted: #92929c;
-
-    --c-line: rgba(255, 255, 255, 0.08);
-    --c-line-strong: rgba(255, 255, 255, 0.14);
+    --c-bubble: color-mix(in srgb, var(--c-accent) 26%, var(--c-surface));
+    --grain-opacity: 0.05;
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.45);
+    --shadow-float: 0 28px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
 
     --c-danger: #ff6166;
     --c-danger-soft: color-mix(in srgb, var(--c-danger) 16%, transparent);
     --c-success: #3dd68c;
     --c-success-ink: #69e0a5;
+  }
+}
 
-    --bg-grad: radial-gradient(
-        75% 50% at 50% -10%,
-        color-mix(in srgb, var(--c-accent) 22%, transparent) 0%,
-        transparent 62%
-      ), radial-gradient(120% 120% at 50% 0%, #15151b 0%, #0d0d11 52%, #08080a 100%);
-    --grain-opacity: 0.05;
+:root[data-theme="light"] {
+  --c-accent: var(--l-accent);
+  --c-accent-hover: var(--l-accent-hover);
+  --c-accent-press: var(--l-accent-press);
+  --c-on-accent: var(--l-on-accent);
+  --c-on-accent-muted: var(--l-on-accent-muted);
+  --c-bg: var(--l-bg);
+  --c-surface: var(--l-surface);
+  --c-surface-2: var(--l-surface-2);
+  --c-surface-3: var(--l-surface-3);
+  --c-elevated: var(--l-elevated);
+  --c-ink: var(--l-ink);
+  --c-subtle: var(--l-subtle);
+  --c-muted: var(--l-muted);
+  --c-line: var(--l-line);
+  --c-line-strong: var(--l-line-strong);
+  --bg-grad: radial-gradient(
+      80% 55% at 50% -8%,
+      color-mix(in srgb, var(--c-accent) 14%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 120% at 50% 0%,
+      var(--l-grad-1) 0%,
+      var(--l-grad-2) 55%,
+      var(--l-grad-3) 100%
+    );
+  --c-accent-soft: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  --c-accent-glow: color-mix(in srgb, var(--c-accent) 45%, transparent);
+  --c-bubble: color-mix(in srgb, var(--c-accent) 15%, var(--c-surface));
+  --grain-opacity: 0.03;
+  --shadow-soft: 0 1px 2px rgba(17, 17, 26, 0.04), 0 1px 3px rgba(17, 17, 26, 0.06);
+  --shadow-pop: 0 4px 14px rgba(17, 17, 26, 0.07), 0 2px 6px rgba(17, 17, 26, 0.05);
+  --shadow-float: 0 24px 48px -12px rgba(17, 17, 26, 0.18), 0 8px 16px -8px rgba(17, 17, 26, 0.1);
+  color-scheme: light;
+}
 
-    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.45);
-    --shadow-float: 0 28px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+:root[data-theme="dark"] {
+  --c-accent: var(--d-accent);
+  --c-accent-hover: var(--d-accent-hover);
+  --c-accent-press: var(--d-accent-press);
+  --c-on-accent: var(--d-on-accent);
+  --c-on-accent-muted: var(--d-on-accent-muted);
+  --c-bg: var(--d-bg);
+  --c-surface: var(--d-surface);
+  --c-surface-2: var(--d-surface-2);
+  --c-surface-3: var(--d-surface-3);
+  --c-elevated: var(--d-elevated);
+  --c-ink: var(--d-ink);
+  --c-subtle: var(--d-subtle);
+  --c-muted: var(--d-muted);
+  --c-line: var(--d-line);
+  --c-line-strong: var(--d-line-strong);
+  --bg-grad: radial-gradient(
+      80% 55% at 50% -8%,
+      color-mix(in srgb, var(--c-accent) 22%, transparent) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      120% 120% at 50% 0%,
+      var(--d-grad-1) 0%,
+      var(--d-grad-2) 52%,
+      var(--d-grad-3) 100%
+    );
+  --c-accent-soft: color-mix(in srgb, var(--c-accent) 16%, transparent);
+  --c-accent-glow: color-mix(in srgb, var(--c-accent) 40%, transparent);
+  --c-bubble: color-mix(in srgb, var(--c-accent) 26%, var(--c-surface));
+  --grain-opacity: 0.05;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 28px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
 
-    color-scheme: dark;
+  --c-danger: #ff6166;
+  --c-danger-soft: color-mix(in srgb, var(--c-danger) 16%, transparent);
+  --c-success: #3dd68c;
+  --c-success-ink: #69e0a5;
+}
+
+/* ============================================================================
+   Appearance transition
+
+   A theme or palette change is repainted as a circle opening from whichever
+   control was pressed, using the browser's own before/after snapshots of the
+   root. `state/appearance.ts` sets the origin; everything else is here.
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  /* The outgoing page holds at full opacity for the whole sweep. Fading it
+     would let the incoming theme through everywhere at once, so the entire
+     screen would change underneath the circle and compete with it — the circle
+     stops reading as the cause of the change. Holding it means the circle's
+     edge is the only place anything happens. */
+  ::view-transition-old(root) {
+    animation: theme-hold 480ms linear both;
+  }
+
+  ::view-transition-new(root) {
+    z-index: 1;
+    animation: theme-reveal 480ms var(--ease-sweep) both;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    /* The default `plus-lighter` blend washes two opaque snapshots out to white
+       where they overlap. */
+    mix-blend-mode: normal;
+  }
+
+  @keyframes theme-hold {
+    from,
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes theme-reveal {
+    from {
+      clip-path: circle(0 at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh));
+    }
+    to {
+      clip-path: circle(
+        var(--theme-radius, 150vmax) at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)
+      );
+    }
   }
 }
 
@@ -383,13 +1025,13 @@
   animation: fade-in 0.18s ease;
 }
 .animate-modal-in {
-  animation: modal-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: modal-in 0.2s var(--ease-emphasized);
 }
 .animate-toast-in {
-  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: toast-in 0.25s var(--ease-emphasized);
 }
 .animate-menu-in {
-  animation: menu-in 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: menu-in 0.14s var(--ease-emphasized);
 }
 
 @media (prefers-reduced-motion: reduce) {
