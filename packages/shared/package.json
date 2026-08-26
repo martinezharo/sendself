@@ -1,5 +1,5 @@
 {
-  "name": "@file-sharer/shared",
+  "name": "@sendself/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PRE_REBRAND_ID } from "../legacy";
 import { exportGroupKey, generateGroupKey, importGroupKey } from "./crypto";
 import {
   MAX_PBKDF2_ITERATIONS,
@@ -103,9 +104,9 @@ describe("seal / open", () => {
     // AAD is what stops a recovery file from being replayed as an at-rest
     // vault, and vice versa.
     const { vaultKey } = await keysFromPassphrase("pw", newSalt(), ROUNDS);
-    const blob = await seal(vaultKey, { a: 1 }, "file-sharer-vault:1");
+    const blob = await seal(vaultKey, { a: 1 }, "sendself-vault:1");
 
-    await expect(open(vaultKey, blob, "file-sharer-recovery:1")).rejects.toThrow();
+    await expect(open(vaultKey, blob, "sendself-recovery:1")).rejects.toThrow();
   });
 
   it("uses a fresh IV per call", async () => {
@@ -137,6 +138,21 @@ describe("sealVault / openVault", () => {
     // The point of storing raw bytes: they have to come back as a working key.
     const restored = await importGroupKey((opened as VaultSecrets).spaces[0]!.keyring.keys[0]![1]);
     expect(restored.type).toBe("secret");
+  });
+
+  it("opens vaults written before the SendSelf rebrand", async () => {
+    const salt = newSalt();
+    const { vaultKey } = await keysFromPassphrase("passphrase", salt, ROUNDS);
+    const original = await secrets();
+    const envelope = {
+      v: 2 as const,
+      method: "passphrase" as const,
+      salt,
+      iterations: ROUNDS,
+      sealed: await seal(vaultKey, original, `${PRE_REBRAND_ID}-vault:1`),
+    };
+
+    await expect(openVault(vaultKey, envelope)).resolves.toEqual(original);
   });
 
   it("leaves nothing readable in the envelope", async () => {

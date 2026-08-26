@@ -33,7 +33,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@file-sharer/shared':
+      '@sendself/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@fontsource-variable/bricolage-grotesque':
@@ -112,7 +112,7 @@ importers:
 
   apps/worker:
     dependencies:
-      '@file-sharer/shared':
+      '@sendself/shared':
         specifier: workspace:*
         version: link:../../packages/shared
     devDependencies:

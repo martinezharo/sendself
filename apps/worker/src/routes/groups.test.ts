@@ -1,5 +1,5 @@
 import { SELF, env } from "cloudflare:test";
-import type { CreateGroupRequest } from "@file-sharer/shared";
+import type { CreateGroupRequest } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../auth";
 import { errorCode, uid } from "../test/helpers";

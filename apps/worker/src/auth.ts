@@ -1,4 +1,4 @@
-import type { DeviceRole } from "@file-sharer/shared";
+import type { DeviceRole } from "@sendself/shared";
 import type { Env } from "./env";
 import { ApiError } from "./errors";
 

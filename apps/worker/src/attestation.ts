@@ -1,4 +1,4 @@
-import type { DeviceAttestation } from "@file-sharer/shared";
+import type { DeviceAttestation } from "@sendself/shared";
 import { ApiError } from "./errors";
 import { requireId, requireInt, requireString } from "./http";
 

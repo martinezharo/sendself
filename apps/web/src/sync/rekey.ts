@@ -17,7 +17,7 @@
  *    that device dies mid-flight, the next device to poll finishes the job.
  */
 
-import type { KeyWrap, PendingKeyDelivery, RotateKeyResponse } from "@file-sharer/shared";
+import type { KeyWrap, PendingKeyDelivery, RotateKeyResponse } from "@sendself/shared";
 import { ApiError, type Auth, api } from "../api/client";
 import {
   exportGroupKey,

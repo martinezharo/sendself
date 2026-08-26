@@ -5,7 +5,7 @@ import {
   REALTIME_POLL_INTERVAL_MS,
   deleteSignatureStatement,
   messageSignatureStatement,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { ApiError, type Auth, api } from "../api/client";
 import { decryptFile, decryptJson, decryptName, decryptText } from "../crypto/crypto";
 import {

@@ -14,7 +14,7 @@ import { withSecurityHeaders } from "./security";
 
 const router = new Router();
 
-const CANONICAL_HOST = "file-sharer.4oli.com";
+const CANONICAL_HOST = "sendself.4oli.com";
 
 router.post("/api/groups", createGroup);
 

@@ -12,7 +12,7 @@
  * flushes the outbox with it too.
  */
 
-import { INITIAL_KEY_EPOCH } from "@file-sharer/shared";
+import { INITIAL_KEY_EPOCH } from "@sendself/shared";
 import { META_GROUP_KEY, META_KEYRING, metaDelete, metaGet, metaSet } from "../db/store";
 
 export interface Keyring {

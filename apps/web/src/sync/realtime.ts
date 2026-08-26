@@ -18,7 +18,7 @@ import {
   REALTIME_PATH,
   REALTIME_PING_INTERVAL_MS,
   type RealtimeEvent,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import type { Auth } from "../api/client";
 
 /** Backoff bounds for reconnecting. Jittered, so devices don't retry in step. */

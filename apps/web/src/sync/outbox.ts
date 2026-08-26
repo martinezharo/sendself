@@ -17,7 +17,7 @@ import {
   type MessageSignatureFields,
   deleteSignatureStatement,
   messageSignatureStatement,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { ApiError, type Auth, NetworkError, api } from "../api/client";
 import {
   bufToBase64Url,
@@ -40,12 +40,12 @@ import {
 import type { LocalMessage, Session } from "../types";
 
 /** Background Sync tag registered by the page and handled by the SW. */
-export const OUTBOX_SYNC_TAG = "file-sharer-outbox";
+export const OUTBOX_SYNC_TAG = "sendself-outbox";
 /** Message used for an immediate SW handoff (also works without Background Sync). */
-export const OUTBOX_FLUSH_MESSAGE = "file-sharer-flush-outbox";
+export const OUTBOX_FLUSH_MESSAGE = "sendself-flush-outbox";
 
 /** Cross-context lock name serializing outbox flushes (page ↔ SW). */
-const OUTBOX_LOCK = "file-sharer-outbox";
+const OUTBOX_LOCK = "sendself-outbox";
 
 /** postMessage shape the SW broadcasts after persisting a message update. */
 export interface OutboxUpdateBroadcast {

@@ -73,7 +73,7 @@ vi.mock("../api/client", () => {
   };
 });
 
-import { deleteSignatureStatement, messageSignatureStatement } from "@file-sharer/shared";
+import { deleteSignatureStatement, messageSignatureStatement } from "@sendself/shared";
 import { flushQueuedOutbox } from "./outbox";
 
 function queuedFile(id: string, createdAt: number): LocalMessage {

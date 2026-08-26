@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import type { DeviceRole } from "@file-sharer/shared";
+import type { DeviceRole } from "@sendself/shared";
 import { sha256Hex } from "../auth";
 
 /**

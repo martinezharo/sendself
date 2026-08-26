@@ -1,4 +1,4 @@
-import type { SpaceNameRecord } from "@file-sharer/shared";
+import type { SpaceNameRecord } from "@sendself/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpaceRecord } from "../db/spaces";
 

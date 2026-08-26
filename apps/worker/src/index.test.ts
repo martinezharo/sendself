@@ -26,12 +26,12 @@ describe("fetch dispatch", () => {
   });
 
   it("redirects the www hostname to the canonical origin", async () => {
-    const response = await SELF.fetch("https://www.file-sharer.4oli.com/security/", {
+    const response = await SELF.fetch("https://www.sendself.4oli.com/security/", {
       redirect: "manual",
     });
 
     expect(response.status).toBe(308);
-    expect(response.headers.get("Location")).toBe("https://file-sharer.4oli.com/security/");
+    expect(response.headers.get("Location")).toBe("https://sendself.4oli.com/security/");
   });
 
   it("serves everything outside /api from the assets binding", async () => {
@@ -52,7 +52,7 @@ describe("fetch dispatch", () => {
   });
 
   it("keeps the public page on the prerendered marketing document", async () => {
-    const response = await SELF.fetch("https://file-sharer.4oli.com/");
+    const response = await SELF.fetch("https://sendself.4oli.com/");
 
     expect(await response.text()).toBe("static asset /");
   });

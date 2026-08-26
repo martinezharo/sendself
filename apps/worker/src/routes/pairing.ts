@@ -5,7 +5,7 @@ import type {
   PairingPollResponse,
   PairingRequestBody,
   PairingRequestResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { optionalAttestation } from "../attestation";
 import { authenticate, requireAdmin } from "../auth";
 import { ApiError, json } from "../errors";

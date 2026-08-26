@@ -59,8 +59,7 @@ export default defineConfig({
    * covers the test that was mid-request when it happened.
    */
   webServer: {
-    command:
-      "pnpm --filter @file-sharer/web build && pnpm --filter @file-sharer/worker run start:e2e",
+    command: "pnpm --filter @sendself/web build && pnpm --filter @sendself/worker run start:e2e",
     url: `http://localhost:${PORT}/app`,
     // Never reused: a server left over from a previous run would be serving the
     // previous build, and a suite that quietly tests yesterday's code is worse

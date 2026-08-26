@@ -1,20 +1,20 @@
 {
-  "name": "@file-sharer/worker",
+  "name": "@sendself/worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "pnpm db:migrate:local && wrangler dev",
-    "start:e2e": "wrangler d1 migrations apply file-sharer-db --local --persist-to ../../.e2e-state && sh -c 'while :; do wrangler dev --ip 127.0.0.1 --port 8788 --persist-to ../../.e2e-state; echo \"wrangler dev exited; restarting\"; sleep 1; done'",
+    "start:e2e": "wrangler d1 migrations apply sendself-db --local --persist-to ../../.e2e-state && sh -c 'while :; do wrangler dev --ip 127.0.0.1 --port 8788 --persist-to ../../.e2e-state; echo \"wrangler dev exited; restarting\"; sleep 1; done'",
     "deploy": "node ../../scripts/check-migrations.mts && pnpm db:migrate:remote && wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-    "db:migrate:local": "wrangler d1 migrations apply file-sharer-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply file-sharer-db --remote"
+    "db:migrate:local": "wrangler d1 migrations apply sendself-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply sendself-db --remote"
   },
   "dependencies": {
-    "@file-sharer/shared": "workspace:*"
+    "@sendself/shared": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.19.1",

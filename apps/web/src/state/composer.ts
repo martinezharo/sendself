@@ -10,7 +10,7 @@
  * not be reviewed at all.
  */
 
-import { MAX_FILE_SIZE } from "@file-sharer/shared";
+import { MAX_FILE_SIZE } from "@sendself/shared";
 import { signal } from "@preact/signals";
 import { randomId } from "../crypto/crypto";
 import { showToast } from "./ui";

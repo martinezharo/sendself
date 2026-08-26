@@ -1,4 +1,4 @@
--- file-sharer initial schema
+-- sendself initial schema
 -- The server only ever stores ciphertext, public keys and hashes.
 
 CREATE TABLE groups (

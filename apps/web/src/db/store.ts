@@ -1,5 +1,6 @@
 import { type DBSchema, type IDBPDatabase, deleteDB, openDB } from "idb";
 import type { LocalMessage } from "../types";
+import { PRE_REBRAND_ID } from "../legacy";
 import {
   type Sealed,
   fileContext,
@@ -29,7 +30,7 @@ interface StoredFile {
   mime?: string;
 }
 
-interface FileSharerDB extends DBSchema {
+interface SendSelfDB extends DBSchema {
   /** Key-value store for session, crypto keys, sync cursor, pending pairing. */
   meta: { key: string; value: unknown };
   messages: {
@@ -51,7 +52,9 @@ interface FileSharerDB extends DBSchema {
  * before spaces were plural keeps the original name (`LEGACY_SPACE_ID`) and is
  * adopted without migrating a byte.
  */
-const DB_NAME = "file-sharer";
+// IndexedDB names are persistent format identifiers. Renaming this would make
+// existing devices appear empty even though their keys and history still exist.
+const DB_NAME = PRE_REBRAND_ID;
 const DB_VERSION = 1;
 
 function dbName(spaceId: string): string {
@@ -88,7 +91,7 @@ export const META_RECOVERY_EPOCH = "recoveryExportEpoch";
 /** Ids deleted for everyone, so a late copy is dropped instead of reappearing (db/deletions.ts). */
 export const META_DELETED_MESSAGES = "deletedMessages";
 
-const handles = new Map<string, Promise<IDBPDatabase<FileSharerDB>>>();
+const handles = new Map<string, Promise<IDBPDatabase<SendSelfDB>>>();
 
 /**
  * The space the page is currently working in. Everything the UI, the sync loop
@@ -107,12 +110,12 @@ export function activeSpace(): string | null {
   return active;
 }
 
-function db(spaceId?: string): Promise<IDBPDatabase<FileSharerDB>> {
+function db(spaceId?: string): Promise<IDBPDatabase<SendSelfDB>> {
   const id = spaceId ?? active;
   if (!id) throw new Error("No space is open");
   let handle = handles.get(id);
   if (!handle) {
-    handle = openDB<FileSharerDB>(dbName(id), DB_VERSION, {
+    handle = openDB<SendSelfDB>(dbName(id), DB_VERSION, {
       upgrade(database) {
         database.createObjectStore("meta");
         const messages = database.createObjectStore("messages", { keyPath: "id" });

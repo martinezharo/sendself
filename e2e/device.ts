@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, type Page, chromium, test as base } from "@playwright/test";
+import { PRE_REBRAND_ID } from "../apps/web/src/legacy";
 
 /**
  * A device, as the app understands one.
@@ -172,9 +173,11 @@ export async function createSpace(page: Page, name: string, deviceName: string):
  * spoiled directly and the server is left to reject it for real.
  */
 export async function revokeCredentials(page: Page, spaceId: string): Promise<void> {
-  await page.evaluate(async (id) => {
+  // The database name is resolved here, in Node: `evaluate` runs in the page,
+  // where nothing this module imports exists.
+  await page.evaluate(async (name) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(`file-sharer:${id}`);
+      const request = indexedDB.open(name);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -190,12 +193,12 @@ export async function revokeCredentials(page: Page, spaceId: string): Promise<vo
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  }, spaceId);
+  }, `${PRE_REBRAND_ID}:${spaceId}`);
 }
 
 export const test = base.extend<{ device: Device }>({
   device: async ({ baseURL }, use) => {
-    const profile = await mkdtemp(join(tmpdir(), "file-sharer-e2e-"));
+    const profile = await mkdtemp(join(tmpdir(), "sendself-e2e-"));
     const device = new Device(profile, baseURL ?? "http://localhost:5174");
     await use(device);
     await device.dispose();

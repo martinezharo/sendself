@@ -68,7 +68,7 @@ function prerenderDocuments(html, { landing, appShell }) {
  */
 export function prerender() {
   return {
-    name: "file-sharer:prerender",
+    name: "sendself:prerender",
     apply: "build",
     closeBundle: {
       sequential: true,

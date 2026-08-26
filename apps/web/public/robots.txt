@@ -5,4 +5,4 @@ Disallow: /app
 Disallow: /share-target
 Disallow: /__shared/
 
-Sitemap: https://file-sharer.4oli.com/sitemap.xml
+Sitemap: https://sendself.4oli.com/sitemap.xml

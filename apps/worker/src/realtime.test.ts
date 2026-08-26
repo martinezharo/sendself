@@ -1,5 +1,5 @@
 import { SELF, env } from "cloudflare:test";
-import { REALTIME_AUTH_PROTOCOL_PREFIX, type RealtimeEvent } from "@file-sharer/shared";
+import { REALTIME_AUTH_PROTOCOL_PREFIX, type RealtimeEvent } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import type { SeededDevice } from "./test/helpers";
 import { authHeader, errorCode, seedDevice, seedMessage, seedSpace } from "./test/helpers";

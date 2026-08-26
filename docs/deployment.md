@@ -4,7 +4,7 @@ SendSelf deploys as one Cloudflare Worker. The Worker serves the built PWA and `
 
 ## How a release happens
 
-Pushing to `main` deploys. The repository is connected to Cloudflare Workers Builds, which on every push runs `pnpm run build` and then `pnpm --filter @file-sharer/worker run deploy`, and publishes the resulting version. There is no deploy step in GitHub Actions: `.github/workflows/ci.yml` only lints, typechecks, tests and builds.
+Pushing to `main` deploys. The repository is connected to Cloudflare Workers Builds, which on every push runs `pnpm run build` and then `pnpm --filter @sendself/worker run deploy`, and publishes the resulting version. There is no deploy step in GitHub Actions: `.github/workflows/ci.yml` only lints, typechecks, tests and builds.
 
 The migration guard and the schema update therefore live inside the Worker package's own `deploy` script rather than in a root release script. That is deliberate: it is the command Workers Builds runs, so the automated path and a manual one cannot diverge, and there is no longer a `wrangler deploy` shortcut that quietly skips migrations.
 
@@ -16,8 +16,8 @@ The names and bindings are declared in [`apps/worker/wrangler.jsonc`](../apps/wo
 
 | Resource | Binding | Current name/purpose |
 | --- | --- | --- |
-| D1 | `DB` | `file-sharer-db`, metadata and delivery state. |
-| R2 | `FILES` | `file-sharer-files`, encrypted file blobs. |
+| D1 | `DB` | `sendself-db`, metadata and delivery state. |
+| R2 | `FILES` | `sendself-files`, encrypted file blobs. |
 | Durable Object | `SPACE_HUB` | One `SpaceHub` instance per space for sync notifications. |
 | Rate limiters | `RL_PUBLIC`, `RL_WRITE`, `RL_UPLOAD` | Edge abuse protection; absent in local dev and Worker tests. |
 
@@ -28,9 +28,9 @@ The deployed Worker also runs an hourly cleanup trigger. The R2 lifecycle rule i
 Authenticate Wrangler with an account that can manage the Worker, D1, R2, Durable Objects, and rate-limit bindings. Then create or select the resources:
 
 ```bash
-pnpm --filter @file-sharer/worker exec wrangler d1 create file-sharer-db
-pnpm --filter @file-sharer/worker exec wrangler r2 bucket create file-sharer-files
-pnpm --filter @file-sharer/worker exec wrangler r2 bucket lifecycle add file-sharer-files expire-24h --expire-days 1
+pnpm --filter @sendself/worker exec wrangler d1 create sendself-db
+pnpm --filter @sendself/worker exec wrangler r2 bucket create sendself-files
+pnpm --filter @sendself/worker exec wrangler r2 bucket lifecycle add sendself-files expire-24h --expire-days 1
 ```
 
 Copy the D1 `database_id` printed by Wrangler into `apps/worker/wrangler.jsonc`. The id is an identifier, not a credential; account credentials and tokens must not be committed.
@@ -38,7 +38,7 @@ Copy the D1 `database_id` printed by Wrangler into `apps/worker/wrangler.jsonc`.
 Verify the lifecycle rule:
 
 ```bash
-pnpm --filter @file-sharer/worker exec wrangler r2 bucket lifecycle list file-sharer-files
+pnpm --filter @sendself/worker exec wrangler r2 bucket lifecycle list sendself-files
 ```
 
 Apply the remote schema when provisioning a new database:
@@ -53,8 +53,8 @@ Every deployment also applies pending remote migrations, so this is mainly a pro
 
 Whether it is triggered by a push or run by hand, the order is the same:
 
-1. `pnpm --filter @file-sharer/web build` renders the SSR bundle, then builds the PWA and its service worker, prerendering the public page (`index.html`) and the app shell (`app.html`) into `dist`. Workers Builds runs this as its build command.
-2. `pnpm --filter @file-sharer/worker run deploy` — its build command — then:
+1. `pnpm --filter @sendself/web build` renders the SSR bundle, then builds the PWA and its service worker, prerendering the public page (`index.html`) and the app shell (`app.html`) into `dist`. Workers Builds runs this as its build command.
+2. `pnpm --filter @sendself/worker run deploy` — its build command — then:
    1. `scripts/check-migrations.mts` inspects migrations that are still pending on remote D1;
    2. `pnpm db:migrate:remote` applies the accepted migrations;
    3. `wrangler deploy` publishes the Worker and its static assets.
@@ -95,7 +95,7 @@ After publishing:
 4. Check Cloudflare deployment/Worker logs for errors without logging or copying credentials or plaintext.
 5. Verify the R2 lifecycle configuration still exists.
 
-The public canonical hostname currently configured in the Worker is `file-sharer.4oli.com`; if the deployment target changes, update the Worker configuration and this verification step together.
+The public canonical hostname currently configured in the Worker is `sendself.4oli.com`; if the deployment target changes, update the Worker configuration and this verification step together.
 
 ## Rollback considerations
 

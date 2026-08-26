@@ -19,7 +19,7 @@ import {
   type SendMessageRequest,
   type UpdateSpaceNameRequest,
   type UpdateSpaceNameResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 
 const BASE = "/api";
 

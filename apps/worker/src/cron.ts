@@ -1,4 +1,4 @@
-import { MESSAGE_TTL_MS, PAIRING_TTL_MS } from "@file-sharer/shared";
+import { MESSAGE_TTL_MS, PAIRING_TTL_MS } from "@sendself/shared";
 import { purgeExpiredMessages } from "./db";
 import type { Env } from "./env";
 

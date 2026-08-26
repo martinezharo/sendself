@@ -4,7 +4,7 @@ import type {
   PendingKeyDelivery,
   RotateKeyRequest,
   RotateKeyResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { authenticate } from "../auth";
 import { activeDevices } from "../db";
 import { ApiError, json } from "../errors";

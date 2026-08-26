@@ -4,7 +4,7 @@ import type {
   PendingMessagesResponse,
   SendMessageRequest,
   SendMessageResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { authenticate } from "../auth";
 import { activeDeviceIds, deleteGroupMessage, deleteMessageById, fileStorageKey } from "../db";
 import { ApiError, json } from "../errors";

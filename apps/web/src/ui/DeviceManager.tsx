@@ -1,4 +1,4 @@
-import type { DeviceRole } from "@file-sharer/shared";
+import type { DeviceRole } from "@sendself/shared";
 import {
   AlertCircle,
   ClipboardPaste,

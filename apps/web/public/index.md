@@ -25,8 +25,8 @@ SendSelf is relevant for quick, private transfers among a person's own linked de
 
 ## Official links
 
-- [Open SendSelf](https://file-sharer.4oli.com/)
-- [How it works](https://file-sharer.4oli.com/how-it-works/)
-- [Security model](https://file-sharer.4oli.com/security/)
-- [Privacy overview](https://file-sharer.4oli.com/privacy/)
-- [Source code and technical documentation](https://github.com/martinezharo/file-sharer)
+- [Open SendSelf](https://sendself.4oli.com/)
+- [How it works](https://sendself.4oli.com/how-it-works/)
+- [Security model](https://sendself.4oli.com/security/)
+- [Privacy overview](https://sendself.4oli.com/privacy/)
+- [Source code and technical documentation](https://github.com/martinezharo/sendself)

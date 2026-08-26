@@ -20,6 +20,7 @@
 
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
 import { randomId } from "../crypto/crypto";
+import { PRE_REBRAND_ID } from "../legacy";
 import { type KeyChoice, type Sealed, openJson, sealJson } from "./atrest";
 
 /**
@@ -64,7 +65,7 @@ interface RegistryDB extends DBSchema {
   meta: { key: string; value: unknown };
 }
 
-const REGISTRY_DB_NAME = "file-sharer-registry";
+const REGISTRY_DB_NAME = `${PRE_REBRAND_ID}-registry`;
 const REGISTRY_DB_VERSION = 1;
 
 /**

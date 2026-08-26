@@ -1,4 +1,4 @@
-import { MAX_UPLOAD_SIZE } from "@file-sharer/shared";
+import { MAX_UPLOAD_SIZE } from "@sendself/shared";
 import { authenticate } from "../auth";
 import { fileStorageKey } from "../db";
 import { ApiError } from "../errors";

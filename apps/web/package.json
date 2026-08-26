@@ -1,5 +1,5 @@
 {
-  "name": "@file-sharer/web",
+  "name": "@sendself/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@file-sharer/shared": "workspace:*",
+    "@sendself/shared": "workspace:*",
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",
     "@fontsource-variable/hanken-grotesk": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

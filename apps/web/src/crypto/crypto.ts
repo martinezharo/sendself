@@ -20,7 +20,7 @@
  * requests carry a bearer token; only its hash is stored server-side.
  */
 
-import type { PairingPayload } from "@file-sharer/shared";
+import type { PairingPayload } from "@sendself/shared";
 
 const AES = "AES-GCM";
 const EC = "ECDH";
@@ -203,7 +203,7 @@ export function importSigningPublicKey(spki: string): Promise<CryptoKey> {
   );
 }
 
-/** Sign a canonical statement string (see @file-sharer/shared). */
+/** Sign a canonical statement string (see @sendself/shared). */
 export async function signStatement(privateKey: CryptoKey, statement: string): Promise<string> {
   const signature = await crypto.subtle.sign(
     { name: SIG, hash: SIG_HASH },

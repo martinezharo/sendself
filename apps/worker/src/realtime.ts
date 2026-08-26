@@ -1,4 +1,4 @@
-import { REALTIME_AUTH_PROTOCOL_PREFIX, type RealtimeEvent } from "@file-sharer/shared";
+import { REALTIME_AUTH_PROTOCOL_PREFIX, type RealtimeEvent } from "@sendself/shared";
 import { type AuthContext, authenticate } from "./auth";
 import type { Env } from "./env";
 import { ApiError } from "./errors";

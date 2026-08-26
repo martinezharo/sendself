@@ -18,7 +18,7 @@
  * own name forever.
  */
 
-import type { SpaceNameRecord } from "@file-sharer/shared";
+import type { SpaceNameRecord } from "@sendself/shared";
 import { api } from "../api/client";
 import { decryptText, encryptText } from "../crypto/crypto";
 import { type Keyring, currentKey, keyForEpoch } from "../crypto/keyring";

@@ -7,7 +7,7 @@ import type {
   RevokeDeviceResponse,
   UpdateDeviceRoleRequest,
   UpdateDeviceRoleResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { parseAttestation } from "../attestation";
 import { authenticate, requireAdmin, requireOwner } from "../auth";
 import { purgeDeliveredMessages } from "../db";

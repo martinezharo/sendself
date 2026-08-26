@@ -23,8 +23,9 @@
  * flags a stale one (`META_RECOVERY_EPOCH`).
  */
 
-import { INITIAL_KEY_EPOCH } from "@file-sharer/shared";
+import { INITIAL_KEY_EPOCH } from "@sendself/shared";
 import { startSession } from "./actions";
+import { PRE_REBRAND_ID } from "./legacy";
 import {
   importDeviceKeyPair,
   importGroupKey,
@@ -51,7 +52,10 @@ import { activeSpace, beginSpace, forgetSpace } from "./state/spaces";
 import type { Session } from "./types";
 
 /** Bound as AAD, so a blob cannot be replayed as an at-rest vault or vice versa. */
-const RECOVERY_AAD = "file-sharer-recovery:1";
+const RECOVERY_AAD = "sendself-recovery:1";
+const LEGACY_RECOVERY_AAD = `${PRE_REBRAND_ID}-recovery:1`;
+const RECOVERY_KIND = "sendself-recovery" as const;
+const LEGACY_RECOVERY_KIND = `${PRE_REBRAND_ID}-recovery`;
 
 /**
  * Crockford-style alphabet: no I, L, O or U, so nothing in a handwritten code
@@ -62,7 +66,7 @@ const CODE_CHARS = 32;
 const CODE_GROUP = 4;
 
 export interface RecoveryFile {
-  kind: "file-sharer-recovery";
+  kind: typeof RECOVERY_KIND | typeof LEGACY_RECOVERY_KIND;
   v: 1;
   createdAt: number;
   /** Epoch the space was at when this was written; a restore below it is stale. */
@@ -154,7 +158,7 @@ export async function createRecoveryFile(): Promise<{ file: RecoveryFile; code: 
   };
 
   const file: RecoveryFile = {
-    kind: "file-sharer-recovery",
+    kind: RECOVERY_KIND,
     v: 1,
     createdAt: Date.now(),
     keyEpoch: secrets.keyring.current,
@@ -170,7 +174,7 @@ export async function createRecoveryFile(): Promise<{ file: RecoveryFile; code: 
 /** Suggested file name: dated, and obvious about what it is. */
 export function recoveryFileName(file: RecoveryFile): string {
   const date = new Date(file.createdAt).toISOString().slice(0, 10);
-  return `sendsel-recovery-${date}.json`;
+  return `sendself-recovery-${date}.json`;
 }
 
 export function parseRecoveryFile(text: string): RecoveryFile {
@@ -182,7 +186,7 @@ export function parseRecoveryFile(text: string): RecoveryFile {
   }
   const file = parsed as Partial<RecoveryFile>;
   if (
-    file?.kind !== "file-sharer-recovery" ||
+    (file?.kind !== RECOVERY_KIND && file?.kind !== LEGACY_RECOVERY_KIND) ||
     file.v === undefined ||
     typeof file.createdAt !== "number" ||
     !Number.isSafeInteger(file.createdAt) ||
@@ -229,7 +233,8 @@ export async function restoreFromRecoveryFile(text: string, code: string): Promi
 
   let payload: RecoveryPayload;
   try {
-    payload = await open<RecoveryPayload>(vaultKey, file.sealed, RECOVERY_AAD);
+    const context = file.kind === LEGACY_RECOVERY_KIND ? LEGACY_RECOVERY_AAD : RECOVERY_AAD;
+    payload = await open<RecoveryPayload>(vaultKey, file.sealed, context);
   } catch {
     throw new WrongRecoveryCodeError();
   }

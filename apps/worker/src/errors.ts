@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ApiErrorCode } from "@file-sharer/shared";
+import type { ApiErrorBody, ApiErrorCode } from "@sendself/shared";
 
 const STATUS: Record<ApiErrorCode, number> = {
   bad_request: 400,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PRE_REBRAND_ID } from "./legacy";
 import {
   BadRecoveryFileError,
   generateRecoveryCode,
@@ -53,7 +54,7 @@ describe("normalizeRecoveryCode", () => {
 
 describe("parseRecoveryFile", () => {
   const base = {
-    kind: "file-sharer-recovery",
+    kind: "sendself-recovery",
     v: 1,
     createdAt: 1_700_000_000_000,
     keyEpoch: 1,
@@ -70,5 +71,11 @@ describe("parseRecoveryFile", () => {
 
   it("accepts a structurally valid file", () => {
     expect(parseRecoveryFile(JSON.stringify(base))).toMatchObject(base);
+  });
+
+  it("accepts recovery files written before the SendSelf rebrand", () => {
+    const legacy = { ...base, kind: `${PRE_REBRAND_ID}-recovery` };
+
+    expect(parseRecoveryFile(JSON.stringify(legacy))).toMatchObject(legacy);
   });
 });

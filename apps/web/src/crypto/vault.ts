@@ -22,6 +22,7 @@
  */
 
 import type { Session } from "../types";
+import { PRE_REBRAND_ID } from "../legacy";
 import { type SerializedKeyPair, base64UrlToBuf, bufToBase64Url, randomBytes } from "./crypto";
 
 const AES = "AES-GCM";
@@ -125,7 +126,8 @@ export type StoredVaultSecrets = VaultSecrets | VaultSecretsV1;
  * anyone who could swap it for another would need that other one's secret to
  * open it anyway.
  */
-const VAULT_AAD = "file-sharer-vault:1";
+const VAULT_AAD = "sendself-vault:1";
+const LEGACY_VAULT_AAD = `${PRE_REBRAND_ID}-vault:1`;
 
 function aad(context: string): Uint8Array<ArrayBuffer> {
   const encoded = new TextEncoder().encode(context);
@@ -248,8 +250,15 @@ export async function sealVault(
  * verifier stored anywhere that an attacker could test guesses against offline
  * any faster than by attempting the decryption itself.
  */
-export function openVault(key: CryptoKey, envelope: VaultEnvelope): Promise<StoredVaultSecrets> {
-  return open<StoredVaultSecrets>(key, envelope.sealed, VAULT_AAD);
+export async function openVault(
+  key: CryptoKey,
+  envelope: VaultEnvelope,
+): Promise<StoredVaultSecrets> {
+  try {
+    return await open<StoredVaultSecrets>(key, envelope.sealed, VAULT_AAD);
+  } catch {
+    return open<StoredVaultSecrets>(key, envelope.sealed, LEGACY_VAULT_AAD);
+  }
 }
 
 /**

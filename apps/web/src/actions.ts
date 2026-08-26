@@ -4,7 +4,7 @@ import {
   INITIAL_KEY_EPOCH,
   MAX_FILE_SIZE,
   type PairingQrPayload,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { signal } from "@preact/signals";
 import { NetworkError, api } from "./api/client";
 import {

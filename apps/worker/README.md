@@ -1,4 +1,4 @@
-# @file-sharer/worker
+# @sendself/worker
 
 The Worker serves the PWA and `/api/*` from one Cloudflare Worker. It uses D1 for metadata and delivery state, R2 for encrypted file blobs, an hourly cleanup trigger, and one hibernating `SpaceHub` Durable Object per space.
 
@@ -13,12 +13,12 @@ The repository-level documentation is the canonical reference:
 ## Package commands
 
 ```bash
-pnpm --filter @file-sharer/worker dev
-pnpm --filter @file-sharer/worker test
-pnpm --filter @file-sharer/worker typecheck
-pnpm --filter @file-sharer/worker cf-typegen
-pnpm --filter @file-sharer/worker db:migrate:local
-pnpm --filter @file-sharer/worker db:migrate:remote
+pnpm --filter @sendself/worker dev
+pnpm --filter @sendself/worker test
+pnpm --filter @sendself/worker typecheck
+pnpm --filter @sendself/worker cf-typegen
+pnpm --filter @sendself/worker db:migrate:local
+pnpm --filter @sendself/worker db:migrate:remote
 ```
 
 `dev` applies pending local migrations before starting Wrangler. Use the root `pnpm dev` command when you also want the Vite PWA.

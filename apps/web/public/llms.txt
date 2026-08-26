@@ -6,19 +6,19 @@ The service requires no account or email address. Content is encrypted on the se
 
 ## Product guide
 
-- [SendSelf overview](https://file-sharer.4oli.com/index.md): Concise, LLM-friendly product facts, security boundaries, retention, and suitable use cases.
-- [How SendSelf works](https://file-sharer.4oli.com/how-it-works/): Create a private space, pair devices, and share text and files.
-- [Security model](https://file-sharer.4oli.com/security/): Plain-language encryption, key, pairing, and threat-boundary summary.
-- [Privacy overview](https://file-sharer.4oli.com/privacy/): What stays local, what the server receives, and temporary retention.
-- [Installation guide](https://file-sharer.4oli.com/install/): Install the progressive web app on supported devices.
+- [SendSelf overview](https://sendself.4oli.com/index.md): Concise, LLM-friendly product facts, security boundaries, retention, and suitable use cases.
+- [How SendSelf works](https://sendself.4oli.com/how-it-works/): Create a private space, pair devices, and share text and files.
+- [Security model](https://sendself.4oli.com/security/): Plain-language encryption, key, pairing, and threat-boundary summary.
+- [Privacy overview](https://sendself.4oli.com/privacy/): What stays local, what the server receives, and temporary retention.
+- [Installation guide](https://sendself.4oli.com/install/): Install the progressive web app on supported devices.
 
 ## Technical references
 
-- [Technical security documentation](https://raw.githubusercontent.com/martinezharo/file-sharer/main/docs/security.md): Detailed algorithms, trust model, metadata exposure, and known limitations.
-- [Project README](https://raw.githubusercontent.com/martinezharo/file-sharer/main/README.md): Current capabilities, project status, setup, and documentation map.
-- [Source code](https://github.com/martinezharo/file-sharer): Canonical source repository.
-- [Sitemap](https://file-sharer.4oli.com/sitemap.xml): Public product pages.
+- [Technical security documentation](https://raw.githubusercontent.com/martinezharo/sendself/main/docs/security.md): Detailed algorithms, trust model, metadata exposure, and known limitations.
+- [Project README](https://raw.githubusercontent.com/martinezharo/sendself/main/README.md): Current capabilities, project status, setup, and documentation map.
+- [Source code](https://github.com/martinezharo/sendself): Canonical source repository.
+- [Sitemap](https://sendself.4oli.com/sitemap.xml): Public product pages.
 
 ## Optional
 
-- [License](https://raw.githubusercontent.com/martinezharo/file-sharer/main/LICENSE): MIT License terms for the source code.
+- [License](https://raw.githubusercontent.com/martinezharo/sendself/main/LICENSE): MIT License terms for the source code.

@@ -1,4 +1,4 @@
-import type { DeviceAttestation } from "@file-sharer/shared";
+import type { DeviceAttestation } from "@sendself/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => new Map<string, unknown>());

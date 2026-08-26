@@ -4,7 +4,7 @@ import type {
   PairingCompleteBody,
   PairingPollResponse,
   RotateKeyRequest,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../auth";
 import type { SeededDevice } from "../test/helpers";

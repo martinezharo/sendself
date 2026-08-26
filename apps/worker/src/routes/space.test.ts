@@ -1,5 +1,5 @@
 import { SELF, env } from "cloudflare:test";
-import type { PendingMessagesResponse, UpdateSpaceNameRequest } from "@file-sharer/shared";
+import type { PendingMessagesResponse, UpdateSpaceNameRequest } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedSpace } from "../test/helpers";

@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ApiErrorCode } from "@file-sharer/shared";
+import type { ApiErrorBody, ApiErrorCode } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { ApiError, json } from "./errors";
 

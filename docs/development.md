@@ -26,8 +26,8 @@ The Worker package applies pending local D1 migrations before starting Wrangler.
 To run one side directly:
 
 ```bash
-pnpm --filter @file-sharer/worker dev
-pnpm --filter @file-sharer/web dev
+pnpm --filter @sendself/worker dev
+pnpm --filter @sendself/web dev
 ```
 
 ## Secure contexts
@@ -40,9 +40,9 @@ Without Tailscale nothing changes: the server falls back to plain HTTP, where `h
 
 | Variable | Effect |
 | --- | --- |
-| `FILE_SHARER_DEV_HTTPS=0` | Forces plain HTTP. |
-| `FILE_SHARER_DEV_HOST` / `--host` | Binds elsewhere; HTTPS stays on only if the value is this machine's tailnet name or address. |
-| `FILE_SHARER_WORKER_URL` | Overrides the Worker the `/api` proxy forwards to. |
+| `SENDSELF_DEV_HTTPS=0` | Forces plain HTTP. |
+| `SENDSELF_DEV_HOST` / `--host` | Binds elsewhere; HTTPS stays on only if the value is this machine's tailnet name or address. |
+| `SENDSELF_WORKER_URL` | Overrides the Worker the `/api` proxy forwards to. |
 
 If the app reports that Web Crypto is unavailable, check the origin before changing application code.
 
@@ -51,7 +51,7 @@ If the app reports that Web Crypto is unavailable, check the origin before chang
 | Command | Purpose |
 | --- | --- |
 | `pnpm test` | Runs the package test suites. |
-| `pnpm --filter @file-sharer/worker test` | Runs Worker tests only. |
+| `pnpm --filter @sendself/worker test` | Runs Worker tests only. |
 | `pnpm test:e2e` | Builds the PWA and runs Playwright against a real Worker and browser. |
 | `pnpm test:e2e:ui` | Opens Playwright's interactive UI. |
 | `pnpm typecheck` | Type-checks the workspace and E2E code. |

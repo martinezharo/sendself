@@ -2,7 +2,7 @@ import type {
   SpaceNameRecord,
   UpdateSpaceNameRequest,
   UpdateSpaceNameResponse,
-} from "@file-sharer/shared";
+} from "@sendself/shared";
 import { authenticate } from "../auth";
 import { ApiError, json } from "../errors";
 import { optionalString, readJsonObject, requireInt } from "../http";

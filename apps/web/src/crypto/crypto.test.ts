@@ -1,4 +1,4 @@
-import { INITIAL_KEY_EPOCH, type PairingPayload } from "@file-sharer/shared";
+import { INITIAL_KEY_EPOCH, type PairingPayload } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import {
   base64UrlToBuf,

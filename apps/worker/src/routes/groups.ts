@@ -1,4 +1,4 @@
-import type { CreateGroupRequest, CreateGroupResponse } from "@file-sharer/shared";
+import type { CreateGroupRequest, CreateGroupResponse } from "@sendself/shared";
 import { optionalAttestation } from "../attestation";
 import { ApiError, json } from "../errors";
 import {

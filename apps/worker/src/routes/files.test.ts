@@ -1,5 +1,5 @@
 import { SELF, env } from "cloudflare:test";
-import { MAX_UPLOAD_SIZE } from "@file-sharer/shared";
+import { MAX_UPLOAD_SIZE } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { fileStorageKey } from "../db";
 import type { SeededDevice } from "../test/helpers";

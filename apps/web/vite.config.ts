@@ -15,23 +15,23 @@ function cliValue(flag: string): string | undefined {
 // `pnpm dev --host <ip>` forwards the host to Vite and Wrangler. Keep the API
 // proxy on the same interface so a remote VPS development session does not
 // accidentally point at the browser's own localhost.
-const requestedHost = process.env.FILE_SHARER_DEV_HOST ?? cliValue("--host");
+const requestedHost = process.env.SENDSELF_DEV_HOST ?? cliValue("--host");
 const remoteHost =
   requestedHost && !["localhost", "127.0.0.1", "::1", "0.0.0.0"].includes(requestedHost)
     ? requestedHost
     : undefined;
 const workerTarget =
-  process.env.FILE_SHARER_WORKER_URL ??
+  process.env.SENDSELF_WORKER_URL ??
   (remoteHost ? `http://${remoteHost}:8787` : "http://localhost:8787");
 
 // Serving the dev app over HTTPS is not a nicety: Web Crypto, service workers
 // and the camera are secure-context features, so on any address other than
 // localhost an http:// URL loads the app and then breaks it. When this machine
 // is on a tailnet we serve a Tailscale-issued certificate on its tailnet name,
-// which every other device already trusts. `FILE_SHARER_DEV_HTTPS=0` opts out;
+// which every other device already trusts. `SENDSELF_DEV_HTTPS=0` opts out;
 // so does an explicit `--host` that is not this machine's tailnet address.
 function secureDevServer(command: string) {
-  if (command !== "serve" || process.env.VITEST || process.env.FILE_SHARER_DEV_HTTPS === "0") {
+  if (command !== "serve" || process.env.VITEST || process.env.SENDSELF_DEV_HTTPS === "0") {
     return null;
   }
   const tailnet = tailnetDevServer();

@@ -1,8 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "file-sharer",
+  "name": "sendself",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-24",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "sendself.4oli.com", "custom_domain": true }],
 
   // Serve the built PWA (apps/web) and the API from the same Worker/origin.
   // Worker-first lets the security headers and HTTP->HTTPS redirect apply to
@@ -19,15 +22,15 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "file-sharer-db",
-      // Replace with the id printed by `wrangler d1 create file-sharer-db`.
+      "database_name": "sendself-db",
+      // Replace with the id printed by `wrangler d1 create sendself-db`.
       // A placeholder is fine for local dev (`--local`).
-      "database_id": "05e8acfd-585f-491e-a6e2-355cb5b10927",
+      "database_id": "3e551e6b-a78f-42e3-849b-583fe10df0d4",
       "migrations_dir": "migrations"
     }
   ],
 
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "file-sharer-files" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "sendself-files" }],
 
   // One Durable Object per space, holding the devices' WebSockets and fanning
   // out delivery notifications. It stores nothing: the hibernation API keeps an

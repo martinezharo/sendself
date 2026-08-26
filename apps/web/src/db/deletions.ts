@@ -19,7 +19,7 @@
  * and remembering the id buys nothing.
  */
 
-import { MESSAGE_TTL_MS } from "@file-sharer/shared";
+import { MESSAGE_TTL_MS } from "@sendself/shared";
 import { META_DELETED_MESSAGES, metaGet, metaSet } from "./store";
 
 /** messageId → when it was deleted (epoch ms). */

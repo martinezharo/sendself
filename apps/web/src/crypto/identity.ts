@@ -27,8 +27,8 @@
  * the GroupKey for whoever swapped a key underneath us.
  */
 
-import type { DeviceAttestation, DeviceKeyBundle } from "@file-sharer/shared";
-import { attestationStatement } from "@file-sharer/shared";
+import type { DeviceAttestation, DeviceKeyBundle } from "@sendself/shared";
+import { attestationStatement } from "@sendself/shared";
 import { signal } from "@preact/signals";
 import { META_DEVICE_IDENTITIES, META_DEVICE_PINS, metaGet, metaSet } from "../db/store";
 import { importSigningPublicKey, signStatement, verifyStatement } from "./crypto";

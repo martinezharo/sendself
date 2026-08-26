@@ -1,5 +1,5 @@
 import { SELF, env } from "cloudflare:test";
-import type { KeyWrap, PendingMessagesResponse, RotateKeyRequest } from "@file-sharer/shared";
+import type { KeyWrap, PendingMessagesResponse, RotateKeyRequest } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedSpace } from "../test/helpers";

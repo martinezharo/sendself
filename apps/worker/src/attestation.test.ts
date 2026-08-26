@@ -1,4 +1,4 @@
-import type { DeviceAttestation } from "@file-sharer/shared";
+import type { DeviceAttestation } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { optionalAttestation, parseAttestation } from "./attestation";
 
