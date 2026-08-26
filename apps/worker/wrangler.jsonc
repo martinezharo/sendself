@@ -7,6 +7,11 @@
   "preview_urls": false,
   "routes": [{ "pattern": "sendself.4oli.com", "custom_domain": true }],
 
+  // Local development answers on localhost. Without this, Wrangler forwards the
+  // dev server under the hostname of the first route, so the Worker sees the
+  // production host over HTTP and redirects every local request to HTTPS.
+  "dev": { "host": "localhost" },
+
   // Serve the built PWA (apps/web) and the API from the same Worker/origin.
   // Worker-first lets the security headers and HTTP->HTTPS redirect apply to
   // static assets too. Known public directories contain their own index.html;
