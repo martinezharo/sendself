@@ -172,6 +172,11 @@ export function Logo({ size = "md" }: { size?: "md" | "lg" }): JSX.Element {
 
 /* --------------------------------------------------------------------------
    Spinner
+
+   Coloured by `currentColor` (see `.spinner`), so it is legible on whatever it
+   is placed on — inside a primary button it comes out in `text-on-accent`
+   rather than in the accent the button is already painted with. A placement
+   that wants the brand colour sets `text-accent` on it.
    ------------------------------------------------------------------------ */
 export function Spinner({
   large = false,
@@ -201,7 +206,7 @@ export function Spinner({
 export function Loading(): JSX.Element {
   return (
     <div class="bg-grad grid h-full place-items-center">
-      <Spinner large />
+      <Spinner large class="text-accent" />
     </div>
   );
 }
