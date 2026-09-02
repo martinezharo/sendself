@@ -984,12 +984,17 @@
     }
   }
 
+  /* The ring is drawn in `currentColor`, not in the accent: a spinner sits
+     inside whatever called for it, and an accent ring on an accent surface —
+     every `Button variant="primary"` in a busy state — was an invisible
+     loader. Inheriting the text colour is right everywhere by construction;
+     the two screens that want the brand colour ask for it with `text-accent`. */
   .spinner {
     display: inline-block;
     width: 16px;
     height: 16px;
-    border: 2px solid color-mix(in srgb, var(--c-accent) 35%, transparent);
-    border-top-color: var(--c-accent);
+    border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-top-color: currentColor;
     border-radius: 50%;
     animation: var(--animate-spin-fast);
     vertical-align: middle;
