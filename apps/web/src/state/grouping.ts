@@ -1,5 +1,9 @@
 /**
- * Turn the flat message list into what the chat draws.
+ * Turn what the app stores into what the chat draws.
+ *
+ * Two streams reach this module, and neither arrives in the shape it is drawn
+ * in: the messages, and the space's own notices (state/events.ts). What comes
+ * out is one ordered list of entries — the thread.
  *
  * Files picked together travel as separate messages — that is what keeps each
  * upload independently resumable — so putting them back together is the
@@ -10,6 +14,10 @@
  * thread. If another device's message lands in the middle of a batch (the
  * batch is several sends, and their `createdAt` comes from the server), the
  * album splits around it rather than swallowing it or jumping over it.
+ *
+ * Notices are merged in afterwards rather than grouped alongside, for the same
+ * reason: a device joining while a batch uploads says nothing about those
+ * files, so it must never be the thing that splits them.
  */
 
 import type { LocalEvent, LocalMessage } from "../types";
