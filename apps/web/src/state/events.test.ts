@@ -179,3 +179,22 @@ describe("space notices", () => {
     ]);
   });
 });
+
+describe("the event store", () => {
+  it("keeps one row when the same observation is written twice at once", async () => {
+    // Two roster reads can be in flight together, and both would pass a check
+    // that has to await its own answer.
+    const store = await import("../db/store");
+    const event = {
+      id: "added:device-b:key-b",
+      kind: "device-added" as const,
+      createdAt: 1,
+      deviceId: "device-b",
+    };
+
+    const written = await Promise.all([store.putEvent(event), store.putEvent(event)]);
+
+    expect(written.filter(Boolean)).toHaveLength(1);
+    expect(await store.allEvents()).toHaveLength(1);
+  });
+});

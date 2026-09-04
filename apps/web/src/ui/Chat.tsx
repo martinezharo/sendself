@@ -107,12 +107,16 @@ export function Chat(): JSX.Element {
   const hasScrolledRef = useRef(false);
 
   useEffect(() => {
-    // Open the chat already at the bottom; only animate for messages that
-    // arrive afterwards. The list starts empty and fills in async from
-    // IndexedDB, so "opened" means the first render that had messages.
+    // Open the chat already at the bottom; only animate for what arrives
+    // afterwards. The thread starts empty and fills in async from IndexedDB,
+    // so "opened" means the first render that had anything in it.
+    //
+    // Counted in entries rather than messages: a device joining while the chat
+    // is open adds a notice and no message, and a notice that lands below the
+    // fold is one nobody reads.
     bottomRef.current?.scrollIntoView({ behavior: hasScrolledRef.current ? "smooth" : "auto" });
-    if (list.length > 0) hasScrolledRef.current = true;
-  }, [list.length]);
+    if (entries.length > 0) hasScrolledRef.current = true;
+  }, [entries.length]);
 
   useEffect(() => {
     if (!currentSession) return;

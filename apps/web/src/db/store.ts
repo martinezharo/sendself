@@ -267,21 +267,31 @@ export async function deleteMessage(id: string, spaceId?: string): Promise<void>
 // --- events ---
 
 /**
- * Write an event, keeping the first observation.
+ * Write an event, keeping the first observation. True when this call is the one
+ * that wrote it.
  *
  * Ids are deterministic, so the same change seen twice (two tabs, three call
  * sites reading the same roster) is one row — and the timestamp that survives
  * is the earliest, which is when this device actually learned of it.
+ *
+ * `add` rather than a read followed by a write: the two roster readers can be
+ * in flight at the same moment, and a check that has to await its answer lets
+ * both of them conclude they are first. The store's own uniqueness constraint
+ * cannot be raced, so exactly one caller is told it wrote the row — which is
+ * what keeps the notice out of the thread twice.
  */
 export async function putEvent(event: LocalEvent, spaceId?: string): Promise<boolean> {
-  const database = await db(spaceId);
-  if (await database.get("events", event.id)) return false;
   const sealed = await sealJson(event, eventContext(event.id));
-  await database.put(
-    "events",
-    sealed ? { id: event.id, createdAt: event.createdAt, sealed } : event,
-  );
-  return true;
+  try {
+    await (await db(spaceId)).add(
+      "events",
+      sealed ? { id: event.id, createdAt: event.createdAt, sealed } : event,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "ConstraintError") return false;
+    throw error;
+  }
 }
 
 /** Every event, oldest first. Empty while locked, like `allMessages`. */
