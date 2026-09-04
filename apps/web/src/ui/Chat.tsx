@@ -5,11 +5,14 @@ import {
   CircleDashed,
   Clock,
   Download,
+  KeyRound,
   Lock,
   MoreVertical,
   Paperclip,
   RotateCw,
   ShieldAlert,
+  UserMinus,
+  UserPlus,
   X,
 } from "lucide-preact";
 import type { JSX } from "preact";
@@ -31,11 +34,13 @@ import {
   unstageFile,
   viewOnceArmed,
 } from "../state/composer";
-import { type AlbumEntry, albumCaption, groupMessages } from "../state/grouping";
+import { spaceEvents } from "../state/events";
+import { type AlbumEntry, albumCaption, chatEntries } from "../state/grouping";
 import { visibleMessages } from "../state/messages";
+import { showSpaceSection } from "../state/route";
 import { session } from "../state/session";
 import { syncNow } from "../sync/sync";
-import type { FileRef, LocalMessage, MessageStatus } from "../types";
+import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
 import {
@@ -91,8 +96,9 @@ function countIncomingDownloads(list: LocalMessage[]): number {
 export function Chat(): JSX.Element {
   const list = visibleMessages.value;
   // Files picked together arrive as separate messages; the chat puts them back
-  // together (see state/grouping.ts).
-  const entries = groupMessages(list);
+  // together, and space notices are merged into the same thread by time (see
+  // state/grouping.ts).
+  const entries = chatEntries(list, spaceEvents.value);
   const downloading = countIncomingDownloads(list);
   const currentSession = session.value;
   const myId = currentSession?.deviceId;
@@ -101,12 +107,16 @@ export function Chat(): JSX.Element {
   const hasScrolledRef = useRef(false);
 
   useEffect(() => {
-    // Open the chat already at the bottom; only animate for messages that
-    // arrive afterwards. The list starts empty and fills in async from
-    // IndexedDB, so "opened" means the first render that had messages.
+    // Open the chat already at the bottom; only animate for what arrives
+    // afterwards. The thread starts empty and fills in async from IndexedDB,
+    // so "opened" means the first render that had anything in it.
+    //
+    // Counted in entries rather than messages: a device joining while the chat
+    // is open adds a notice and no message, and a notice that lands below the
+    // fold is one nobody reads.
     bottomRef.current?.scrollIntoView({ behavior: hasScrolledRef.current ? "smooth" : "auto" });
-    if (list.length > 0) hasScrolledRef.current = true;
-  }, [list.length]);
+    if (entries.length > 0) hasScrolledRef.current = true;
+  }, [entries.length]);
 
   useEffect(() => {
     if (!currentSession) return;
@@ -145,12 +155,21 @@ export function Chat(): JSX.Element {
             the top of an empty column — the thread grows upwards, like every
             other messaging app. */}
         <div class="mx-auto flex min-h-full w-full max-w-[760px] flex-col justify-end gap-[3px]">
-          {list.length === 0 && <EmptyState />}
+          {entries.length === 0 && <EmptyState />}
           {entries.map((entry, index) => {
+            if (entry.kind === "notice") {
+              return (
+                <SpaceNotice
+                  key={entry.key}
+                  event={entry.event}
+                  mine={entry.event.deviceId === myId}
+                />
+              );
+            }
             const first = entry.kind === "album" ? entry.messages[0]! : entry.message;
             const previous = entries[index - 1];
             const previousSender =
-              previous === undefined
+              previous === undefined || previous.kind === "notice"
                 ? undefined
                 : previous.kind === "album"
                   ? previous.messages[0]?.senderDeviceId
@@ -190,6 +209,115 @@ function EmptyState(): JSX.Element {
         Messages and files you send are encrypted on this device and synced only across your own
         linked devices.
       </p>
+    </div>
+  );
+}
+
+/**
+ * How sure this device is about the keys of a device that joined.
+ *
+ * Only two answers matter to someone reading the thread — "its keys reached me
+ * through a channel the server is not part of" or "I am taking the server's
+ * word for it" — so four levels of provenance collapse into two, with the
+ * strongest one naming how it was earned.
+ */
+function trustNote(trust: LocalEvent["trust"]): { label: string; verified: boolean } | null {
+  switch (trust) {
+    case "scanned":
+      return { label: "verified by QR", verified: true };
+    case "attested":
+    case "inherited":
+      return { label: "verified", verified: true };
+    case "tofu":
+      return { label: "not verified", verified: false };
+    default:
+      return null;
+  }
+}
+
+/**
+ * A space notice: what happened to the space, drawn in the thread it happened
+ * in.
+ *
+ * Centred, unbubbled and without a timestamp — its place in the thread already
+ * says when. Breaking the left/right rhythm is the point: these are not
+ * messages, and they should never read as one.
+ */
+function SpaceNotice({ event, mine }: { event: LocalEvent; mine: boolean }): JSX.Element {
+  const name = <b class="font-semibold text-ink">{event.deviceName ?? event.deviceId}</b>;
+
+  if (event.kind === "device-key-changed") {
+    // The one notice that is not just history: a device's identity key
+    // changing is either a re-pairing the user knows about or someone standing
+    // in the middle, and only the user can tell which.
+    return (
+      <div class="mx-auto my-1.5 flex max-w-[86%] items-start gap-[7px] rounded-card bg-danger-soft px-3.5 py-2.5 text-caption leading-snug text-danger [&>svg]:mt-px [&>svg]:size-[14px] [&>svg]:shrink-0">
+        <ShieldAlert />
+        <div>
+          <span>The security key of {name} changed. Verify it before sharing anything else.</span>
+          <button
+            type="button"
+            onClick={() => showSpaceSection("devices")}
+            class="mt-1.5 block rounded-[8px] border border-danger/45 px-2 py-[3px] text-caption font-semibold text-danger transition hover:bg-danger/10"
+          >
+            Review devices
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // How this device's own keys reached it is not a question it can answer
+  // about itself, so its own arrival carries no verification note.
+  const trust = event.kind === "device-added" && !mine ? trustNote(event.trust) : null;
+  const icon =
+    event.kind === "device-added" ? (
+      <UserPlus />
+    ) : event.kind === "device-removed" ? (
+      <UserMinus />
+    ) : (
+      <KeyRound />
+    );
+  const body =
+    event.kind === "device-added" ? (
+      mine ? (
+        <span>This device joined the space</span>
+      ) : event.byMe ? (
+        <span>You added {name} to the space</span>
+      ) : (
+        <span>{name} joined the space</span>
+      )
+    ) : event.kind === "device-removed" ? (
+      <span>{name} was removed from the space</span>
+    ) : (
+      <span>
+        The space key was rotated. Messages sent before this point stay readable here, but not on
+        devices added later.
+      </span>
+    );
+
+  // A pill is only a pill while it fits on one line; the rotation notice is a
+  // sentence, and a three-line capsule reads as a mistake.
+  const long = event.kind === "key-rotated";
+  return (
+    <div
+      class={cx(
+        "mx-auto my-1.5 flex max-w-[86%] items-start gap-[7px] bg-surface-3 px-3 py-1.5 text-caption leading-snug text-subtle [&>svg]:mt-[3px] [&>svg]:size-[13px] [&>svg]:shrink-0 [&>svg]:opacity-70",
+        long ? "rounded-card text-left" : "rounded-full text-center",
+      )}
+    >
+      {icon}
+      <div>
+        {body}
+        {trust && (
+          <>
+            {" · "}
+            <span class={cx("font-semibold", trust.verified ? "text-success-ink" : "text-muted")}>
+              {trust.label}
+            </span>
+          </>
+        )}
+      </div>
     </div>
   );
 }

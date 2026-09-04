@@ -1,6 +1,6 @@
 /** Local-only types for the PWA (kept separate from the wire DTOs in shared). */
 
-import type { SignatureVerdict } from "./crypto/identity";
+import type { IdentityTrust, SignatureVerdict } from "./crypto/identity";
 
 export interface Session {
   groupId: string;
@@ -88,6 +88,55 @@ export interface LocalMessage {
   senderVerified?: SignatureVerdict;
   /** True once this device has acked receipt to the server (incoming only). */
   acked?: boolean;
+}
+
+/**
+ * Something that happened to the *space* rather than in the conversation: a
+ * device joined, one was revoked, the GroupKey rotated.
+ *
+ * These are observations, not messages. Nothing about them travels over the
+ * wire — a server-authored "a device joined" line would be an unauthenticated
+ * string injected into an end-to-end encrypted thread, and a server that wants
+ * to hide a device it just added would simply not send one. Each device
+ * derives its own from the roster it verifies (see state/events.ts), so a
+ * notice on screen means *this* device saw the change, which is the only claim
+ * worth making.
+ *
+ * The consequence is deliberate: two devices can hold slightly different
+ * timelines, and a device that joined yesterday has no notices from before
+ * that. Both are honest.
+ */
+export type LocalEventKind =
+  | "device-added"
+  | "device-removed"
+  | "device-key-changed"
+  | "key-rotated";
+
+export interface LocalEvent {
+  /**
+   * Deterministic, so the same observation made twice (two tabs, a re-poll,
+   * the roster being read by three different call sites) is one row rather
+   * than a burst of duplicates: an id names the change, not the moment it was
+   * noticed (see state/events.ts).
+   */
+  id: string;
+  kind: LocalEventKind;
+  /** When *this* device observed it. */
+  createdAt: number;
+  /** The device the event is about; absent for space-wide events. */
+  deviceId?: string;
+  /**
+   * Its name when the event was observed. Captured rather than looked up: a
+   * revoked device is gone from the roster, so by the time the notice is drawn
+   * there is nothing left to ask.
+   */
+  deviceName?: string;
+  /** For `device-added`: how that device's keys reached us. */
+  trust?: IdentityTrust;
+  /** For `device-added`: this device is the one that scanned the QR code. */
+  byMe?: true;
+  /** For `key-rotated`: the epoch adopted. */
+  epoch?: number;
 }
 
 /** In-flight state while linking THIS device to an existing space. */
