@@ -103,6 +103,10 @@ export function DeviceManager(): JSX.Element {
    */
   function deviceActions(device: DeviceView): DeviceAction[] {
     if (device.id === myId) return [];
+    // A revocation rotates the space key, so it holds the whole roster, not
+    // just the row it started on: a second revocation or role change entered
+    // while it is in flight would race that rotation.
+    const pending = revoking || changingRole === device.id;
     const actions: DeviceAction[] = [];
     if (currentRole === "owner" && device.role !== "owner") {
       const promoting = device.role !== "admin";
@@ -110,7 +114,7 @@ export function DeviceManager(): JSX.Element {
         key: "role",
         label: promoting ? "Make admin" : "Make member",
         icon: promoting ? <Crown /> : <UserRound />,
-        busy: changingRole === device.id,
+        busy: pending,
         onSelect: () => setPendingRoleChange(device),
       });
     }
@@ -124,6 +128,7 @@ export function DeviceManager(): JSX.Element {
         label: "Revoke",
         icon: <Ban />,
         danger: true,
+        busy: pending,
         onSelect: () => setPendingRevoke(device),
       });
     }

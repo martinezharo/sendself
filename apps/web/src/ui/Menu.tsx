@@ -67,9 +67,17 @@ export function Menu({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Move focus into the menu so keyboard users land on the first action.
+  // Move focus into the menu so keyboard users land on the first action, and
+  // hand it back to whatever opened the menu once it closes — otherwise
+  // dismissing with Escape drops focus on the document and the next Tab starts
+  // over from the top of the page. The trigger can be gone by then (a row that
+  // swapped it for a spinner, a message that was deleted), hence `isConnected`.
   useEffect(() => {
+    const trigger = document.activeElement;
     panelRef.current?.querySelector("button")?.focus();
+    return () => {
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
   }, []);
 
   return (
