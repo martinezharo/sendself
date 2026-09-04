@@ -28,15 +28,18 @@ import { SecurityPanel } from "./SecurityPanel";
 import { Button, IconButton, Modal, Spinner, cx, initials } from "./components";
 
 /**
- * One management action on one device. The desktop button row and the phone
- * menu both render this list, so the permission rules behind an action live in
- * a single place and the two layouts cannot drift apart.
+ * One management action on one device, as offered by the row's menu.
+ *
+ * Every rule about who may do what to whom is decided in `deviceActions`, so a
+ * row renders whatever it is handed and knows nothing about roles.
  */
 interface DeviceAction {
   key: string;
   label: string;
   icon: JSX.Element;
+  /** Destructive: shown in red, and behind a separator. */
   danger?: boolean;
+  /** The action is already running; the row shows a spinner instead of a menu. */
   busy?: boolean;
   onSelect: () => void;
 }
@@ -91,6 +94,13 @@ export function DeviceManager(): JSX.Element {
 
   const canAdminister = currentRole === "owner" || currentRole === "admin";
 
+  /**
+   * What this device may do to `device`. Managing a device is rare and one of
+   * the two actions is destructive, so both live in a menu rather than as
+   * buttons on the row: two buttons would take a fixed ~200px out of every
+   * row, which on a phone left the name and the linked date wrapping over
+   * three lines.
+   */
   function deviceActions(device: DeviceView): DeviceAction[] {
     if (device.id === myId) return [];
     const actions: DeviceAction[] = [];
@@ -219,44 +229,25 @@ export function DeviceManager(): JSX.Element {
                       </div>
                     )}
                   </div>
-                  {actions.length > 0 && (
-                    <>
-                      {/* Spelled out on a wide screen, folded into a menu on a
-                          phone: two full-width buttons would squeeze the name
-                          and the linked date into a three-line column. */}
-                      <div class="hidden flex-none items-center gap-2 sm:flex">
-                        {actions.map((action) => (
-                          <Button
-                            key={action.key}
-                            variant={action.danger ? "danger" : "secondary"}
-                            size="sm"
-                            disabled={action.busy}
-                            onClick={action.onSelect}
-                          >
-                            {action.busy ? <Spinner /> : action.label}
-                          </Button>
-                        ))}
+                  {actions.length > 0 &&
+                    (busy ? (
+                      <div class="grid size-[38px] flex-none place-items-center">
+                        <Spinner />
                       </div>
-                      {busy ? (
-                        <div class="grid size-[38px] flex-none place-items-center sm:hidden">
-                          <Spinner />
-                        </div>
-                      ) : (
-                        <IconButton
-                          class="flex-none sm:hidden"
-                          label={`Actions for ${device.name}`}
-                          onClick={(e) =>
-                            setMenu({
-                              deviceId: device.id,
-                              anchor: anchorBelow(e.currentTarget as HTMLElement),
-                            })
-                          }
-                        >
-                          <MoreVertical />
-                        </IconButton>
-                      )}
-                    </>
-                  )}
+                    ) : (
+                      <IconButton
+                        class="flex-none"
+                        label={`Actions for ${device.name}`}
+                        onClick={(e) =>
+                          setMenu({
+                            deviceId: device.id,
+                            anchor: anchorBelow(e.currentTarget as HTMLElement),
+                          })
+                        }
+                      >
+                        <MoreVertical />
+                      </IconButton>
+                    ))}
                 </div>
               );
             })}
