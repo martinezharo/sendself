@@ -1,15 +1,17 @@
 import type { DeviceRole } from "@sendself/shared";
 import {
   AlertCircle,
+  Ban,
   ClipboardPaste,
   Crown,
   KeyRound,
+  MoreVertical,
   Plus,
   ScanLine,
   ShieldCheck,
   UserRound,
 } from "lucide-preact";
-import type { JSX } from "preact";
+import { Fragment, type JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   type DeviceView,
@@ -21,8 +23,23 @@ import {
 import { type Scanner, startScanner } from "../qr/scan";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
+import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { SecurityPanel } from "./SecurityPanel";
-import { Button, Modal, Spinner, cx, initials } from "./components";
+import { Button, IconButton, Modal, Spinner, cx, initials } from "./components";
+
+/**
+ * One management action on one device. The desktop button row and the phone
+ * menu both render this list, so the permission rules behind an action live in
+ * a single place and the two layouts cannot drift apart.
+ */
+interface DeviceAction {
+  key: string;
+  label: string;
+  icon: JSX.Element;
+  danger?: boolean;
+  busy?: boolean;
+  onSelect: () => void;
+}
 
 export function DeviceManager(): JSX.Element {
   const [devices, setDevices] = useState<DeviceView[]>([]);
@@ -34,6 +51,7 @@ export function DeviceManager(): JSX.Element {
   const [changingRole, setChangingRole] = useState<string | null>(null);
   const [rotationPending, setRotationPending] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [menu, setMenu] = useState<{ deviceId: string; anchor: MenuAnchor } | null>(null);
   const myId = session.value?.deviceId;
 
   async function refresh(): Promise<void> {
@@ -73,6 +91,35 @@ export function DeviceManager(): JSX.Element {
 
   const canAdminister = currentRole === "owner" || currentRole === "admin";
 
+  function deviceActions(device: DeviceView): DeviceAction[] {
+    if (device.id === myId) return [];
+    const actions: DeviceAction[] = [];
+    if (currentRole === "owner" && device.role !== "owner") {
+      const promoting = device.role !== "admin";
+      actions.push({
+        key: "role",
+        label: promoting ? "Make admin" : "Make member",
+        icon: promoting ? <Crown /> : <UserRound />,
+        busy: changingRole === device.id,
+        onSelect: () => setPendingRoleChange(device),
+      });
+    }
+    if (
+      canAdminister &&
+      device.role !== "owner" &&
+      (currentRole === "owner" || device.role === "member")
+    ) {
+      actions.push({
+        key: "revoke",
+        label: "Revoke",
+        icon: <Ban />,
+        danger: true,
+        onSelect: () => setPendingRevoke(device),
+      });
+    }
+    return actions;
+  }
+
   useEffect(() => {
     void refresh();
   }, []);
@@ -90,6 +137,10 @@ export function DeviceManager(): JSX.Element {
       setRevoking(false);
     }
   }
+
+  // Resolved from the live list rather than captured on open, so a refresh
+  // while the menu is up cannot act on a stale device.
+  const menuDevice = menu ? devices.find((device) => device.id === menu.deviceId) : undefined;
 
   return (
     <div class="min-h-0 flex-1 overflow-y-auto p-6 max-md:p-[14px]">
@@ -138,67 +189,107 @@ export function DeviceManager(): JSX.Element {
           </div>
         ) : (
           <div class="flex flex-col gap-2.5">
-            {devices.map((device) => (
-              <div
-                key={device.id}
-                class={cx(
-                  "surface-card flex items-center gap-3.5 rounded-card px-[15px] py-[13px] transition hover:shadow-pop",
-                  device.id === myId && "ring-1 ring-inset ring-accent/35",
-                )}
-              >
-                <div class="grid size-[42px] flex-none place-items-center rounded-xl bg-[linear-gradient(155deg,color-mix(in_srgb,var(--c-accent)_80%,#fff)_0%,var(--c-accent)_55%,color-mix(in_srgb,var(--c-accent)_72%,#000)_100%)] font-mono text-body font-medium text-white ring-1 ring-inset ring-white/20">
-                  {initials(device.name)}
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-wrap items-center gap-2 text-body font-medium">
-                    <span class="truncate">{device.name}</span>
-                    <RoleBadge role={device.role} />
+            {devices.map((device) => {
+              const actions = deviceActions(device);
+              const busy = actions.some((action) => action.busy);
+              return (
+                <div
+                  key={device.id}
+                  class={cx(
+                    "surface-card flex items-center gap-3.5 rounded-card px-[15px] py-[13px] transition hover:shadow-pop",
+                    device.id === myId && "ring-1 ring-inset ring-accent/35",
+                  )}
+                >
+                  <div class="grid size-[42px] flex-none place-items-center rounded-xl bg-[linear-gradient(155deg,color-mix(in_srgb,var(--c-accent)_80%,#fff)_0%,var(--c-accent)_55%,color-mix(in_srgb,var(--c-accent)_72%,#000)_100%)] font-mono text-body font-medium text-white ring-1 ring-inset ring-white/20">
+                    {initials(device.name)}
                   </div>
-                  <div class="font-mono text-meta text-muted">
-                    {device.id === myId && <span class="text-accent">This device · </span>}
-                    Linked {new Date(device.createdAt).toLocaleString()}
-                  </div>
-                  {!device.keyUpToDate && (
-                    <div class="mt-1 flex items-center gap-1.5 text-meta text-amber-600 dark:text-amber-400">
-                      <span class="size-1.5 flex-none rounded-full bg-current" />
-                      Gets the new key when it reconnects
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2 text-body font-medium">
+                      <span class="truncate">{device.name}</span>
+                      <RoleBadge role={device.role} />
                     </div>
+                    <div class="font-mono text-meta text-muted">
+                      {device.id === myId && <span class="text-accent">This device · </span>}
+                      Linked {new Date(device.createdAt).toLocaleString()}
+                    </div>
+                    {!device.keyUpToDate && (
+                      <div class="mt-1 flex items-center gap-1.5 text-meta text-amber-600 dark:text-amber-400">
+                        <span class="size-1.5 flex-none rounded-full bg-current" />
+                        Gets the new key when it reconnects
+                      </div>
+                    )}
+                  </div>
+                  {actions.length > 0 && (
+                    <>
+                      {/* Spelled out on a wide screen, folded into a menu on a
+                          phone: two full-width buttons would squeeze the name
+                          and the linked date into a three-line column. */}
+                      <div class="hidden flex-none items-center gap-2 sm:flex">
+                        {actions.map((action) => (
+                          <Button
+                            key={action.key}
+                            variant={action.danger ? "danger" : "secondary"}
+                            size="sm"
+                            disabled={action.busy}
+                            onClick={action.onSelect}
+                          >
+                            {action.busy ? <Spinner /> : action.label}
+                          </Button>
+                        ))}
+                      </div>
+                      {busy ? (
+                        <div class="grid size-[38px] flex-none place-items-center sm:hidden">
+                          <Spinner />
+                        </div>
+                      ) : (
+                        <IconButton
+                          class="flex-none sm:hidden"
+                          label={`Actions for ${device.name}`}
+                          onClick={(e) =>
+                            setMenu({
+                              deviceId: device.id,
+                              anchor: anchorBelow(e.currentTarget as HTMLElement),
+                            })
+                          }
+                        >
+                          <MoreVertical />
+                        </IconButton>
+                      )}
+                    </>
                   )}
                 </div>
-                {device.id !== myId && (
-                  <div class="flex flex-none items-center gap-2">
-                    {currentRole === "owner" && device.role !== "owner" && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={changingRole === device.id}
-                        onClick={() => setPendingRoleChange(device)}
-                      >
-                        {changingRole === device.id ? (
-                          <Spinner />
-                        ) : device.role === "admin" ? (
-                          "Make member"
-                        ) : (
-                          "Make admin"
-                        )}
-                      </Button>
-                    )}
-                    {canAdminister &&
-                      device.role !== "owner" &&
-                      (currentRole === "owner" || device.role === "member") && (
-                        <Button variant="danger" size="sm" onClick={() => setPendingRevoke(device)}>
-                          Revoke
-                        </Button>
-                      )}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {!loading && <SecurityPanel />}
       </div>
+
+      {menuDevice && menu && (
+        <Menu
+          anchor={menu.anchor}
+          alignRight
+          label={`Actions for ${menuDevice.name}`}
+          onClose={() => setMenu(null)}
+        >
+          {deviceActions(menuDevice).map((action, index) => (
+            <Fragment key={action.key}>
+              {index > 0 && action.danger && <MenuSeparator />}
+              <MenuItem
+                icon={action.icon}
+                danger={action.danger ?? false}
+                onClick={() => {
+                  setMenu(null);
+                  action.onSelect();
+                }}
+              >
+                {action.label}
+              </MenuItem>
+            </Fragment>
+          ))}
+        </Menu>
+      )}
 
       {adding && (
         <AddDeviceModal
