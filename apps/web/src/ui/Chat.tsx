@@ -413,9 +413,7 @@ function MessageBubble({
         >
           <span>{formatTime(message.createdAt)}</span>
           {mine && status === "queued" && <Clock aria-label="Waiting to send" />}
-          {mine && status === "uploading" && (
-            <Spinner class="!size-[12px] !border-[1.5px] !border-current/40 !border-t-current" />
-          )}
+          {mine && status === "uploading" && <Spinner class="!size-[12px] !border-[1.5px]" />}
           {mine && status === "sent" && <CheckCheck />}
           {mine && status === "failed" && (
             <>
@@ -699,7 +697,7 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
         {message.direction === "out" ? (
           message.status === "uploading" ? (
             <span class="grid size-[34px] place-items-center">
-              <Spinner class={mine ? "!border-current/40 !border-t-current" : undefined} />
+              <Spinner />
             </span>
           ) : message.status === "failed" ? (
             <IconButton

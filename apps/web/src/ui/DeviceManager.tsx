@@ -134,7 +134,7 @@ export function DeviceManager(): JSX.Element {
 
         {loading ? (
           <div class="grid place-items-center py-16">
-            <Spinner large />
+            <Spinner large class="text-accent" />
           </div>
         ) : (
           <div class="flex flex-col gap-2.5">
