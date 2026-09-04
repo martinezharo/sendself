@@ -10,3 +10,6 @@ This repository is a VERY EARLY WIP. Proposing sweeping changes that improve lon
 * Excellent security and privacy, as long as it doesn't hurt UX too much.
 ## Maintainability
 Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
+
+## Compatibility
+Before implementing any proposed change, always review whether it could break any existing spaces currently in use. If there is a plausible risk, warn the user explicitly, identify the affected spaces, and explain the mitigation before proceeding.
