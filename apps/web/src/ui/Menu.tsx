@@ -67,9 +67,24 @@ export function Menu({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Move focus into the menu so keyboard users land on the first action.
+  // Move focus into the menu so keyboard users land on the first action, and
+  // hand it back to whatever opened the menu once it closes — otherwise
+  // dismissing with Escape drops focus on the document and the next Tab starts
+  // over from the top of the page.
+  //
+  // There is not always something to hand it back to: a tap on iOS Safari
+  // leaves the body focused rather than the button, and the trigger can be gone
+  // by the time the menu closes (a row that swapped it for a spinner, a message
+  // that was deleted). Restoring is skipped in those cases, which costs
+  // nothing — neither is how a keyboard user got here.
   useEffect(() => {
+    const trigger = document.activeElement;
     panelRef.current?.querySelector("button")?.focus();
+    return () => {
+      if (trigger instanceof HTMLElement && trigger !== document.body && trigger.isConnected) {
+        trigger.focus();
+      }
+    };
   }, []);
 
   return (
