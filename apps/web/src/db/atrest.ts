@@ -16,9 +16,11 @@
  *
  * What stays in the clear, and why: a message's `id` and `createdAt`, because
  * they are the key path and the sort index that keep history loadable in order,
- * and a file's `r2Key` for the same reason. That tells someone reading the raw
- * database *when* this device received something — worth stating plainly, and
- * far less than the messages themselves.
+ * and a file's `r2Key` for the same reason. Space events (db/store.ts) follow
+ * the same rule, and the device directory keeps only the device id readable —
+ * the name it maps to is the user's own words and is sealed with the rest.
+ * That tells someone reading the raw database *when* this device received
+ * something — worth stating plainly, and far less than the messages themselves.
  */
 
 import { base64UrlToBuf, bufToBase64Url, randomBytes } from "../crypto/crypto";
@@ -162,3 +164,5 @@ export async function openBlob(
 /** AAD contexts, kept here so the store and the migration cannot disagree. */
 export const messageContext = (id: string): string => `local-message:${id}`;
 export const fileContext = (r2Key: string): string => `local-file:${r2Key}`;
+export const eventContext = (id: string): string => `local-event:${id}`;
+export const directoryContext = (deviceId: string): string => `local-device:${deviceId}`;

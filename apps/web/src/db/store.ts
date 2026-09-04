@@ -1,8 +1,10 @@
 import { type DBSchema, type IDBPDatabase, deleteDB, openDB } from "idb";
-import type { LocalMessage } from "../types";
+import type { LocalEvent, LocalMessage } from "../types";
 import { PRE_REBRAND_ID } from "../legacy";
 import {
   type Sealed,
+  directoryContext,
+  eventContext,
   fileContext,
   messageContext,
   openBlob,
@@ -21,6 +23,23 @@ type StoredMessage =
   | LocalMessage
   | { id: string; createdAt: number; sealed: Sealed; mime?: undefined };
 
+/**
+ * A space event row (device joined, revoked, key rotated). Sealed under a lock
+ * exactly like a message: an event names a device, and a device name is the
+ * user's own words about their hardware.
+ */
+type StoredEvent = LocalEvent | { id: string; createdAt: number; sealed: Sealed };
+
+/**
+ * The last name this device saw for another device.
+ *
+ * It exists because a revocation is observed *after* the fact: by the time the
+ * roster no longer lists a device there is nothing left to decrypt its name
+ * from, and "iPad was removed" is worth infinitely more than the device id.
+ * Keeping it also means the chat can name a sender while offline.
+ */
+type StoredDeviceName = { deviceId: string; name: string } | { deviceId: string; sealed: Sealed };
+
 /** A cached decrypted file. `iv` present = the blob holds ciphertext. */
 interface StoredFile {
   r2Key: string;
@@ -38,6 +57,14 @@ interface SendSelfDB extends DBSchema {
     value: StoredMessage;
     indexes: { "by-createdAt": number };
   };
+  /** Space events derived locally from the roster (state/events.ts). */
+  events: {
+    key: string;
+    value: StoredEvent;
+    indexes: { "by-createdAt": number };
+  };
+  /** deviceId → the name this device last saw for it. */
+  directory: { key: string; value: StoredDeviceName };
   /** Decrypted file blobs cached locally for preview/offline access. */
   files: { key: string; value: StoredFile };
 }
@@ -55,7 +82,12 @@ interface SendSelfDB extends DBSchema {
 // IndexedDB names are persistent format identifiers. Renaming this would make
 // existing devices appear empty even though their keys and history still exist.
 const DB_NAME = PRE_REBRAND_ID;
-const DB_VERSION = 1;
+/**
+ * 2 added `events` and `directory`. Bumping the version is what gets them
+ * created on devices that already hold history; the upgrade adds only what is
+ * missing, so it is the same code path for a fresh install and an existing one.
+ */
+const DB_VERSION = 2;
 
 function dbName(spaceId: string): string {
   return spaceId === LEGACY_SPACE_ID ? DB_NAME : `${DB_NAME}:${spaceId}`;
@@ -117,10 +149,21 @@ function db(spaceId?: string): Promise<IDBPDatabase<SendSelfDB>> {
   if (!handle) {
     handle = openDB<SendSelfDB>(dbName(id), DB_VERSION, {
       upgrade(database) {
-        database.createObjectStore("meta");
-        const messages = database.createObjectStore("messages", { keyPath: "id" });
-        messages.createIndex("by-createdAt", "createdAt");
-        database.createObjectStore("files", { keyPath: "r2Key" });
+        if (!database.objectStoreNames.contains("meta")) database.createObjectStore("meta");
+        if (!database.objectStoreNames.contains("messages")) {
+          const messages = database.createObjectStore("messages", { keyPath: "id" });
+          messages.createIndex("by-createdAt", "createdAt");
+        }
+        if (!database.objectStoreNames.contains("events")) {
+          const events = database.createObjectStore("events", { keyPath: "id" });
+          events.createIndex("by-createdAt", "createdAt");
+        }
+        if (!database.objectStoreNames.contains("directory")) {
+          database.createObjectStore("directory", { keyPath: "deviceId" });
+        }
+        if (!database.objectStoreNames.contains("files")) {
+          database.createObjectStore("files", { keyPath: "r2Key" });
+        }
       },
     });
     handles.set(id, handle);
@@ -221,6 +264,65 @@ export async function deleteMessage(id: string, spaceId?: string): Promise<void>
   await (await db(spaceId)).delete("messages", id);
 }
 
+// --- events ---
+
+/**
+ * Write an event, keeping the first observation.
+ *
+ * Ids are deterministic, so the same change seen twice (two tabs, three call
+ * sites reading the same roster) is one row — and the timestamp that survives
+ * is the earliest, which is when this device actually learned of it.
+ */
+export async function putEvent(event: LocalEvent, spaceId?: string): Promise<boolean> {
+  const database = await db(spaceId);
+  if (await database.get("events", event.id)) return false;
+  const sealed = await sealJson(event, eventContext(event.id));
+  await database.put(
+    "events",
+    sealed ? { id: event.id, createdAt: event.createdAt, sealed } : event,
+  );
+  return true;
+}
+
+/** Every event, oldest first. Empty while locked, like `allMessages`. */
+export async function allEvents(spaceId?: string): Promise<LocalEvent[]> {
+  const rows = await (await db(spaceId)).getAllFromIndex("events", "by-createdAt");
+  const opened = await Promise.all(
+    rows.map((row) =>
+      "sealed" in row && row.sealed
+        ? openJson<LocalEvent>(row.sealed, eventContext(row.id))
+        : Promise.resolve(row as LocalEvent),
+    ),
+  );
+  return opened.filter((event): event is LocalEvent => event !== undefined);
+}
+
+// --- device directory ---
+
+export async function putDeviceName(
+  deviceId: string,
+  name: string,
+  spaceId?: string,
+): Promise<void> {
+  const sealed = await sealJson(name, directoryContext(deviceId));
+  await (await db(spaceId)).put("directory", sealed ? { deviceId, sealed } : { deviceId, name });
+}
+
+export async function deviceNames(spaceId?: string): Promise<Map<string, string>> {
+  const rows = await (await db(spaceId)).getAll("directory");
+  const entries = await Promise.all(
+    rows.map(
+      async (row): Promise<[string, string | undefined]> => [
+        row.deviceId,
+        "sealed" in row
+          ? await openJson<string>(row.sealed, directoryContext(row.deviceId))
+          : row.name,
+      ],
+    ),
+  );
+  return new Map(entries.filter((entry): entry is [string, string] => entry[1] !== undefined));
+}
+
 // --- files ---
 
 async function toStoredFile(r2Key: string, blob: Blob): Promise<StoredFile> {
@@ -270,6 +372,36 @@ export async function rewriteLocalContent(
     await database.put(
       "messages",
       sealed ? { id: message.id, createdAt: message.createdAt, sealed } : message,
+    );
+  }
+
+  for (const key of await database.getAllKeys("events")) {
+    const row = await database.get("events", key);
+    if (!row) continue;
+    const event =
+      "sealed" in row && row.sealed
+        ? await openJson<LocalEvent>(row.sealed, eventContext(row.id))
+        : (row as LocalEvent);
+    if (!event) continue;
+    const sealed = await sealJson(event, eventContext(event.id), target);
+    await database.put(
+      "events",
+      sealed ? { id: event.id, createdAt: event.createdAt, sealed } : event,
+    );
+  }
+
+  for (const key of await database.getAllKeys("directory")) {
+    const row = await database.get("directory", key);
+    if (!row) continue;
+    const name =
+      "sealed" in row
+        ? await openJson<string>(row.sealed, directoryContext(row.deviceId))
+        : row.name;
+    if (name === undefined) continue;
+    const sealed = await sealJson(name, directoryContext(row.deviceId), target);
+    await database.put(
+      "directory",
+      sealed ? { deviceId: row.deviceId, sealed } : { deviceId: row.deviceId, name },
     );
   }
 

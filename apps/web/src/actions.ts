@@ -8,7 +8,6 @@ import {
 import { signal } from "@preact/signals";
 import { NetworkError, api } from "./api/client";
 import {
-  decryptName,
   encryptName,
   exportGroupKey,
   exportPublicKey,
@@ -30,10 +29,10 @@ import {
   knownDeviceIds,
   loadIdentities,
   pinScannedDevice,
-  reconcileDevices,
   seedInheritedIdentities,
 } from "./crypto/identity";
-import { createKeyring, currentKey, keyForEpoch } from "./crypto/keyring";
+import { createKeyring, currentKey } from "./crypto/keyring";
+import { decryptDeviceNames } from "./crypto/names";
 import { recordDeletion } from "./db/deletions";
 import {
   GLOBAL_PENDING_PAIRING,
@@ -60,6 +59,7 @@ import {
   viewOnceArmed,
 } from "./state/composer";
 import { locked } from "./state/lock";
+import { loadSpaceEvents, noteDeviceAdded, reconcileRoster } from "./state/events";
 import {
   applyGlobalDeletion,
   applyMessageUpdate,
@@ -358,6 +358,14 @@ async function pollLink(pending: PendingPairing): Promise<void> {
       publicKey: payload.publicKey,
       ...(payload.signingPublicKey ? { signingPublicKey: payload.signingPublicKey } : {}),
     });
+    // The thread this device is about to open starts here: it has no history
+    // from before it joined, and saying so beats an unexplained empty chat.
+    await noteDeviceAdded({
+      deviceId: payload.deviceId,
+      publicKey: payload.publicKey,
+      name: payload.deviceName,
+      trust: "inherited",
+    });
     await globalMetaDelete(GLOBAL_PENDING_PAIRING);
     // Best-effort: the slot is already TTL-reaped by cron, this just avoids
     // leaving the (encrypted) package reachable until then.
@@ -467,6 +475,17 @@ export async function addDeviceFromQr(qrText: string): Promise<void> {
     publicKey: payload.publicKey,
     ...(payload.signingPublicKey ? { signingPublicKey: payload.signingPublicKey } : {}),
   });
+  // Recorded here rather than left to the roster diff: pinning the scanned keys
+  // has just made this device part of what we know, so the next roster read
+  // would see nothing new — and this is the one moment we know both that the
+  // QR was scanned *here* and what the device is called.
+  await noteDeviceAdded({
+    deviceId: payload.deviceId,
+    publicKey: payload.publicKey,
+    name: payload.deviceName,
+    trust: "scanned",
+    byMe: true,
+  });
 }
 
 /** Fetch the group's devices and decrypt their names for display. */
@@ -492,28 +511,20 @@ export async function listDevicesDecrypted(): Promise<DeviceManagementView> {
   if (!ring || !currentSession) throw new Error("Not signed in");
   const { devices, currentRole, keyEpoch, rotationPending } = await api.listDevices(authHeaders());
   // Seeing the roster is also how a device learns the keys of members it did
-  // not add itself, so this is where those get verified (crypto/identity.ts).
-  await reconcileDevices(devices, currentSession.groupId);
+  // not add itself, so this is where those get verified — and where a change
+  // in it becomes a notice in the chat (state/events.ts).
+  await reconcileRoster(devices, currentSession.groupId);
+  const names = await decryptDeviceNames(ring, devices);
   return {
     currentRole,
     rotationPending,
-    devices: await Promise.all(
-      devices.map(async (d) => {
-        // A name is encrypted once, when the device joins, so it can predate
-        // the current epoch by any number of rotations.
-        const nameKey = keyForEpoch(ring, d.nameKeyEpoch);
-        return {
-          id: d.id,
-          createdAt: d.createdAt,
-          role: d.role,
-          keyUpToDate: d.keyEpoch >= keyEpoch,
-          name:
-            nameKey && d.encryptedName && d.nameIv
-              ? await decryptName(nameKey, d.encryptedName, d.nameIv, d.id).catch(() => d.id)
-              : d.id,
-        };
-      }),
-    ),
+    devices: devices.map((d) => ({
+      id: d.id,
+      createdAt: d.createdAt,
+      role: d.role,
+      keyUpToDate: d.keyEpoch >= keyEpoch,
+      name: names.get(d.id) ?? d.id,
+    })),
   };
 }
 
@@ -998,6 +1009,7 @@ export async function resumeAfterUnlock(): Promise<void> {
  */
 export async function startSession(): Promise<void> {
   await loadMessages();
+  await loadSpaceEvents();
   // Populate the local view of the space's devices before anything asks how
   // many there are. It reads from IndexedDB, so unlike the roster endpoint it
   // answers offline too — which is exactly when a device is most likely to be

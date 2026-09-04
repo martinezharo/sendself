@@ -29,7 +29,7 @@ import {
   wrapSecret,
 } from "../crypto/crypto";
 import { type Keyring, saveKeyring, withEpoch } from "../crypto/keyring";
-import { reconcileDevices } from "../crypto/identity";
+import { noteKeyRotated, reconcileRoster } from "../state/events";
 
 /** Plaintext inside a rotation blob. Only the recipient device ever sees it. */
 interface RekeyPayload {
@@ -96,6 +96,9 @@ export async function adoptPendingKeys(
   // it must never happen for a key we failed to store.
   await saveKeyring(updated);
   if (highest > 0) await api.ackKey(highest, auth);
+  // Adopting a key this device did not mint is how it learns a rotation
+  // happened at all — which is exactly what the notice reports.
+  if (updated !== keyring) await noteKeyRotated(updated.current);
   return updated;
 }
 
@@ -116,7 +119,7 @@ export async function rotateGroupKey(
   const listing = await api.listDevices(auth);
   if (!listing.rotationPending) return null;
 
-  const { changed } = await reconcileDevices(listing.devices, groupId);
+  const { changed } = await reconcileRoster(listing.devices, groupId);
   if (changed.length > 0) throw new DeviceKeyMismatchError();
 
   const epoch = listing.keyEpoch + 1;
@@ -156,5 +159,6 @@ export async function rotateGroupKey(
   // nobody else can read.
   const updated = withEpoch(keyring, response.epoch, newKey);
   await saveKeyring(updated);
+  await noteKeyRotated(response.epoch);
   return { keyring: updated, result: { epoch: response.epoch, devices: response.devices } };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LocalMessage } from "../types";
-import { albumCaption, groupMessages } from "./grouping";
+import type { LocalEvent, LocalMessage } from "../types";
+import { albumCaption, chatEntries, groupMessages } from "./grouping";
 
 function message(
   id: string,
@@ -146,5 +146,47 @@ describe("albumCaption", () => {
     const [album] = groupMessages(list) as unknown as [Parameters<typeof albumCaption>[0]];
 
     expect(albumCaption(album)).toBeUndefined();
+  });
+});
+
+function notice(id: string, createdAt: number): LocalEvent {
+  return { id, kind: "device-added", createdAt, deviceId: "device-b", deviceName: "iPhone" };
+}
+
+describe("chatEntries", () => {
+  it("is just the grouped messages when the space has no notices", () => {
+    const list = [message("a", { text: "hi" })];
+
+    expect(chatEntries(list, [])).toEqual(groupMessages(list));
+  });
+
+  it("drops each notice where this device saw it", () => {
+    const list = [message("a", { createdAt: 100 }), message("b", { createdAt: 300 })];
+
+    expect(chatEntries(list, [notice("e1", 200)]).map((entry) => entry.key)).toEqual([
+      "a",
+      "event:e1",
+      "b",
+    ]);
+  });
+
+  it("never splits an album: a device joining says nothing about the files being sent", () => {
+    const list = [
+      message("a", { createdAt: 100, batch: batch("set", 0, 2) }),
+      message("b", { createdAt: 300, batch: batch("set", 1, 2) }),
+    ];
+
+    const entries = chatEntries(list, [notice("e1", 200)]);
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["album", "notice"]);
+  });
+
+  it("keeps a notice that arrived after the last message at the end of the thread", () => {
+    const list = [message("a", { createdAt: 100 })];
+
+    expect(chatEntries(list, [notice("e1", 900)]).map((entry) => entry.key)).toEqual([
+      "a",
+      "event:e1",
+    ]);
   });
 });

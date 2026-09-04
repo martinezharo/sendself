@@ -12,7 +12,7 @@
  * album splits around it rather than swallowing it or jumping over it.
  */
 
-import type { LocalMessage } from "../types";
+import type { LocalEvent, LocalMessage } from "../types";
 
 export interface SingleEntry {
   kind: "single";
@@ -33,7 +33,27 @@ export interface AlbumEntry {
   expected: number;
 }
 
-export type ChatEntry = SingleEntry | AlbumEntry;
+/**
+ * A space notice — a device joined, one was revoked, the key rotated — drawn
+ * in the thread where it happened rather than buried in the device screen.
+ *
+ * It is an entry rather than a fourth kind of message: it has no sender, no
+ * delivery state and nothing to retry, and the moment it entered the message
+ * store it would inherit all three (see state/events.ts).
+ */
+export interface NoticeEntry {
+  kind: "notice";
+  key: string;
+  event: LocalEvent;
+}
+
+export type ChatEntry = SingleEntry | AlbumEntry | NoticeEntry;
+
+/** When an entry happened, for merging the two streams into one thread. */
+function entryTime(entry: ChatEntry): number {
+  if (entry.kind === "notice") return entry.event.createdAt;
+  return entry.kind === "album" ? entry.messages[0]!.createdAt : entry.message.createdAt;
+}
 
 /** Whether two messages belong to the same album run. */
 function sameBatch(a: LocalMessage, b: LocalMessage): boolean {
@@ -43,6 +63,27 @@ function sameBatch(a: LocalMessage, b: LocalMessage): boolean {
     a.batch.id === b.batch.id &&
     a.senderDeviceId === b.senderDeviceId
   );
+}
+
+/**
+ * The thread as drawn: messages (albums folded back together) and space
+ * notices, in the order this device saw them.
+ *
+ * The two are merged *after* grouping, so a notice landing in the middle of a
+ * batch cannot split an album — the files were still picked together, and a
+ * device joining while they upload says nothing about them.
+ */
+export function chatEntries(
+  list: readonly LocalMessage[],
+  events: readonly LocalEvent[] = [],
+): ChatEntry[] {
+  const notices: ChatEntry[] = events.map((event) => ({
+    kind: "notice",
+    key: `event:${event.id}`,
+    event,
+  }));
+  if (notices.length === 0) return groupMessages(list);
+  return [...groupMessages(list), ...notices].sort((a, b) => entryTime(a) - entryTime(b));
 }
 
 export function groupMessages(list: readonly LocalMessage[]): ChatEntry[] {

@@ -8,15 +8,11 @@ import {
 } from "@sendself/shared";
 import { ApiError, type Auth, api } from "../api/client";
 import { decryptFile, decryptJson, decryptName, decryptText } from "../crypto/crypto";
-import {
-  type DeviceIdentities,
-  loadIdentities,
-  reconcileDevices,
-  verifyDeviceSignature,
-} from "../crypto/identity";
+import { type DeviceIdentities, loadIdentities, verifyDeviceSignature } from "../crypto/identity";
 import { type Keyring, keyForEpoch } from "../crypto/keyring";
 import { loadDeletions } from "../db/deletions";
 import { activeSpace, putFile } from "../db/store";
+import { reconcileRoster } from "../state/events";
 import {
   applyGlobalDeletion,
   applyMessageUpdate,
@@ -330,7 +326,7 @@ async function senderIdentities(
   if (pending.every((message) => identities[message.senderDeviceId])) return identities;
   try {
     const listing = await api.listDevices(auth);
-    await reconcileDevices(listing.devices, groupId);
+    await reconcileRoster(listing.devices, groupId);
     return await loadIdentities();
   } catch {
     // Offline or rate-limited: fall back to what we hold. Unknown senders come
