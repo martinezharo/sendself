@@ -437,7 +437,10 @@ function MessageBubble({
   return (
     <div
       class={cx(
-        "group flex items-center gap-1",
+        // items-start, not items-center: the trigger is sticky within this
+        // row, and centering it would leave it only the bottom half of a tall
+        // bubble to travel through.
+        "group flex items-start gap-1",
         // Bubbles from one device in a row read as one turn: tight inside the
         // run, a clear step between runs.
         showSender ? "mt-[9px]" : "mt-0",
@@ -576,11 +579,6 @@ function MessageBubble({
 }
 
 /**
- * Hover-revealed "⋮" button beside a bubble. Only rendered on devices with a
- * real pointer (`.msg-actions-trigger` is display:none elsewhere) — touch
- * users long-press the bubble instead.
- */
-/**
  * What a view-once message looks like before it is opened.
  *
  * The content is deliberately not rendered behind a blur or an overlay: it is
@@ -704,6 +702,18 @@ function ViewOnceViewer({
   );
 }
 
+/**
+ * Hover-revealed "⋮" button beside a bubble. Only rendered on devices with a
+ * real pointer (`.msg-actions-trigger` is display:none elsewhere) — touch
+ * users long-press the bubble instead.
+ *
+ * It sticks to the top of the scroller while its message is on screen, so a
+ * long message is never a hunt for a button parked halfway down it, or one
+ * scrolled out of the viewport entirely. Sticky confines it to its own row, so
+ * it stops at the bubble's last line rather than following the next message.
+ * Being able to float over the bubble above is what earns it a surface of its
+ * own instead of the ghost button it was when it sat in dead margin.
+ */
 function MenuTrigger({
   onOpen,
 }: {
@@ -715,7 +725,7 @@ function MenuTrigger({
       aria-label="Message actions"
       title="Message actions"
       onClick={onOpen}
-      class="msg-actions-trigger size-7 flex-none place-items-center rounded-full text-muted opacity-0 transition hover:bg-surface-3 hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:size-4"
+      class="msg-actions-trigger sticky top-2 size-7 flex-none place-items-center rounded-full bg-elevated text-muted opacity-0 shadow-soft transition hover:bg-surface-3 hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:size-4"
     >
       <MoreVertical />
     </button>
