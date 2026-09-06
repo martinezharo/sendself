@@ -4,6 +4,7 @@ import {
   CheckCheck,
   CircleDashed,
   Clock,
+  Copy,
   Download,
   Lock,
   MoreVertical,
@@ -16,6 +17,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   consumeViewOnce,
+  copyMessageText,
   listDevicesDecrypted,
   releaseViewOnce,
   retryMessage,
@@ -535,7 +537,8 @@ function ViewOnceViewer({
       <div class="flex gap-2.5 rounded-card bg-accent-soft p-3 text-accent">
         <CircleDashed class="mt-0.5 size-[17px] flex-none" />
         <p class="text-note font-medium leading-5">
-          Already removed from your other devices. It goes from this one when you close it.
+          Already removed from your other devices. Closing deletes it from this device. Anything you
+          copy or save will remain outside SendSelf.
         </p>
       </div>
       {message.text && (
@@ -567,8 +570,14 @@ function ViewOnceViewer({
           )}
         </div>
       )}
-      <div class="flex justify-end">
-        <Button class="sm:w-auto" onClick={done}>
+      <div class="flex justify-end gap-2.5">
+        {message.text && (
+          <Button class="min-h-11 sm:w-auto" onClick={() => void copyMessageText(message)}>
+            <Copy />
+            Copy text
+          </Button>
+        )}
+        <Button variant="primary" class="min-h-11 sm:w-auto" onClick={done}>
           Done
         </Button>
       </div>
