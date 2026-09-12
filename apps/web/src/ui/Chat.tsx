@@ -226,7 +226,7 @@ function EmptyState(): JSX.Element {
 function trustNote(trust: LocalEvent["trust"]): { label: string; verified: boolean } | null {
   switch (trust) {
     case "scanned":
-      return { label: "verified by QR", verified: true };
+      return { label: "QR verified", verified: true };
     case "attested":
     case "inherited":
       return { label: "verified", verified: true };
@@ -280,17 +280,20 @@ function SpaceNotice({ event, mine }: { event: LocalEvent; mine: boolean }): JSX
     ) : (
       <KeyRound />
     );
+  // "joined", not "joined the space": the notice is drawn inside the
+  // space it is about, so naming it again only costs the words that push a
+  // long device name and its verification note onto a second line.
   const body =
     event.kind === "device-added" ? (
       mine ? (
-        <span>This device joined the space</span>
+        <span>This device joined</span>
       ) : event.byMe ? (
-        <span>You added {name} to the space</span>
+        <span>You added {name}</span>
       ) : (
-        <span>{name} joined the space</span>
+        <span>{name} joined</span>
       )
     ) : event.kind === "device-removed" ? (
-      <span>{name} was removed from the space</span>
+      <span>{name} was removed</span>
     ) : (
       <span>
         The space key was rotated. Messages sent before this point stay readable here, but not on
@@ -298,24 +301,36 @@ function SpaceNotice({ event, mine }: { event: LocalEvent; mine: boolean }): JSX
       </span>
     );
 
-  // A pill is only a pill while it fits on one line; the rotation notice is a
-  // sentence, and a three-line capsule reads as a mistake.
-  const long = event.kind === "key-rotated";
+  // The rotation notice is a sentence, not a label, so it reads left-aligned;
+  // everything else is centred. The corner radius stays fixed instead of
+  // following the shape: at one line it matches half the notice's height and
+  // so reads as a pill, and when a long name or a trust note pushes it to two
+  // lines it reads as a small card — which is what a wrapped capsule should
+  // have been all along, and it needs no advance knowledge of whether the text
+  // fits.
+  const sentence = event.kind === "key-rotated";
   return (
     <div
       class={cx(
-        "mx-auto my-1.5 flex max-w-[86%] items-start gap-[7px] bg-surface-3 px-3 py-1.5 text-caption leading-snug text-subtle [&>svg]:mt-[3px] [&>svg]:size-[13px] [&>svg]:shrink-0 [&>svg]:opacity-70",
-        long ? "rounded-card text-left" : "rounded-full text-center",
+        "mx-auto my-1.5 flex max-w-[86%] items-start gap-[7px] rounded-card bg-surface-3 px-3 py-1.5 text-caption leading-snug text-subtle [&>svg]:mt-[3px] [&>svg]:size-[13px] [&>svg]:shrink-0 [&>svg]:opacity-70",
+        sentence ? "text-left" : "text-center",
       )}
     >
       {icon}
-      <div>
+      {/* Balanced so a notice that spills over splits into even lines instead
+          of stranding its last word — "QR" alone under a full line. */}
+      <div class="text-balance">
         {body}
         {trust && (
           <>
-            {" · "}
-            <span class={cx("font-semibold", trust.verified ? "text-success-ink" : "text-muted")}>
-              {trust.label}
+            {" "}
+            {/* The separator belongs to the note that follows it, and the note
+                is one phrase: neither may be broken up across lines. */}
+            <span class="whitespace-nowrap">
+              {"· "}
+              <span class={cx("font-semibold", trust.verified ? "text-success-ink" : "text-muted")}>
+                {trust.label}
+              </span>
             </span>
           </>
         )}
