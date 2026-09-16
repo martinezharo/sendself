@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   ArrowUp,
+  Check,
   CheckCheck,
   CircleDashed,
   Clock,
@@ -23,6 +24,7 @@ import {
   copyMessageText,
   listDevicesDecrypted,
   releaseViewOnce,
+  retryFileDownload,
   retryMessage,
   saveFile,
   sendStagedComposer,
@@ -41,8 +43,8 @@ import { type AlbumEntry, albumCaption, chatEntries } from "../state/grouping";
 import { visibleMessages } from "../state/messages";
 import { showSpaceSection } from "../state/route";
 import { session } from "../state/session";
-import { syncNow } from "../sync/sync";
 import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
+import { useActionFeedback } from "./feedback";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
 import {
@@ -87,12 +89,27 @@ function Linkify({ text }: { text: string }): JSX.Element {
   return <>{parts}</>;
 }
 
-/** Incoming file messages whose blob hasn't been fetched from the server yet. */
-function countIncomingDownloads(list: LocalMessage[]): number {
-  return list.filter(
-    (m) =>
-      m.direction === "in" && m.file && (m.fileState === "remote" || m.fileState === "downloading"),
-  ).length;
+/** Incoming file transfers, split by whether they are still on their way. */
+function countIncomingFiles(list: LocalMessage[]): { receiving: number; stranded: number } {
+  let receiving = 0;
+  let stranded = 0;
+  for (const message of list) {
+    if (message.direction !== "in" || !message.file) continue;
+    if (message.fileState === "remote" || message.fileState === "downloading") receiving++;
+    else if (
+      message.fileState === "error" ||
+      message.fileState === "corrupted" ||
+      message.fileState === "expired"
+    ) {
+      stranded++;
+    }
+  }
+  return { receiving, stranded };
+}
+
+/** "1 file" / "3 files". */
+function fileCount(n: number): string {
+  return n === 1 ? "1 file" : `${n} files`;
 }
 
 export function Chat(): JSX.Element {
@@ -101,7 +118,7 @@ export function Chat(): JSX.Element {
   // together, and space notices are merged into the same thread by time (see
   // state/grouping.ts).
   const entries = chatEntries(list, spaceEvents.value);
-  const downloading = countIncomingDownloads(list);
+  const { receiving, stranded } = countIncomingFiles(list);
   const currentSession = session.value;
   const myId = currentSession?.deviceId;
   const [deviceNames, setDeviceNames] = useState<Map<string, string>>(() => new Map());
@@ -141,17 +158,25 @@ export function Chat(): JSX.Element {
 
   return (
     <div class="relative flex min-h-0 flex-1 flex-col">
-      {downloading > 0 && (
+      {receiving > 0 && (
         <div class="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
           <div
             role="status"
             class="flex items-center gap-2 rounded-full bg-elevated px-3.5 py-[7px] text-caption font-medium text-ink shadow-pop"
           >
             <Spinner class="!size-[13px] !border-[1.5px]" />
-            <span>Receiving {downloading === 1 ? "1 file" : `${downloading} files`}…</span>
+            <span>Receiving {fileCount(receiving)}…</span>
           </div>
         </div>
       )}
+      {/* A transfer that ends badly says so in ordinary text on its own card,
+          which a screen reader never hears happen. One region for the whole
+          thread rather than one per card: a dozen file cards would be a dozen
+          things trying to speak, and the pill above already owns the good
+          ending. */}
+      <span class="sr-only" role="status">
+        {stranded > 0 ? `${fileCount(stranded)} couldn't be received` : ""}
+      </span>
       <div class="flex-1 overflow-y-auto px-6 pb-2 pt-[22px] max-md:px-[14px] max-md:pt-4">
         {/* A short conversation hangs from the composer rather than floating at
             the top of an empty column — the thread grows upwards, like every
@@ -700,15 +725,7 @@ function ViewOnceViewer({
               {formatBytes(message.file.size)}
             </div>
           </div>
-          {message.fileState === "downloaded" && (
-            <IconButton
-              label="Save file"
-              class="size-[34px]"
-              onClick={() => void saveFile(message)}
-            >
-              <Download />
-            </IconButton>
-          )}
+          {message.fileState === "downloaded" && <SaveFileButton message={message} />}
         </div>
       )}
       <div class="flex justify-end gap-2.5">
@@ -771,6 +788,15 @@ function fileStateLabel(message: LocalMessage): string | null {
     }
   }
   switch (message.fileState) {
+    // An incoming transfer is narrated with the same words as an outgoing one:
+    // the file card is the only place that can say why a file is not yet
+    // saveable, and a bare spinner (or, for a failure, a lone retry icon) left
+    // the reader guessing at both the wait and its ending.
+    case "remote":
+    case "downloading":
+      return "Receiving…";
+    case "error":
+      return "Download failed";
     case "corrupted":
       return "Couldn't decrypt";
     case "expired":
@@ -778,6 +804,54 @@ function fileStateLabel(message: LocalMessage): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * The button that hands an attachment to the browser's downloads.
+ *
+ * It answers the click where the click happened: a spinner while the blob is
+ * still being read out of local storage (and, under an at-rest lock, decrypted),
+ * then a check for a beat. Saving used to be the one action in the chat that
+ * said nothing at all — a 50 MB attachment looked identical to a dead button
+ * until the browser's own download UI caught up, and a file that could not be
+ * opened looked the same forever.
+ */
+function SaveFileButton({
+  message,
+  mine,
+}: {
+  message: LocalMessage;
+  mine?: boolean;
+}): JSX.Element {
+  const { state, run } = useActionFeedback(() => saveFile(message));
+  const label = state === "busy" ? "Saving…" : state === "done" ? "Saved" : "Save file";
+
+  return (
+    <>
+      <IconButton
+        label={label}
+        on="inset"
+        class="size-[34px]"
+        disabled={state === "busy"}
+        onClick={run}
+      >
+        {state === "busy" ? (
+          <Spinner />
+        ) : state === "done" ? (
+          // A sent bubble is already accent-tinted, so there the check keeps
+          // the bubble's ink and the shape does the talking.
+          <Check class={mine ? undefined : "text-accent"} />
+        ) : (
+          <Download />
+        )}
+      </IconButton>
+      {/* A check is not an announcement. The live region is mounted empty and
+          filled on success, which is what makes a screen reader read it out. */}
+      <span class="sr-only" role="status">
+        {state === "done" ? `${message.file?.name ?? "File"} saved` : ""}
+      </span>
+    </>
+  );
 }
 
 /**
@@ -855,7 +929,9 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
           {stateLabel && ` · ${stateLabel}`}
         </div>
       </div>
-      <div class="flex-none">
+      {/* Every state of this column is the same square, so a transfer ending
+          swaps the icon in place instead of shifting the card's contents. */}
+      <div class="flex flex-none items-center justify-center">
         {message.direction === "out" ? (
           message.status === "uploading" ? (
             <span class="grid size-[34px] place-items-center">
@@ -864,34 +940,30 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
           ) : message.status === "failed" ? (
             <IconButton
               label="Retry upload"
-              class={cx("size-[34px]", mine && "text-on-bubble hover:bg-accent-soft")}
+              on="inset"
+              class="size-[34px]"
               onClick={() => void retryMessage(message)}
             >
               <RotateCw />
             </IconButton>
           ) : (
-            <IconButton
-              label="Save file"
-              class={cx("size-[34px]", mine && "text-on-bubble hover:bg-accent-soft")}
-              onClick={() => void saveFile(message)}
-            >
-              <Download />
-            </IconButton>
+            <SaveFileButton message={message} mine={mine} />
           )
         ) : (
           <>
-            {(state === "remote" || state === "downloading") && <Spinner />}
-            {state === "downloaded" && (
-              <IconButton
-                label="Save file"
-                class="size-[34px]"
-                onClick={() => void saveFile(message)}
-              >
-                <Download />
-              </IconButton>
+            {(state === "remote" || state === "downloading") && (
+              <span class="grid size-[34px] place-items-center">
+                <Spinner />
+              </span>
             )}
+            {state === "downloaded" && <SaveFileButton message={message} />}
             {state === "error" && (
-              <IconButton label="Retry download" class="size-[34px]" onClick={() => void syncNow()}>
+              <IconButton
+                label="Retry download"
+                on="inset"
+                class="size-[34px]"
+                onClick={() => void retryFileDownload(message)}
+              >
                 <RotateCw />
               </IconButton>
             )}

@@ -701,14 +701,45 @@ export async function retryMessage(message: LocalMessage): Promise<void> {
   scheduleOutboxFlush();
 }
 
-/** Trigger a browser download of a (already decrypted, locally cached) file. */
-export async function saveFile(message: LocalMessage): Promise<void> {
-  if (!message.file) return;
-  const blob = await getFile(message.file.r2Key);
+/**
+ * Have another go at an incoming file whose transfer failed.
+ *
+ * The message is put back into its waiting state before the sync pass is even
+ * asked to run, exactly like a re-queued upload: `syncNow()` is a no-op while a
+ * pass is already in flight, so leaving the card on "Download failed" until the
+ * loop happened to come round would answer the click with nothing at all.
+ */
+export async function retryFileDownload(message: LocalMessage): Promise<void> {
+  if (message.direction !== "in" || message.fileState !== "error") return;
+  await upsertMessage({ ...message, fileState: "remote" });
+  await syncNow();
+}
+
+/**
+ * Hand a (already decrypted, locally cached) file to the browser's downloads.
+ *
+ * Resolves `true` only once the download has actually been started, so the
+ * button that asked for it can confirm it, and reports every failure as a toast
+ * rather than as a rejected promise nobody awaits. Reading the blob back can
+ * fail for real — under an at-rest lock it is stored encrypted, and opening it
+ * is a decrypt — and until now that failure left the click doing nothing at
+ * all, which reads as a broken button rather than as a problem with the file.
+ */
+export async function saveFile(message: LocalMessage): Promise<boolean> {
+  if (!message.file) return false;
+
+  let blob: Blob | undefined;
+  try {
+    blob = await getFile(message.file.r2Key);
+  } catch {
+    showToast("Couldn't open this file on this device", "error");
+    return false;
+  }
   if (!blob) {
     showToast("File is no longer available", "error");
-    return;
+    return false;
   }
+
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -717,6 +748,7 @@ export async function saveFile(message: LocalMessage): Promise<void> {
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
