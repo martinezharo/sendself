@@ -112,16 +112,67 @@ export function Button({
 /* --------------------------------------------------------------------------
    Icon button
    ------------------------------------------------------------------------ */
-type IconButtonProps = JSX.IntrinsicElements["button"] & { label: string };
+type IconButtonSurface = "surface" | "inset";
 
-export function IconButton({ label, class: cls, children, ...rest }: IconButtonProps): JSX.Element {
+/**
+ * How the button answers the pointer, which depends entirely on what it is
+ * sitting on.
+ *
+ * `surface` is the page chrome, where a filled chip is the house style. `inset`
+ * is a control *inside* something already boxed — a bubble, or the file card,
+ * which is a panel holding a rounded icon tile. A third rounded rectangle
+ * lighting up inside those two is noise, and an absolute surface colour is
+ * wrong there anyway: it lands as a grey chip on a tinted bubble and is
+ * invisible on a panel already painted that exact colour. So `inset` says it
+ * with weight instead: the icon rests dimmed and comes up to full ink.
+ *
+ * It is dimmed *by opacity, and only where there is a pointer to undim it*.
+ * Both halves matter. Tailwind compiles every `hover:` into
+ * `@media (hover: hover)`, so on a touch screen the lit state is unreachable —
+ * the icon would sit apologising forever at the one place where it is the only
+ * way to save a file. And opacity dims against whatever is behind it, which is
+ * the same reason the file card's own panel is `bg-black/15` rather than a
+ * surface colour: one rule that holds on a tinted bubble and on a plain card,
+ * in both themes. (`on-bubble` is literally `ink`, so "full strength" needs no
+ * per-context colour.)
+ *
+ * The accent stays out of it, because it is what a *confirmation* is painted in
+ * (see `SaveFileButton`); a hover that borrowed it would be claiming something
+ * happened.
+ */
+const ICON_BUTTON_SURFACES: Record<IconButtonSurface, string> = {
+  surface: "text-subtle hover:bg-surface-3 hover:text-ink",
+  // `hover:enabled:` rather than `hover:`: the dim of a disabled button is the
+  // one this must not out-rank, and stacking the variant settles that by
+  // specificity instead of by the order Tailwind happens to emit.
+  inset:
+    "text-ink [@media(hover:hover)]:opacity-60 hover:enabled:opacity-100 focus-visible:opacity-100",
+};
+
+type IconButtonProps = JSX.IntrinsicElements["button"] & {
+  label: string;
+  /** What the button is sitting on. See `ICON_BUTTON_SURFACES`. */
+  on?: IconButtonSurface;
+};
+
+export function IconButton({
+  label,
+  on = "surface",
+  class: cls,
+  children,
+  ...rest
+}: IconButtonProps): JSX.Element {
   return (
     <button
       {...rest}
       aria-label={label}
       title={label}
+      // The hover is chosen here rather than appended by the caller: two hover
+      // backgrounds on one element are resolved by the order Tailwind happens
+      // to emit them in, not by the order they are written in.
       class={cx(
-        "inline-flex items-center justify-center size-[38px] rounded-[10px] text-subtle transition hover:bg-surface-3 hover:text-ink active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed [&_svg]:size-[19px]",
+        "inline-flex items-center justify-center size-[38px] rounded-[10px] transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed [&_svg]:size-[19px]",
+        ICON_BUTTON_SURFACES[on],
         cls as string,
       )}
     >

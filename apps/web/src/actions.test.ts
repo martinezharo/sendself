@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { generateGroupKey } from "./crypto/crypto";
 import type { LocalMessage, Session } from "./types";
 
 /**
@@ -31,6 +32,9 @@ let spaces: typeof import("./state/spaces");
 let messagesState: typeof import("./state/messages");
 let deletions: typeof import("./db/deletions");
 let identity: typeof import("./crypto/identity");
+let store: typeof import("./db/store");
+let atrest: typeof import("./db/atrest");
+let ui: typeof import("./state/ui");
 
 const A_SESSION: Session = {
   groupId: "group",
@@ -44,15 +48,19 @@ beforeEach(async () => {
   vi.resetModules();
   // Imported together after the reset so every module below shares one instance
   // of the registry and of the signals.
-  [actions, route, session, spaces, messagesState, deletions, identity] = await Promise.all([
-    import("./actions"),
-    import("./state/route"),
-    import("./state/session"),
-    import("./state/spaces"),
-    import("./state/messages"),
-    import("./db/deletions"),
-    import("./crypto/identity"),
-  ]);
+  [actions, route, session, spaces, messagesState, deletions, identity, store, atrest, ui] =
+    await Promise.all([
+      import("./actions"),
+      import("./state/route"),
+      import("./state/session"),
+      import("./state/spaces"),
+      import("./state/messages"),
+      import("./db/deletions"),
+      import("./crypto/identity"),
+      import("./db/store"),
+      import("./db/atrest"),
+      import("./state/ui"),
+    ]);
 });
 
 describe("applyRoute", () => {
@@ -181,5 +189,129 @@ describe("view-once messages", () => {
 
     expect(messagesState.messages.value.some((m) => m.deletes)).toBe(false);
     expect(messagesState.getLocalMessage("msg-2")).toBeDefined();
+  });
+});
+
+/**
+ * Saving an attachment is the one chat action whose outcome the app cannot
+ * observe: the browser takes over the moment the anchor is clicked. So what
+ * `saveFile` owes the button that started it is exactly this — `true` once a
+ * download is really under way, and a spoken failure on every dead end, never a
+ * rejected promise nobody is awaiting.
+ */
+describe("saveFile", () => {
+  const A_FILE_MESSAGE: LocalMessage = {
+    id: "file-1",
+    direction: "in",
+    senderDeviceId: "other-device",
+    createdAt: 1,
+    status: "sent",
+    fileState: "downloaded",
+    file: { r2Key: "key-1", iv: "", name: "notes.txt", size: 5, mime: "text/plain" },
+  };
+
+  /** The two browser affordances `saveFile` reaches for, in a plain-node run. */
+  function stubDownload(): { href: string; download: string; clicks: number } {
+    const anchor = {
+      href: "",
+      download: "",
+      clicks: 0,
+      click(): void {
+        anchor.clicks++;
+      },
+      remove(): void {},
+    };
+    vi.stubGlobal("document", {
+      createElement: () => anchor,
+      body: { appendChild: () => {} },
+    });
+    URL.createObjectURL = () => "blob:test";
+    URL.revokeObjectURL = () => {};
+    return anchor;
+  }
+
+  beforeEach(async () => {
+    await spaces.beginSpace("Home");
+    session.session.value = A_SESSION;
+    ui.toasts.value = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    atrest.setContentKey(null);
+    Reflect.deleteProperty(URL, "createObjectURL");
+    // `revokeObjectURL` is left behind as a no-op on purpose: the release runs
+    // on a timer that outlives the test, and it must find something to call.
+    URL.revokeObjectURL = () => {};
+  });
+
+  it("hands the file to the browser under its own name, and confirms it", async () => {
+    const anchor = stubDownload();
+    await store.putFile("key-1", new Blob(["hello"], { type: "text/plain" }));
+
+    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(true);
+
+    expect(anchor).toMatchObject({ clicks: 1, download: "notes.txt", href: "blob:test" });
+    expect(ui.toasts.value).toEqual([]);
+  });
+
+  it("says so when the blob is no longer on this device", async () => {
+    stubDownload();
+
+    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
+
+    expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
+  });
+
+  it("speaks up when the cached blob cannot be opened, instead of failing silently", async () => {
+    // A file sealed under an at-rest key this device no longer holds: reading
+    // it back rejects rather than coming back empty, and that rejection used to
+    // leave the button looking broken.
+    atrest.setContentKey(await generateGroupKey());
+    await store.putFile("key-1", new Blob(["hello"], { type: "text/plain" }));
+    atrest.setContentKey(await generateGroupKey());
+    stubDownload();
+
+    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
+
+    expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
+  });
+});
+
+/**
+ * A failed transfer is retried through the message itself, not only through the
+ * sync loop: `syncNow()` does nothing while a pass is already running, so the
+ * card has to leave its failed state on the click that asked for it.
+ */
+describe("retryFileDownload", () => {
+  const A_FAILED_FILE: LocalMessage = {
+    id: "file-2",
+    direction: "in",
+    senderDeviceId: "other-device",
+    createdAt: 1,
+    status: "sent",
+    fileState: "error",
+    file: { r2Key: "key-2", iv: "", name: "clip.mp4", size: 9, mime: "video/mp4" },
+  };
+
+  beforeEach(async () => {
+    await spaces.beginSpace("Home");
+    session.session.value = A_SESSION;
+    await messagesState.upsertMessage(A_FAILED_FILE);
+  });
+
+  it("puts the file back in the queue where the chat can see it waiting", async () => {
+    await actions.retryFileDownload(A_FAILED_FILE);
+
+    expect(messagesState.getLocalMessage("file-2")?.fileState).toBe("remote");
+  });
+
+  it("leaves a file that is not in a failed state alone", async () => {
+    const downloaded: LocalMessage = { ...A_FAILED_FILE, id: "file-3", fileState: "downloaded" };
+    await messagesState.upsertMessage(downloaded);
+
+    await actions.retryFileDownload(downloaded);
+
+    expect(messagesState.getLocalMessage("file-3")?.fileState).toBe("downloaded");
   });
 });
