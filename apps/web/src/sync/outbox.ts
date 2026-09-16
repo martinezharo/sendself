@@ -38,6 +38,7 @@ import {
   putMessage,
 } from "../db/store";
 import type { LocalMessage, Session } from "../types";
+import { backOff, failureCounts, retryDue } from "./retry";
 
 /** Background Sync tag registered by the page and handled by the SW. */
 export const OUTBOX_SYNC_TAG = "sendself-outbox";
@@ -106,12 +107,25 @@ interface FlushContext {
   spaceId?: string;
 }
 
-function isFlushable(message: LocalMessage): boolean {
-  // "uploading" is included so an upload interrupted by a crash/kill is
-  // retried on the next pass instead of being stuck forever.
+/**
+ * Still owed to the server. "uploading" counts, so an upload interrupted by a
+ * crash or a kill is picked up again instead of being stuck forever.
+ */
+function isQueued(message: LocalMessage): boolean {
   return (
     message.direction === "out" && (message.status === "queued" || message.status === "uploading")
   );
+}
+
+/**
+ * Queued *and* past its backoff: what this pass is allowed to touch.
+ *
+ * Deliberately narrower than `isQueued`, which still counts everything owed —
+ * `remaining` is what asks the browser for another background pass, and a
+ * message serving a wait is exactly one that still needs a later attempt.
+ */
+function isDue(message: LocalMessage, now: number): boolean {
+  return isQueued(message) && retryDue(message.retry, now);
 }
 
 /**
@@ -176,14 +190,15 @@ async function doFlush(
     ...(spaceId ? { spaceId } : {}),
   };
 
-  const queued = (await allMessages(spaceId))
-    .filter(isFlushable)
+  const now = Date.now();
+  const due = (await allMessages(spaceId))
+    .filter((message) => isDue(message, now))
     .slice(0, options.maxMessages ?? Number.POSITIVE_INFINITY);
-  for (const stale of queued) {
+  for (const stale of due) {
     if (options.signal?.aborted) break;
     // Re-read: another context may have flushed this entry meanwhile.
     const message = await getMessage(stale.id, spaceId);
-    if (!message || !isFlushable(message)) continue;
+    if (!message || !isDue(message, now)) continue;
 
     try {
       if (message.deletes) {
@@ -212,7 +227,14 @@ async function doFlush(
         // NetworkError or transient ApiError (rate_limited / internal): back to
         // "queued" for the next attempt. The "uploading" → "queued" reset also
         // keeps the UI honest while offline / being rate-limited.
-        await update({ ...current, status: "queued" }, context);
+        //
+        // A lifecycle abort is not a failure — the service worker is about to
+        // resume this exact item — so it buys no wait; neither does a device
+        // that simply has no network (see `failureCounts`).
+        const handedOff = !!options.signal?.aborted;
+        const retry =
+          handedOff || !failureCounts() ? current.retry : backOff(current.retry, Date.now());
+        await update({ ...current, status: "queued", ...(retry ? { retry } : {}) }, context);
         result.remaining++;
       } else {
         // Permanent ApiError, or a local failure (encrypt threw, corrupt blob):
@@ -228,7 +250,7 @@ async function doFlush(
   }
   // Count the persisted queue, including items outside this bounded pass and
   // files added while it was running. This drives reliable follow-up syncs.
-  result.remaining = (await allMessages(spaceId)).filter(isFlushable).length;
+  result.remaining = (await allMessages(spaceId)).filter(isQueued).length;
   return result;
 }
 
@@ -337,7 +359,7 @@ async function sendQueuedDeletion(message: LocalMessage, context: FlushContext):
   } catch (error) {
     if (!isAlreadySent(error)) throw error;
   }
-  await update({ ...message, keyEpoch: epoch, status: "sent" }, context);
+  await update({ ...message, keyEpoch: epoch, retry: undefined, status: "sent" }, context);
 }
 
 /**
@@ -443,5 +465,8 @@ async function sendQueuedContent(message: LocalMessage, context: FlushContext): 
   } catch (error) {
     if (!isAlreadySent(error)) throw error;
   }
-  await update({ ...message, ...(file ? { file } : {}), keyEpoch: epoch, status: "sent" }, context);
+  await update(
+    { ...message, ...(file ? { file } : {}), keyEpoch: epoch, retry: undefined, status: "sent" },
+    context,
+  );
 }

@@ -325,3 +325,73 @@ describe("retryFileDownload", () => {
     expect(syncModule.syncNow).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `failed` is the one state nothing picks up again on its own, so the only way
+ * back for those messages is somebody asking — and asking has to reach all of
+ * them, including the ones that never had a bubble to ask from.
+ */
+describe("retryFailedSends", () => {
+  const failedText: LocalMessage = {
+    id: "out-1",
+    direction: "out",
+    senderDeviceId: "device",
+    text: "hello",
+    createdAt: 1,
+    status: "failed",
+    retry: { attempts: 4, notBefore: Date.now() + 300_000 },
+  };
+  const failedTombstone: LocalMessage = {
+    id: "out-2",
+    direction: "out",
+    senderDeviceId: "device",
+    deletes: "some-message",
+    createdAt: 2,
+    status: "failed",
+  };
+  const stillGoing: LocalMessage = {
+    id: "out-3",
+    direction: "out",
+    senderDeviceId: "device",
+    text: "on its way",
+    createdAt: 3,
+    status: "queued",
+    retry: { attempts: 1, notBefore: Date.now() + 5_000 },
+  };
+
+  beforeEach(async () => {
+    await spaces.beginSpace("Home");
+    session.session.value = A_SESSION;
+    for (const message of [failedText, failedTombstone, stillGoing]) {
+      await messagesState.upsertMessage(message);
+    }
+    syncModule.syncNow.mockClear();
+  });
+
+  it("re-queues everything that gave up and drops the wait it was serving", async () => {
+    await actions.retryFailedSends();
+
+    expect(messagesState.getLocalMessage("out-1")).toMatchObject({ status: "queued" });
+    // The press means "now": leaving the schedule behind would make it do
+    // nothing at all for the next five minutes.
+    expect(messagesState.getLocalMessage("out-1")?.retry).toBeUndefined();
+    expect(syncModule.syncNow).toHaveBeenCalled();
+  });
+
+  it("revives a stranded tombstone, which has no bubble of its own to ask from", async () => {
+    await actions.retryFailedSends();
+
+    expect(messagesState.getLocalMessage("out-2")).toMatchObject({ status: "queued" });
+  });
+
+  it("leaves a message that is merely waiting alone, schedule and all", async () => {
+    await actions.retryFailedSends();
+
+    // It has not given up: the outbox is still going to send it, and clearing
+    // its backoff here would be the app hurrying something nobody asked about.
+    expect(messagesState.getLocalMessage("out-3")).toMatchObject({
+      status: "queued",
+      retry: stillGoing.retry,
+    });
+  });
+});

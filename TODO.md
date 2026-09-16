@@ -59,7 +59,6 @@ Biggest remaining items (need design decisions, don't do blindly):
 
 ## 6. UI / UX / Accessibility
 
-- [ ] 🟡⚡ **No retry for failed text.** A `failed` outgoing message shows an alert icon but isn't tappable (files do have retry). Add tap-to-retry.
 - [ ] 🟡🛠️ **No image/video previews.** Everything renders as a generic file card. Render inline thumbnails/previews from the decrypted blob (`URL.createObjectURL`).
 - [ ] 🟡🛠️ **No real upload/download progress** for large files (spinner only). Show %.
 - [ ] 🟡🛠️ **No "clear history".** Single-message delete now exists in both flavours (this device / all devices), but there is no way to wipe a whole conversation in one go. The tombstone pipeline is the mechanism; what it needs is a bounded batch form, since one tombstone per message does not scale to a year of history.
@@ -70,6 +69,7 @@ Biggest remaining items (need design decisions, don't do blindly):
 - [ ] 🔵🛠️ **No search** in messages.
 - [ ] 🔵⚡ **QR scanner** has no torch/camera switch.
 - [ ] 🔵⚡ **No manual theme toggle** (system `dark:` only). Optional.
+- [ ] 🟡🛠️ **A dead session marks its queue `failed`.** When a flush hits `unauthorized`/`device_revoked` the messages in flight are marked permanently failed, and re-linking the device does not bring them back — the user has to find each bubble. Leaving them `queued` and stopping the pass would let a new session resume them, but it needs a bound: a device that is never re-linked would keep a queue forever. Decide before changing (`isRetriable` in `apps/web/src/sync/outbox.ts`).
 
 ## 7. Features (roadmap "next level")
 

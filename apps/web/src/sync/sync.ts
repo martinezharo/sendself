@@ -28,7 +28,8 @@ import {
   sessionRevoked,
 } from "../state/session";
 import { showToast } from "../state/ui";
-import type { FileRef, LocalMessage } from "../types";
+import { backOff, failureCounts, retryDue } from "./retry";
+import type { FileRef, LocalMessage, RetrySchedule } from "../types";
 import { requestBackgroundSync, requestImmediateWorkerFlush } from "./background";
 import { type OutboxUpdateBroadcast, flushQueuedOutbox } from "./outbox";
 import { ensureRealtime, realtimeConnected, startRealtime, stopRealtime } from "./realtime";
@@ -244,11 +245,26 @@ export async function syncNow(): Promise<void> {
   }
 }
 
+/**
+ * Flush the outbox, and never let it take the rest of the pass with it.
+ *
+ * Everything the flush expects to go wrong it already handles per message. What
+ * is caught here is the rest — an IndexedDB read that throws, a row that cannot
+ * be opened — which used to escape into `syncNow`'s own catch and skip
+ * everything after this line, so a device that could not *send* also quietly
+ * stopped *receiving*.
+ */
 async function flushOutbox(): Promise<{ remaining: number }> {
   const controller = new AbortController();
   outboxAbortController = controller;
-  const flushed = await flushQueuedOutbox(applyMessageUpdate, { signal: controller.signal });
-  if (outboxAbortController === controller) outboxAbortController = null;
+  let flushed = { sent: 0, failed: 0, remaining: 0 };
+  try {
+    flushed = await flushQueuedOutbox(applyMessageUpdate, { signal: controller.signal });
+  } catch {
+    // Retried on the next pass like any other transient failure.
+  } finally {
+    if (outboxAbortController === controller) outboxAbortController = null;
+  }
   if (flushed.remaining > 0) {
     // Couldn't send everything (offline/flaky network): let the browser
     // retry from the service worker even if the app gets closed.
@@ -546,6 +562,12 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
   const file = local.file;
 
   if (file && needsDownload(local.fileState)) {
+    // Still serving a backoff from an earlier failure. Returning — rather than
+    // falling through — is the whole point: past this block sits the ack, and
+    // acking a file we have not got is how the server is told it may delete the
+    // only copy of it.
+    if (!retryDue(local.retry)) return;
+
     // Registered under an epoch we somehow no longer hold: transient, retry.
     const key = local.keyEpoch === undefined ? undefined : keyForEpoch(ring, local.keyEpoch);
     if (!key) throw new Error(`No GroupKey for epoch ${local.keyEpoch}`);
@@ -563,8 +585,8 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
         local = { ...local, fileState: "expired" };
         await upsertMessage(local);
       } else {
-        await upsertMessage({ ...local, fileState: "error" });
-        return; // transient (network/5xx): do not ack; retry next pass
+        await upsertMessage({ ...local, fileState: "error", ...waitBeforeRetrying(local) });
+        return; // transient (network/5xx): do not ack; retry after the wait
       }
     }
 
@@ -575,8 +597,8 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
         decryptAttempts.delete(`file:${local.id}`);
       } catch (error) {
         if (!decryptBudgetExhausted(`file:${local.id}`)) {
-          await upsertMessage({ ...local, fileState: "error" });
-          return; // do not ack; retry next pass
+          await upsertMessage({ ...local, fileState: "error", ...waitBeforeRetrying(local) });
+          return; // do not ack; retry after the wait
         }
         // Poisoned ciphertext: give up and fall through to the ack, so we
         // stop re-downloading up to 50 MB on every poll until the TTL.
@@ -590,10 +612,10 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
         } catch {
           // Local storage failure (quota, …) is transient, unlike a decrypt
           // failure — never spend the decrypt budget or ack on it.
-          await upsertMessage({ ...local, fileState: "error" });
+          await upsertMessage({ ...local, fileState: "error", ...waitBeforeRetrying(local) });
           return;
         }
-        local = { ...local, fileState: "downloaded" };
+        local = { ...local, fileState: "downloaded", retry: undefined };
         await upsertMessage(local);
       }
     }
@@ -603,6 +625,15 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
     await api.ackMessage(local.id, auth);
     await upsertMessage({ ...local, acked: true });
   }
+}
+
+/**
+ * The backoff a failed transfer has just earned, ready to be spread into the
+ * message. A device that simply has no network earns none (see `failureCounts`).
+ */
+function waitBeforeRetrying(message: LocalMessage): { retry?: RetrySchedule } {
+  if (!failureCounts()) return message.retry ? { retry: message.retry } : {};
+  return { retry: backOff(message.retry) };
 }
 
 /** File states that still want a download attempt on this pass. */

@@ -64,6 +64,7 @@ import {
   applyGlobalDeletion,
   applyMessageUpdate,
   discardMessage,
+  failedSends,
   loadMessages,
   upsertMessage,
 } from "./state/messages";
@@ -694,11 +695,31 @@ export async function sendStagedComposer(): Promise<void> {
   await sendComposerMessage({ text, files, viewOnce });
 }
 
-/** Re-queue a failed outgoing message and try again. */
+/**
+ * Re-queue a failed outgoing message and try again.
+ *
+ * The backoff goes with it: a person pressing "Retry" means *now*, and leaving
+ * a schedule behind would make the press do nothing for up to five minutes.
+ */
 export async function retryMessage(message: LocalMessage): Promise<void> {
   if (message.direction !== "out" || message.status !== "failed") return;
-  await upsertMessage({ ...message, status: "queued" });
+  await upsertMessage({ ...message, status: "queued", retry: undefined });
   scheduleOutboxFlush();
+}
+
+/**
+ * Put everything that gave up back in the queue.
+ *
+ * Tombstones ride along. They have no bubble to press "Retry" on, so this is
+ * the only thing that ever revives a "delete everywhere" the server refused —
+ * and a deletion the user was told had happened is the last thing that should
+ * stay stranded.
+ */
+export async function retryFailedSends(): Promise<void> {
+  const stranded = failedSends.value;
+  if (stranded.length === 0) return;
+  // One flush covers all of them: `syncNow` is a no-op while a pass is running.
+  await Promise.all(stranded.map(retryMessage));
 }
 
 /**
@@ -711,7 +732,9 @@ export async function retryMessage(message: LocalMessage): Promise<void> {
  */
 export async function retryFileDownload(message: LocalMessage): Promise<void> {
   if (message.direction !== "in" || message.fileState !== "error") return;
-  await upsertMessage({ ...message, fileState: "remote" });
+  // Clearing the backoff is what makes the press mean "now": the pass below
+  // skips a file that is still serving one.
+  await upsertMessage({ ...message, fileState: "remote", retry: undefined });
   await syncNow();
 }
 
