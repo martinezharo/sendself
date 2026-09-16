@@ -89,12 +89,27 @@ function Linkify({ text }: { text: string }): JSX.Element {
   return <>{parts}</>;
 }
 
-/** Incoming file messages whose blob hasn't been fetched from the server yet. */
-function countIncomingDownloads(list: LocalMessage[]): number {
-  return list.filter(
-    (m) =>
-      m.direction === "in" && m.file && (m.fileState === "remote" || m.fileState === "downloading"),
-  ).length;
+/** Incoming file transfers, split by whether they are still on their way. */
+function countIncomingFiles(list: LocalMessage[]): { receiving: number; stranded: number } {
+  let receiving = 0;
+  let stranded = 0;
+  for (const message of list) {
+    if (message.direction !== "in" || !message.file) continue;
+    if (message.fileState === "remote" || message.fileState === "downloading") receiving++;
+    else if (
+      message.fileState === "error" ||
+      message.fileState === "corrupted" ||
+      message.fileState === "expired"
+    ) {
+      stranded++;
+    }
+  }
+  return { receiving, stranded };
+}
+
+/** "1 file" / "3 files". */
+function fileCount(n: number): string {
+  return n === 1 ? "1 file" : `${n} files`;
 }
 
 export function Chat(): JSX.Element {
@@ -103,7 +118,7 @@ export function Chat(): JSX.Element {
   // together, and space notices are merged into the same thread by time (see
   // state/grouping.ts).
   const entries = chatEntries(list, spaceEvents.value);
-  const downloading = countIncomingDownloads(list);
+  const { receiving, stranded } = countIncomingFiles(list);
   const currentSession = session.value;
   const myId = currentSession?.deviceId;
   const [deviceNames, setDeviceNames] = useState<Map<string, string>>(() => new Map());
@@ -143,17 +158,25 @@ export function Chat(): JSX.Element {
 
   return (
     <div class="relative flex min-h-0 flex-1 flex-col">
-      {downloading > 0 && (
+      {receiving > 0 && (
         <div class="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
           <div
             role="status"
             class="flex items-center gap-2 rounded-full bg-elevated px-3.5 py-[7px] text-caption font-medium text-ink shadow-pop"
           >
             <Spinner class="!size-[13px] !border-[1.5px]" />
-            <span>Receiving {downloading === 1 ? "1 file" : `${downloading} files`}…</span>
+            <span>Receiving {fileCount(receiving)}…</span>
           </div>
         </div>
       )}
+      {/* A transfer that ends badly says so in ordinary text on its own card,
+          which a screen reader never hears happen. One region for the whole
+          thread rather than one per card: a dozen file cards would be a dozen
+          things trying to speak, and the pill above already owns the good
+          ending. */}
+      <span class="sr-only" role="status">
+        {stranded > 0 ? `${fileCount(stranded)} couldn't be received` : ""}
+      </span>
       <div class="flex-1 overflow-y-auto px-6 pb-2 pt-[22px] max-md:px-[14px] max-md:pt-4">
         {/* A short conversation hangs from the composer rather than floating at
             the top of an empty column — the thread grows upwards, like every

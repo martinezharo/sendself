@@ -19,11 +19,15 @@ import type { LocalMessage, Session } from "./types";
 // listeners) and for the network. Neither is what these tests are about, and
 // stubbing it keeps them in the plain node environment the rest of the suite
 // runs in.
-vi.mock("./sync/sync", () => ({
+// One object for the whole file, not a fresh one per `resetModules`: a test
+// that asserts on `syncNow` has to be holding the same spy the code under test
+// just called.
+const syncModule = vi.hoisted(() => ({
   startSync: vi.fn(),
   stopSync: vi.fn(),
   syncNow: vi.fn(async () => {}),
 }));
+vi.mock("./sync/sync", () => syncModule);
 
 let actions: typeof import("./actions");
 let route: typeof import("./state/route");
@@ -298,12 +302,17 @@ describe("retryFileDownload", () => {
     await spaces.beginSpace("Home");
     session.session.value = A_SESSION;
     await messagesState.upsertMessage(A_FAILED_FILE);
+    // Cleared last: opening a space starts the loop on its own.
+    syncModule.syncNow.mockClear();
   });
 
-  it("puts the file back in the queue where the chat can see it waiting", async () => {
+  it("puts the file back in the queue and kicks the loop that fetches it", async () => {
     await actions.retryFileDownload(A_FAILED_FILE);
 
     expect(messagesState.getLocalMessage("file-2")?.fileState).toBe("remote");
+    // Both halves matter: the waiting state is what the card shows back
+    // immediately, and the pass is what actually goes and gets the file.
+    expect(syncModule.syncNow).toHaveBeenCalled();
   });
 
   it("leaves a file that is not in a failed state alone", async () => {
@@ -313,5 +322,6 @@ describe("retryFileDownload", () => {
     await actions.retryFileDownload(downloaded);
 
     expect(messagesState.getLocalMessage("file-3")?.fileState).toBe("downloaded");
+    expect(syncModule.syncNow).not.toHaveBeenCalled();
   });
 });

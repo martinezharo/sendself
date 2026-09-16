@@ -20,8 +20,9 @@ const DONE_MS = 1800;
  *
  * The action earns that confirmation by resolving `true`; resolving `false` (a
  * failure it has already reported as a toast) or rejecting just ends the wait.
- * A second run while one is in flight is ignored, so a double click cannot save
- * the same file twice.
+ * Re-entry is refused until the control is back to `idle` — confirmation
+ * included, since a save is usually over within a frame or two and the second
+ * half of a double click would otherwise land on the check.
  */
 export function useActionFeedback(action: () => Promise<boolean>): {
   state: ActionState;
@@ -70,18 +71,26 @@ export function useActionFeedback(action: () => Promise<boolean>): {
       setState("busy");
     });
 
-    function settle(confirmed: boolean): void {
+    /** Back to offering itself, and open to being run again. */
+    function release(): void {
       running.current = false;
+      setState("idle");
+    }
+
+    function settle(confirmed: boolean): void {
       clearTimeout(spinner);
       if (!mounted.current) return;
       const hold = busySince ? Math.max(0, BUSY_MIN_MS - (Date.now() - busySince)) : 0;
       after(hold, () => {
         if (!confirmed) {
-          setState("idle");
+          release();
           return;
         }
         setState("done");
-        after(DONE_MS, () => setState("idle"));
+        // The lock outlives the action: a save is usually over in a frame or
+        // two, so the second half of a double click lands on the check rather
+        // than on the wait, and would save the same file all over again.
+        after(DONE_MS, release);
       });
     }
 
