@@ -24,6 +24,7 @@ import {
   copyMessageText,
   listDevicesDecrypted,
   releaseViewOnce,
+  retryFailedSends,
   retryFileDownload,
   retryMessage,
   saveFile,
@@ -40,7 +41,7 @@ import {
 } from "../state/composer";
 import { spaceEvents } from "../state/events";
 import { type AlbumEntry, albumCaption, chatEntries } from "../state/grouping";
-import { visibleMessages } from "../state/messages";
+import { failedSends, visibleMessages } from "../state/messages";
 import { showSpaceSection } from "../state/route";
 import { session } from "../state/session";
 import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
@@ -119,6 +120,9 @@ export function Chat(): JSX.Element {
   // state/grouping.ts).
   const entries = chatEntries(list, spaceEvents.value);
   const { receiving, stranded } = countIncomingFiles(list);
+  // Tombstones are retried with the rest but never counted: "2 messages didn't
+  // send" is about things the user wrote, and a deletion order has no bubble.
+  const unsent = failedSends.value.filter((m) => !m.deletes).length;
   const currentSession = session.value;
   const myId = currentSession?.deviceId;
   const [deviceNames, setDeviceNames] = useState<Map<string, string>>(() => new Map());
@@ -158,15 +162,42 @@ export function Chat(): JSX.Element {
 
   return (
     <div class="relative flex min-h-0 flex-1 flex-col">
-      {receiving > 0 && (
-        <div class="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
-          <div
-            role="status"
-            class="flex items-center gap-2 rounded-full bg-elevated px-3.5 py-[7px] text-caption font-medium text-ink shadow-pop"
-          >
-            <Spinner class="!size-[13px] !border-[1.5px]" />
-            <span>Receiving {fileCount(receiving)}…</span>
-          </div>
+      {/* What the thread has to say about itself, above the thread. Both are
+          transient enough to float over the conversation rather than push it
+          down, and stacked so they never land on the same spot. */}
+      {(receiving > 0 || unsent > 0) && (
+        <div class="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 flex-col items-center gap-2">
+          {receiving > 0 && (
+            <div
+              role="status"
+              class="pointer-events-none flex items-center gap-2 rounded-full bg-elevated px-3.5 py-[7px] text-caption font-medium text-ink shadow-pop"
+            >
+              <Spinner class="!size-[13px] !border-[1.5px]" />
+              <span>Receiving {fileCount(receiving)}…</span>
+            </div>
+          )}
+          {/* Nothing retries a failed send on its own, and the alert on the
+              bubble is only seen by somebody already looking at it — which is
+              nobody, when it failed in the service worker with the app shut. */}
+          {unsent > 0 && (
+            <div
+              role="status"
+              class="flex items-center gap-1.5 rounded-full border border-danger/40 bg-elevated py-[3px] pl-3.5 pr-[3px] text-caption font-medium text-ink shadow-pop"
+            >
+              <AlertCircle class="size-[14px] flex-none text-danger" />
+              <span>
+                {unsent === 1 ? "1 message didn't send" : `${unsent} messages didn't send`}
+              </span>
+              <button
+                type="button"
+                onClick={() => void retryFailedSends()}
+                class="ml-0.5 inline-flex min-h-6 items-center gap-1 rounded-full px-2.5 font-medium text-accent transition hover:bg-accent-soft [&_svg]:size-[13px]"
+              >
+                <RotateCw />
+                Retry
+              </button>
+            </div>
+          )}
         </div>
       )}
       {/* A transfer that ends badly says so in ordinary text on its own card,

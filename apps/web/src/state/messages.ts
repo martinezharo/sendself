@@ -12,6 +12,19 @@ export const messages = signal<LocalMessage[]>([]);
  */
 export const visibleMessages = computed(() => messages.value.filter((m) => !m.deletes));
 
+/**
+ * Outgoing work that gave up.
+ *
+ * `failed` is the one state the outbox will not pick up again on its own (see
+ * `isQueued` in sync/outbox.ts): it is reserved for what would fail identically
+ * forever, so retrying it has to be somebody's decision. Until this list is
+ * empty, that decision is still owed — which is why the chat says so out loud
+ * rather than leaving it to whoever scrolls past the right bubble.
+ */
+export const failedSends = computed(() =>
+  messages.value.filter((m) => m.direction === "out" && m.status === "failed"),
+);
+
 export async function loadMessages(): Promise<void> {
   const stored = await allMessages();
   // A tombstone only exists to be delivered. Once the server has it, delivery
