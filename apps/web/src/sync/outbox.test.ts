@@ -397,3 +397,94 @@ describe("outbox metadata envelope", () => {
     );
   });
 });
+
+/**
+ * What a transient failure costs the next pass.
+ *
+ * The poll comes round every eight seconds and re-sends from scratch — for a
+ * file, up to 50 MB re-encrypted and re-uploaded each time. So a failure has to
+ * buy a wait, and that wait has to be persisted (the page and the service
+ * worker take turns at this queue) and honoured by whoever flushes next.
+ */
+describe("outbox backoff", () => {
+  beforeEach(() => {
+    state.messages.clear();
+    state.files.clear();
+    state.uploadFile.mockReset().mockResolvedValue(undefined);
+    state.sendMessage.mockReset().mockResolvedValue(undefined);
+  });
+
+  function queueText(id: string): void {
+    state.messages.set(id, {
+      id,
+      direction: "out",
+      senderDeviceId: "device",
+      text: "hello",
+      createdAt: 0,
+      status: "queued",
+    });
+  }
+
+  it("makes a transient failure buy a wait, and the next pass respect it", async () => {
+    queueText("m1");
+    const { NetworkError } = await import("../api/client");
+    state.sendMessage.mockRejectedValue(new NetworkError("flaky"));
+
+    await flushQueuedOutbox();
+
+    const schedule = state.messages.get("m1")?.retry;
+    expect(schedule?.attempts).toBe(1);
+    expect(schedule?.notBefore).toBeGreaterThan(Date.now());
+
+    // Same tick, second pass: the message is still owed, and still not touched.
+    state.sendMessage.mockReset().mockResolvedValue(undefined);
+    const second = await flushQueuedOutbox();
+
+    expect(state.sendMessage).not.toHaveBeenCalled();
+    // Counted as remaining all the same: that is what asks the browser for
+    // another background pass later, and this message does need one.
+    expect(second).toEqual({ sent: 0, failed: 0, remaining: 1 });
+  });
+
+  it("sends it once the wait is over, and clears the schedule on the way out", async () => {
+    queueText("m2");
+    state.messages.set("m2", {
+      ...state.messages.get("m2")!,
+      retry: { attempts: 2, notBefore: Date.now() - 1 },
+    });
+
+    const result = await flushQueuedOutbox();
+
+    expect(result).toEqual({ sent: 1, failed: 0, remaining: 0 });
+    expect(state.messages.get("m2")?.retry).toBeUndefined();
+  });
+
+  it("does not make a device with no network serve a wait it earned in a tunnel", async () => {
+    queueText("m3");
+    const { NetworkError } = await import("../api/client");
+    state.sendMessage.mockRejectedValue(new NetworkError("offline"));
+    vi.stubGlobal("navigator", { onLine: false });
+
+    await flushQueuedOutbox();
+
+    // Nothing to wait for: everything fails at once while offline, and coming
+    // back online runs a pass immediately — which has to be allowed to send.
+    expect(state.messages.get("m3")?.retry).toBeUndefined();
+    expect(state.messages.get("m3")?.status).toBe("queued");
+    vi.unstubAllGlobals();
+  });
+
+  it("charges nothing for a handoff to the service worker, which resumes it anyway", async () => {
+    queueText("m4");
+    const controller = new AbortController();
+    state.sendMessage.mockImplementation(async () => {
+      controller.abort();
+      throw new DOMException("Aborted", "AbortError");
+    });
+
+    await flushQueuedOutbox(undefined, { signal: controller.signal });
+
+    expect(state.messages.get("m4")?.retry).toBeUndefined();
+    expect(state.messages.get("m4")?.status).toBe("queued");
+  });
+});

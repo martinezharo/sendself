@@ -31,6 +31,21 @@ export type FileState =
   /** Decryption failed repeatedly (tampered/poisoned ciphertext); given up. */
   | "corrupted";
 
+/**
+ * When a transfer that failed for a transient reason may be tried again.
+ *
+ * One shape for both directions — an outgoing send and an incoming file's
+ * download are the same problem seen from either end — and persisted on the
+ * message because the loop that honours it runs in two contexts (the page and
+ * the service worker) and must not restart the count on a reload.
+ */
+export interface RetrySchedule {
+  /** Consecutive transient failures. */
+  attempts: number;
+  /** Epoch ms before which another attempt is pointless. */
+  notBefore: number;
+}
+
 /** A decrypted message as kept in local history. */
 export interface LocalMessage {
   id: string;
@@ -75,6 +90,13 @@ export interface LocalMessage {
   /** Outgoing delivery status (incoming messages are always "sent"). */
   status: MessageStatus;
   fileState?: FileState;
+  /**
+   * The backoff this message's transfer is currently serving: the outbox's next
+   * send attempt, or the next download attempt for an incoming file. Cleared by
+   * success, and by the user asking for a retry by hand — a person pressing
+   * "Retry" means *now*, whatever the schedule says.
+   */
+  retry?: RetrySchedule;
   /** Incoming payload (text/file metadata) could not be decrypted; dropped. */
   corrupted?: boolean;
   /**
