@@ -126,7 +126,7 @@ export function Chat(): JSX.Element {
   const currentSession = session.value;
   const myId = currentSession?.deviceId;
   const [deviceNames, setDeviceNames] = useState<Map<string, string>>(() => new Map());
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollerRef = useRef<HTMLDivElement>(null);
   const hasScrolledRef = useRef(false);
 
   useEffect(() => {
@@ -137,7 +137,17 @@ export function Chat(): JSX.Element {
     // Counted in entries rather than messages: a device joining while the chat
     // is open adds a notice and no message, and a notice that lands below the
     // fold is one nobody reads.
-    bottomRef.current?.scrollIntoView({ behavior: hasScrolledRef.current ? "smooth" : "auto" });
+    // Keep the autoscroll inside the thread. `scrollIntoView()` is allowed to
+    // scroll every ancestor, including the document viewport; on mobile that
+    // could leave the page scrolled underneath the composer. The thread is the
+    // only surface that should move when a message arrives.
+    const scroller = chatScrollerRef.current;
+    if (scroller) {
+      scroller.scrollTo({
+        top: scroller.scrollHeight,
+        behavior: hasScrolledRef.current ? "smooth" : "auto",
+      });
+    }
     if (entries.length > 0) hasScrolledRef.current = true;
   }, [entries.length]);
 
@@ -208,7 +218,10 @@ export function Chat(): JSX.Element {
       <span class="sr-only" role="status">
         {stranded > 0 ? `${fileCount(stranded)} couldn't be received` : ""}
       </span>
-      <div class="flex-1 overflow-y-auto px-6 pb-2 pt-[22px] max-md:px-[14px] max-md:pt-4">
+      <div
+        ref={chatScrollerRef}
+        class="min-h-0 flex-1 overflow-y-auto px-6 pb-2 pt-[22px] max-md:px-[14px] max-md:pt-4"
+      >
         {/* A short conversation hangs from the composer rather than floating at
             the top of an empty column — the thread grows upwards, like every
             other messaging app. */}
@@ -245,7 +258,7 @@ export function Chat(): JSX.Element {
               />
             );
           })}
-          <div ref={bottomRef} />
+          <div />
         </div>
       </div>
       <Composer />

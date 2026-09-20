@@ -118,7 +118,7 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
   };
 
   return (
-    <div class="bg-grad flex h-full">
+    <div class="bg-grad flex h-full min-h-0 overflow-hidden">
       {/* Desktop sidebar: the nav lists the places that hold content, and the
           actions on the space itself hang off the name they act on. */}
       <aside class="hidden w-[248px] flex-none flex-col border-r border-line bg-[color-mix(in_srgb,var(--c-surface)_55%,transparent)] pb-[14px] backdrop-blur-xl md:flex">
