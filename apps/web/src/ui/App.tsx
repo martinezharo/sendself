@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   ArrowLeft,
+  Download,
   LockKeyhole,
   LogOut,
   MessagesSquare,
@@ -28,6 +29,7 @@ import { renameActiveSpace } from "../sync/spaceName";
 import { Chat } from "./Chat";
 import { DeviceManager } from "./DeviceManager";
 import { DropZone } from "./DropZone";
+import { useInstallApp } from "./Install";
 import { Landing } from "../site/Landing";
 import { LockScreen } from "./LockScreen";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
@@ -264,6 +266,7 @@ function SpaceMenuButton({
   onLeave: () => void;
 }): JSX.Element {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  const installApp = useInstallApp();
 
   const run = (action: () => void) => (): void => {
     setAnchor(null);
@@ -299,12 +302,18 @@ function SpaceMenuButton({
               Lock this device
             </MenuItem>
           )}
+          {installApp.available && (
+            <MenuItem icon={<Download />} onClick={run(installApp.install)}>
+              Install app
+            </MenuItem>
+          )}
           <MenuSeparator />
           <MenuItem danger icon={<LogOut />} onClick={run(onLeave)}>
             Leave space
           </MenuItem>
         </Menu>
       )}
+      {installApp.dialog}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { registerSW } from "virtual:pwa-register";
 import { render } from "preact";
 import { bootstrap } from "./bootstrap";
 import "./styles";
-import { redirectInstalledAppFromLanding } from "./pwa";
+import { redirectInstalledAppFromLanding, watchInstallability } from "./pwa";
 import { ready, startupError } from "./state/session";
 import { App } from "./ui/App";
 
@@ -29,6 +29,8 @@ function registerServiceWorker(): void {
 
 registerServiceWorker();
 redirectInstalledAppFromLanding();
+// Before rendering: Chromium can offer installation as soon as the page loads.
+watchInstallability();
 
 const root = document.getElementById("app");
 if (root) {
