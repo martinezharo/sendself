@@ -10,7 +10,7 @@ import {
 } from "lucide-preact";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { FileTypeIcon, cx, formatBytes, formatTime } from "./components";
+import { FileTypeIcon, cx, formatBytes, formatTime } from "../ui/components";
 
 /**
  * The chat, as the landing page shows it.

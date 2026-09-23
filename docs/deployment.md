@@ -53,7 +53,7 @@ Every deployment also applies pending remote migrations, so this is mainly a pro
 
 Whether it is triggered by a push or run by hand, the order is the same:
 
-1. `pnpm --filter @sendself/web build` renders the SSR bundle, then builds the PWA and its service worker, prerendering the public page (`index.html`) and the app shell (`app.html`) into `dist`. Workers Builds runs this as its build command.
+1. `pnpm --filter @sendself/web build` renders the SSR bundle, then builds the PWA and its service worker, prerendering the public page (`index.html`), the app shell (`app.html`), and the static site pages (security, privacy, 404) into `dist`. Workers Builds runs this as its build command.
 2. `pnpm --filter @sendself/worker run deploy` — its build command — then:
    1. `scripts/check-migrations.mts` inspects migrations that are still pending on remote D1;
    2. `pnpm db:migrate:remote` applies the accepted migrations;

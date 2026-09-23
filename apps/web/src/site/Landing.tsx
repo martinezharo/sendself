@@ -13,15 +13,20 @@ import {
 } from "lucide-preact";
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { APP_PATH, followLink } from "../state/route";
+import { Toasts, cx } from "../ui/components";
 import { ChatPreview } from "./ChatPreview";
-import { Logo, Toasts, cx } from "./components";
-
-interface Feature {
-  icon: typeof Lock;
-  title: string;
-  body: string;
-}
+import {
+  type Feature,
+  FeatureCard,
+  Kicker,
+  OpenAppLink,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SectionHeading,
+  SiteFooter,
+  SiteHeader,
+} from "./chrome";
+import { MAX_FILE_LABEL, SERVER_RETENTION_LABEL } from "./facts";
 
 const FEATURES: Feature[] = [
   {
@@ -46,8 +51,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: FileUp,
-    title: "Files up to 50 MiB",
-    body: "Send documents, images, or archives. The server copy is removed after all active recipients acknowledge delivery, or cleaned up within 24 hours.",
+    title: `Files up to ${MAX_FILE_LABEL}`,
+    body: `Send documents, images, or archives. The server copy is removed after all active recipients acknowledge delivery, or cleaned up within ${SERVER_RETENTION_LABEL}.`,
   },
   {
     icon: WifiOff,
@@ -70,16 +75,16 @@ const STEPS: Feature[] = [
   {
     icon: Send,
     title: "Send without waiting",
-    body: "Send text and files when connected; if a recipient is offline, delivery waits until it reconnects, with undelivered server copies cleaned up within 24 hours.",
+    body: `Send text and files when connected; if a recipient is offline, delivery waits until it reconnects, with undelivered server copies cleaned up within ${SERVER_RETENTION_LABEL}.`,
   },
 ];
 
-interface Faq {
+export interface Faq {
   q: string;
   a: string;
 }
 
-const FAQS: Faq[] = [
+export const FAQS: Faq[] = [
   {
     q: "Is SendSelf end-to-end encrypted?",
     a: "Yes. Messages, files, and file metadata are encrypted on your device with AES-GCM before upload. The server receives ciphertext and cannot decrypt the content.",
@@ -94,11 +99,15 @@ const FAQS: Faq[] = [
   },
   {
     q: "What is the maximum file size?",
-    a: "You can share files up to 50 MiB. The server copy is purged when active recipients acknowledge delivery; anything left over is cleaned up within 24 hours.",
+    a: `You can share files up to ${MAX_FILE_LABEL}. The server copy is purged when active recipients acknowledge delivery; anything left over is cleaned up within ${SERVER_RETENTION_LABEL}.`,
   },
   {
     q: "Does it work offline?",
     a: "Partly. The installed PWA keeps local history available and can save outgoing messages or selected files locally, but nothing is uploaded or delivered until you reconnect.",
+  },
+  {
+    q: "Can I install it as an app?",
+    a: "Yes. SendSelf is a progressive web app. In Chrome, Edge, or Samsung Internet, use the install button the browser offers; on iPhone and iPad, choose Share → Add to Home Screen; in Safari on a Mac, choose File → Add to Dock. Installed, it opens in its own window, keeps local history available offline and, on Android, shows up in the system share sheet.",
   },
   {
     q: "How do I add another device?",
@@ -137,7 +146,7 @@ export function Landing({ prerendered = false }: { prerendered?: boolean }): JSX
 
   return (
     <div class={cx("bg-grad min-h-full", prerendered && "landing-prerendered")}>
-      <SiteHeader scrolled={scrolled} />
+      <SiteHeader page="home" solid={scrolled} />
       <main>
         <Hero />
         <Features />
@@ -145,74 +154,10 @@ export function Landing({ prerendered = false }: { prerendered?: boolean }): JSX
         <Security />
         <Faq />
       </main>
-      <SiteFooter />
+      <SiteFooter page="home" />
 
       <Toasts />
     </div>
-  );
-}
-
-/**
- * The single way into the app. A real link: it is what a crawler follows, what
- * "open in a new tab" opens, and — once the bundle is running — a client-side
- * navigation rather than a reload.
- */
-function OpenAppLink({
-  children,
-  class: cls,
-}: { children: preact.ComponentChildren; class?: string }): JSX.Element {
-  return (
-    <a href={APP_PATH} onClick={(event) => followLink(event as MouseEvent, APP_PATH)} class={cls}>
-      {children}
-    </a>
-  );
-}
-
-function SiteHeader({ scrolled }: { scrolled: boolean }): JSX.Element {
-  return (
-    <header
-      class={cx(
-        "sticky top-0 z-30 transition-[background-color,border-color,box-shadow] duration-300",
-        scrolled
-          ? "border-b border-line bg-[color-mix(in_srgb,var(--c-surface)_72%,transparent)] backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent",
-      )}
-    >
-      <div class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6 max-md:px-4">
-        <a href="#top" class="flex items-center">
-          <Logo />
-        </a>
-        <nav class="flex items-center gap-1 text-note font-medium text-subtle max-md:hidden">
-          <a
-            class="rounded-lg px-3 py-2 transition hover:bg-surface-3 hover:text-ink"
-            href="#features"
-          >
-            Features
-          </a>
-          <a class="rounded-lg px-3 py-2 transition hover:bg-surface-3 hover:text-ink" href="#how">
-            How it works
-          </a>
-          <a
-            class="rounded-lg px-3 py-2 transition hover:bg-surface-3 hover:text-ink"
-            href="#security"
-          >
-            Security
-          </a>
-          <a class="rounded-lg px-3 py-2 transition hover:bg-surface-3 hover:text-ink" href="#faq">
-            FAQ
-          </a>
-        </nav>
-        <OpenAppLink
-          class={cx(
-            "inline-flex h-10 items-center gap-2 rounded-card bg-accent px-4 text-body font-semibold text-on-accent shadow-accent transition-[opacity,transform] duration-300 hover:bg-accent-hover active:scale-[0.98] [&_svg]:size-[17px]",
-            scrolled ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0",
-          )}
-        >
-          Open the app
-          <ArrowRight />
-        </OpenAppLink>
-      </div>
-    </header>
   );
 }
 
@@ -238,14 +183,11 @@ function Hero(): JSX.Element {
           {/* Stacked on a phone, the two buttons match widths instead of
               centring two different-length pills under each other. */}
           <div class="mt-8 flex flex-wrap items-center gap-3 max-md:justify-center max-sm:flex-col max-sm:items-stretch">
-            <OpenAppLink class="inline-flex h-12 items-center justify-center gap-2 rounded-card bg-accent px-5 text-body-lg font-semibold text-on-accent shadow-accent transition hover:bg-accent-hover active:scale-[0.98] [&_svg]:size-[18px]">
+            <OpenAppLink class={PRIMARY_BUTTON}>
               Open the app
               <ArrowRight />
             </OpenAppLink>
-            <a
-              href="#how"
-              class="surface-card inline-flex h-12 items-center justify-center rounded-card px-5 text-body-lg font-semibold text-ink transition hover:bg-surface-3"
-            >
+            <a href="#how" class={SECONDARY_BUTTON}>
               See how it works
             </a>
           </div>
@@ -254,7 +196,7 @@ function Hero(): JSX.Element {
               <span class="size-1.5 rounded-full bg-success" /> No account
             </li>
             <li class="flex items-center gap-1.5">
-              <span class="size-1.5 rounded-full bg-success" /> Up to 50 MiB per file
+              <span class="size-1.5 rounded-full bg-success" /> Up to {MAX_FILE_LABEL} per file
             </li>
             <li class="flex items-center gap-1.5">
               <span class="size-1.5 rounded-full bg-success" /> Offline queue
@@ -270,28 +212,6 @@ function Hero(): JSX.Element {
   );
 }
 
-function SectionHeading({
-  kicker,
-  title,
-  subtitle,
-}: {
-  kicker: string;
-  title: string;
-  subtitle?: string;
-}): JSX.Element {
-  return (
-    <div class="mx-auto max-w-2xl text-center">
-      <div class="font-mono text-meta font-medium uppercase tracking-[0.18em] text-accent">
-        {kicker}
-      </div>
-      <h2 class="mt-3 text-[clamp(1.6rem,3.5vw,2.25rem)] font-semibold tracking-[-0.03em]">
-        {title}
-      </h2>
-      {subtitle && <p class="mt-3 text-body-lg leading-relaxed text-muted">{subtitle}</p>}
-    </div>
-  );
-}
-
 function Features(): JSX.Element {
   return (
     <section id="features" class="scroll-mt-20 px-6 py-16 max-md:px-4 md:py-24">
@@ -302,14 +222,8 @@ function Features(): JSX.Element {
           subtitle="Messages and files are encrypted on your devices before they leave them. The server can deliver ciphertext, but cannot decrypt it."
         />
         <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, body }) => (
-            <article key={title} class="surface-card rounded-xl2 p-6 transition hover:shadow-pop">
-              <div class="grid size-11 place-items-center rounded-[12px] bg-accent-soft text-accent [&_svg]:size-[22px]">
-                <Icon />
-              </div>
-              <h3 class="mt-4 text-lead font-semibold tracking-[-0.01em]">{title}</h3>
-              <p class="mt-2 text-body leading-relaxed text-muted">{body}</p>
-            </article>
+          {FEATURES.map((feature) => (
+            <FeatureCard key={feature.title} {...feature} />
           ))}
         </div>
       </div>
@@ -359,7 +273,7 @@ function Security(): JSX.Element {
     },
     {
       term: "Temporary server storage",
-      desc: "Delivered messages and files are purged when active recipients acknowledge them; a scheduled cleanup removes anything older than 24 hours.",
+      desc: `Delivered messages and files are purged when active recipients acknowledge them; a scheduled cleanup removes anything older than ${SERVER_RETENTION_LABEL}.`,
     },
   ];
 
@@ -368,9 +282,7 @@ function Security(): JSX.Element {
       <div class="surface-card mx-auto max-w-5xl overflow-hidden rounded-xl3 p-8 !shadow-float md:p-12">
         <div class="grid gap-10 md:grid-cols-[0.9fr_1.1fr] md:items-center">
           <div>
-            <div class="font-mono text-meta font-medium uppercase tracking-[0.18em] text-accent">
-              Security model
-            </div>
+            <Kicker>Security model</Kicker>
             <h2 class="mt-3 text-[clamp(1.6rem,3.5vw,2.25rem)] font-semibold tracking-[-0.03em]">
               Built so the server cannot decrypt your content
             </h2>
@@ -379,10 +291,13 @@ function Security(): JSX.Element {
               ciphertext, public keys, authentication data, and delivery metadata — but not readable
               content or private device keys.
             </p>
-            <OpenAppLink class="mt-6 inline-flex items-center gap-2 text-body font-semibold text-accent transition-[gap] hover:gap-3 [&_svg]:size-[17px]">
-              Create your private space
+            <a
+              href="/security/"
+              class="mt-6 inline-flex items-center gap-2 text-body font-semibold text-accent transition-[gap] hover:gap-3 [&_svg]:size-[17px]"
+            >
+              Read the full security model
               <ArrowRight />
-            </OpenAppLink>
+            </a>
           </div>
           <dl class="grid gap-3 sm:grid-cols-2">
             {points.map(({ term, desc }) => (
@@ -421,40 +336,5 @@ function Faq(): JSX.Element {
         </div>
       </div>
     </section>
-  );
-}
-
-function SiteFooter(): JSX.Element {
-  return (
-    <footer class="border-t border-line px-6 py-12 max-md:px-4">
-      <div class="mx-auto flex max-w-6xl flex-col items-center gap-6 text-center">
-        <Logo />
-        <p class="max-w-md text-body leading-relaxed text-muted">
-          A private, end-to-end encrypted space for text and files across your devices.
-        </p>
-        <div class="flex items-center gap-2 font-mono text-meta uppercase tracking-[0.14em] text-muted [&_svg]:size-3.5">
-          <ShieldCheck class="text-accent" />
-          End-to-end encryption
-        </div>
-        <nav
-          aria-label="Resources"
-          class="flex flex-wrap justify-center gap-x-5 gap-y-2 text-note text-muted"
-        >
-          <a class="transition hover:text-ink" href="/how-it-works/">
-            How it works
-          </a>
-          <a class="transition hover:text-ink" href="/security/">
-            Security
-          </a>
-          <a class="transition hover:text-ink" href="/privacy/">
-            Privacy
-          </a>
-          <a class="transition hover:text-ink" href="/install/">
-            Install
-          </a>
-        </nav>
-        <p class="text-caption text-muted">© {new Date().getFullYear()} SendSelf</p>
-      </div>
-    </footer>
   );
 }

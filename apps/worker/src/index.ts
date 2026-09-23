@@ -95,6 +95,28 @@ function redirectWwwToCanonical(request: Request): Response | undefined {
   );
 }
 
+/**
+ * Pages the site no longer has, and where their content lives now. Old links
+ * and search results land on it instead of a 404. Matched with and without
+ * the trailing slash; the query string is dropped with the page.
+ */
+const RETIRED_PAGES: Record<string, string> = {
+  "/how-it-works": "/#how",
+  "/install": "/#faq",
+};
+
+function redirectRetiredPage(request: Request): Response | undefined {
+  const url = new URL(request.url);
+  const target = RETIRED_PAGES[url.pathname.replace(/\/+$/, "")];
+  if (!target) return undefined;
+  return withSecurityHeaders(
+    new Response(null, {
+      status: 301,
+      headers: { Location: new URL(target, url.origin).toString() },
+    }),
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -104,6 +126,9 @@ export default {
 
     const redirect = redirectHttpToHttps(request);
     if (redirect) return redirect;
+
+    const retired = redirectRetiredPage(request);
+    if (retired) return retired;
 
     // The Worker owns /api/* and applies the same security policy to static PWA
     // assets. The assets binding handles public HTML and the custom 404 page.

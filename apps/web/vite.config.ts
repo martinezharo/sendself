@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import preact from "@preact/preset-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -56,9 +57,9 @@ export default defineConfig(({ command, isSsrBuild }) => {
     plugins: [
       tailwindcss(),
       preact(),
-      // Dev only: makes `public/<dir>/index.html` reachable, which Vite's static
-      // layer does not resolve on its own. Without it every marketing page in
-      // `public/` falls through to the SPA fallback.
+      // Dev only: renders the static site pages (security, privacy) on request,
+      // which a build prerenders. Without it they fall through to the SPA
+      // fallback and show the app.
       devStaticPages(),
       ...(isSsrBuild
         ? []
@@ -153,6 +154,19 @@ export default defineConfig(({ command, isSsrBuild }) => {
       // Avoid Vite's inline module-preload polyfill so the built index.html has no
       // inline <script> (keeps the strict `script-src 'self'` CSP working).
       modulePreload: { polyfill: false },
+      // Two templates: the app's document, and the one the static site pages
+      // are prerendered into (scripts/prerender.mjs), which loads the styles
+      // but none of the app. The SSR build names its own entry.
+      ...(isSsrBuild
+        ? {}
+        : {
+            rollupOptions: {
+              input: {
+                index: fileURLToPath(new URL("index.html", import.meta.url)),
+                page: fileURLToPath(new URL("page.html", import.meta.url)),
+              },
+            },
+          }),
     },
     server: {
       port: 5173,

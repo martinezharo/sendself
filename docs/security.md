@@ -2,6 +2,8 @@
 
 This document describes the security properties intended by the current implementation. It is not a formal protocol specification or an independent security audit. Read [TODO.md](../TODO.md) and [AUDIT.md](../AUDIT.md) for unresolved decisions.
 
+The public [security page](https://sendself.4oli.com/security/) is a plain-language reading of this document ([`SecurityPage.tsx`](../apps/web/src/site/SecurityPage.tsx)), and the [privacy policy](https://sendself.4oli.com/privacy/) describes the same data from the user's side ([`PrivacyPage.tsx`](../apps/web/src/site/PrivacyPage.tsx)). A change to the model here is a change to them too: neither may promise more than this document does.
+
 ## Security goals
 
 SendSelf is designed to keep message and file contents out of the application server and to limit the damage caused by losing one device. It also aims to make tampering visible to recipient devices when the relevant signing identity is already trusted.

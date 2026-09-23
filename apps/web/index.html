@@ -89,71 +89,8 @@
       }
     </script>
 
-    <!-- Structured data: FAQ -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Is SendSelf end-to-end encrypted?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yes. Messages, files, and file metadata are encrypted on your device with AES-GCM before upload. The server receives ciphertext and cannot decrypt the content."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Do I need an account?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No account, email, or server password is required. You can optionally protect this device with a passphrase, PIN, or passkey."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Can the server read my messages or files?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "It cannot decrypt your content. It does receive ciphertext and the protocol metadata needed to authenticate requests and deliver messages."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What is the maximum file size?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "You can share files up to 50 MiB. The server copy is purged when active recipients acknowledge delivery; anything left over is cleaned up within 24 hours."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Does it work offline?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Partly. The installed PWA keeps local history available and can save outgoing messages or selected files locally, but nothing is uploaded or delivered until you reconnect."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I add another device?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "On the new device, choose to link an existing space and show its QR code. Scan it from a linked device; the shared group key is transferred in an encrypted pairing package."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Where are the encryption keys kept?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Private device keys are generated locally and never sent to the server. The shared group key is transferred only to linked devices through encrypted pairing and key-rotation packages. An optional encrypted recovery file can carry a copy for restoring a device."
-            }
-          }
-        ]
-      }
-    </script>
+    <!-- Structured data: FAQ, written from the questions the page shows -->
+    <!-- prerender:faq-schema -->
     <!-- prerender:landing-only:end -->
   </head>
   <body>

@@ -28,7 +28,7 @@ import { renameActiveSpace } from "../sync/spaceName";
 import { Chat } from "./Chat";
 import { DeviceManager } from "./DeviceManager";
 import { DropZone } from "./DropZone";
-import { Landing } from "./Landing";
+import { Landing } from "../site/Landing";
 import { LockScreen } from "./LockScreen";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { Spaces } from "./Spaces";
