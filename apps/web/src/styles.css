@@ -984,6 +984,76 @@
     }
   }
 
+  /* Long-form copy on the site's document pages (site/DocPage.tsx). Only bare
+     paragraphs, lists and subheadings are styled: every richer block (tables,
+     callouts, steps) brings its own classes, so nothing here reaches into it. */
+  .site-prose {
+    @apply text-lead leading-[1.7] text-subtle;
+  }
+  .site-prose > section {
+    @apply scroll-mt-24;
+  }
+  .site-prose > section + section {
+    @apply mt-14 border-t border-line pt-14;
+  }
+  .site-prose h2 {
+    @apply mb-5 text-[clamp(1.45rem,2.6vw,1.8rem)] leading-tight tracking-[-0.03em] text-ink;
+  }
+  .site-prose h2 > a {
+    @apply text-inherit no-underline;
+  }
+  .site-prose > section > h3 {
+    @apply mb-2 mt-8 text-title-sm tracking-[-0.015em] text-ink;
+  }
+  .site-prose > section > p,
+  .site-prose > section > ul {
+    @apply my-4;
+  }
+  .site-prose > section > ul > li {
+    @apply relative mt-2 pl-6;
+  }
+  .site-prose > section > ul > li::before {
+    content: "";
+    @apply absolute left-1.5 top-[0.72em] size-1.5 rounded-full bg-accent;
+  }
+  .site-prose :where(p, li) > a {
+    @apply font-medium text-accent underline decoration-[color-mix(in_srgb,var(--c-accent)_40%,transparent)] underline-offset-[3px] transition hover:decoration-accent;
+  }
+  .site-prose :where(p, li) strong {
+    @apply font-semibold text-ink;
+  }
+
+  /* A table that turns into one card per row below `md`, where three columns
+     of prose cannot fit side by side. Each cell's column name comes from its
+     `data-label` there, so the card still says what each value is. */
+  .site-table {
+    @apply w-full border-collapse text-left text-body leading-relaxed;
+  }
+  .site-table th {
+    @apply bg-surface-3 px-4 py-3 font-mono text-meta font-medium uppercase tracking-[0.12em] text-muted;
+  }
+  .site-table td {
+    @apply border-t border-line px-4 py-3.5 align-top text-subtle;
+  }
+  .site-table td:first-child {
+    @apply font-semibold whitespace-nowrap text-ink max-md:whitespace-normal;
+  }
+  @media (width < 48rem) {
+    .site-table thead {
+      @apply sr-only;
+    }
+    .site-table tr {
+      @apply block border-t border-line px-4 py-3 first:border-t-0;
+    }
+    .site-table td {
+      @apply block border-0 p-0 py-1;
+    }
+    .site-table td:not(:first-child)::before {
+      content: attr(data-label);
+      @apply block font-mono text-meta font-medium uppercase tracking-[0.12em] text-muted;
+    }
+  }
+
   /* The ring is drawn in `currentColor`, not in the accent: a spinner sits
      inside whatever called for it, and an accent ring on an accent surface —
      every `Button variant="primary"` in a busy state — was an invisible

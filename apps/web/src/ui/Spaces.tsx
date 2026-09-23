@@ -1,4 +1,4 @@
-import { ArrowRight, LockKeyhole, MessagesSquare, Plus, X } from "lucide-preact";
+import { ArrowRight, Download, LockKeyhole, MessagesSquare, Plus, X } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { hasPendingShare } from "../actions";
@@ -8,6 +8,7 @@ import { followLink, spacePath } from "../state/route";
 import { spaces } from "../state/spaces";
 import { OnboardingCard } from "./Onboarding";
 import { AppearanceMenu } from "./AppearanceMenu";
+import { useInstallApp } from "./Install";
 import { Button, IconButton, Logo, Toasts, cx } from "./components";
 
 /**
@@ -19,6 +20,7 @@ import { Button, IconButton, Logo, Toasts, cx } from "./components";
  */
 export function Spaces(): JSX.Element {
   const [creating, setCreating] = useState(false);
+  const installApp = useInstallApp();
   const list = spaces.value;
 
   return (
@@ -29,6 +31,11 @@ export function Spaces(): JSX.Element {
             <Logo />
           </a>
           <div class="flex items-center gap-1">
+            {installApp.available && (
+              <IconButton label="Install app" onClick={installApp.install}>
+                <Download />
+              </IconButton>
+            )}
             <AppearanceMenu />
             {lockConfigured.value && (
               <IconButton label="Lock this device" onClick={lockNow}>
@@ -113,6 +120,7 @@ export function Spaces(): JSX.Element {
         </div>
       )}
 
+      {installApp.dialog}
       <Toasts />
     </div>
   );

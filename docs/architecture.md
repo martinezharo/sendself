@@ -80,14 +80,20 @@ The client sends a signed tombstone through the same message and delivery pipeli
 
 ## Documents served
 
-The site is built as two HTML documents, and which one a URL is served decides what the browser paints before any application code has run.
+The site is built from two templates, and which document a URL is served decides what the browser paints before any application code has run.
 
 | URL | Document | Prerendered content |
 | --- | --- | --- |
 | `/` | `dist/index.html` | The marketing page, so crawlers and no-JS clients get real HTML. |
 | `/app`, `/app/<id>`, `/app/<id>/devices` | `dist/app.html` | The app's own loading screen. |
+| `/security/`, `/privacy/` | `dist/<page>/index.html` | The security model and the privacy policy. |
+| Any unknown URL | `dist/404.html` | The not-found page. |
 
-Both come out of the client build (`apps/web/scripts/prerender.mjs`, run before the service worker's precache manifest is globbed) and are served by the Worker and, offline, by the service worker's navigation routes. Serving the marketing document for `/app` is what made the installed app flash the landing page at every launch: the shell paints long before the bundle can replace it.
+The first two come from `apps/web/index.html` and load the app. The static pages come from `apps/web/page.html`, which loads the site's styles and a small script that applies the appearance chosen in the app, but not the app itself; they are never hydrated. Every page of the public site, the landing page included, is rendered from the components in `apps/web/src/site`, so they share one header, footer and design system, and the limits they quote (file size, retention, pairing lifetime) are read from the constants that enforce them.
+
+Everything comes out of the client build (`apps/web/scripts/prerender.mjs`, run before the service worker's precache manifest is globbed) and is served by the Worker and, offline, by the service worker's precache. In development, `apps/web/scripts/dev-static-pages.mjs` renders the static pages on request from the same components and template. Serving the marketing document for `/app` is what made the installed app flash the landing page at every launch: the shell paints long before the bundle can replace it.
+
+The Worker permanently redirects the retired `/how-it-works/` and `/install/` pages to the landing page sections that replaced them.
 
 ## Delivery guarantees
 

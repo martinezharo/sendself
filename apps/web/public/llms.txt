@@ -7,10 +7,9 @@ The service requires no account or email address. Content is encrypted on the se
 ## Product guide
 
 - [SendSelf overview](https://sendself.4oli.com/index.md): Concise, LLM-friendly product facts, security boundaries, retention, and suitable use cases.
-- [How SendSelf works](https://sendself.4oli.com/how-it-works/): Create a private space, pair devices, and share text and files.
-- [Security model](https://sendself.4oli.com/security/): Plain-language encryption, key, pairing, and threat-boundary summary.
-- [Privacy overview](https://sendself.4oli.com/privacy/): What stays local, what the server receives, and temporary retention.
-- [Installation guide](https://sendself.4oli.com/install/): Install the progressive web app on supported devices.
+- [Home page](https://sendself.4oli.com/): Features, how pairing and sending work, installation, and FAQ.
+- [Security model](https://sendself.4oli.com/security/): Plain-language summary of encryption, keys, pairing, signatures, revocation, what the server can see, and known limits.
+- [Privacy policy](https://sendself.4oli.com/privacy/): What the service stores, why and for how long, network data and logs, cookies (none), service providers, and user rights.
 
 ## Technical references
 

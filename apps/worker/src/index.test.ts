@@ -34,6 +34,19 @@ describe("fetch dispatch", () => {
     expect(response.headers.get("Location")).toBe("https://sendself.4oli.com/security/");
   });
 
+  it("sends the retired site pages to where their content lives now", async () => {
+    for (const [path, target] of [
+      ["/how-it-works/", "https://x.dev/#how"],
+      ["/how-it-works", "https://x.dev/#how"],
+      ["/install/?ref=old", "https://x.dev/#faq"],
+    ]) {
+      const response = await SELF.fetch(`https://x.dev${path}`, { redirect: "manual" });
+
+      expect(response.status).toBe(301);
+      expect(response.headers.get("Location")).toBe(target);
+    }
+  });
+
   it("serves everything outside /api from the assets binding", async () => {
     const response = await SELF.fetch("https://x.dev/some/spa/route");
 
