@@ -7,7 +7,13 @@ import {
   messageSignatureStatement,
 } from "@sendself/shared";
 import { ApiError, type Auth, api } from "../api/client";
-import { decryptFile, decryptJson, decryptName, decryptText } from "../crypto/crypto";
+import { decryptName } from "@sendself/client/crypto";
+import {
+  decryptMessageFile,
+  decryptMessageMeta,
+  decryptMessageText,
+  messageContext,
+} from "@sendself/client/message";
 import { type DeviceIdentities, loadIdentities, verifyDeviceSignature } from "../crypto/identity";
 import { type Keyring, keyForEpoch } from "../crypto/keyring";
 import { loadDeletions } from "../db/deletions";
@@ -46,11 +52,11 @@ async function decryptMeta(
   pendingMessage: PendingMessage,
 ): Promise<MessageMeta | undefined> {
   if (!pendingMessage.fileMeta || !pendingMessage.fileMetaIv) return undefined;
-  return decryptJson<MessageMeta>(
+  return decryptMessageMeta(
     key,
+    pendingMessage.id,
     pendingMessage.fileMeta,
     pendingMessage.fileMetaIv,
-    `meta:${pendingMessage.id}`,
   );
 }
 
@@ -442,15 +448,15 @@ async function registerIncoming(
     let text: string | undefined;
     if (pendingMessage.encryptedPayload && pendingMessage.iv) {
       try {
-        text = await decryptText(
+        text = await decryptMessageText(
           key,
+          pendingMessage.id,
           pendingMessage.encryptedPayload,
           pendingMessage.iv,
-          `text:${pendingMessage.id}`,
         );
-        decryptAttempts.delete(`text:${pendingMessage.id}`);
+        decryptAttempts.delete(messageContext.text(pendingMessage.id));
       } catch (error) {
-        if (!decryptBudgetExhausted(`text:${pendingMessage.id}`)) throw error;
+        if (!decryptBudgetExhausted(messageContext.text(pendingMessage.id))) throw error;
         corrupted = true;
       }
     }
@@ -483,9 +489,9 @@ async function registerIncoming(
           }
           if (meta.viewOnce) viewOnce = true;
         }
-        decryptAttempts.delete(`meta:${pendingMessage.id}`);
+        decryptAttempts.delete(messageContext.meta(pendingMessage.id));
       } catch (error) {
-        if (!decryptBudgetExhausted(`meta:${pendingMessage.id}`)) throw error;
+        if (!decryptBudgetExhausted(messageContext.meta(pendingMessage.id))) throw error;
         corrupted = true; // unusable metadata: the file is dropped with it
       }
     }
@@ -593,10 +599,10 @@ async function downloadAndAck(message: LocalMessage, ring: Keyring, auth: Auth):
     if (local.fileState !== "expired") {
       let plaintext: ArrayBuffer;
       try {
-        plaintext = await decryptFile(key, ciphertext!, file.iv, `file:${local.id}`);
-        decryptAttempts.delete(`file:${local.id}`);
+        plaintext = await decryptMessageFile(key, local.id, ciphertext!, file.iv);
+        decryptAttempts.delete(messageContext.file(local.id));
       } catch (error) {
-        if (!decryptBudgetExhausted(`file:${local.id}`)) {
+        if (!decryptBudgetExhausted(messageContext.file(local.id))) {
           await upsertMessage({ ...local, fileState: "error", ...waitBeforeRetrying(local) });
           return; // do not ack; retry after the wait
         }

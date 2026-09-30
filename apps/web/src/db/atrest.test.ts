@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { generateGroupKey } from "../crypto/crypto";
+import { generateGroupKey } from "@sendself/client/crypto";
 import {
   currentContentKey,
   fileContext,

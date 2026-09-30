@@ -33,6 +33,14 @@ Pairing uses an out-of-band QR code or text payload:
 
 The first device is the root of the attestation chain. A first link still requires the user to verify the displayed code or text through the out-of-band channel; the project does not currently require a separate compare-the-numbers ceremony.
 
+## Pairing by invitation
+
+A device that cannot comfortably show a QR code — a server, a script or an agent running the CLI — pairs the other way round. An owner or admin device mints an invitation: a fresh pairing id and a 256-bit secret, shown only as a command to paste on the joining machine (`sendself link <code>`). The secret is never sent to the server.
+
+The joining device derives an AES-GCM key from the secret (HKDF-SHA-256) and seals its name with it, binding the pairing id, its device id, both public keys and its send-only flag as additional data (`inviteSealStatement`). The inviting device polls for the answer, opens the seal, and refuses keys it does not open for: whoever answered must hold the code, which gives the same guarantee as reading the keys from a QR code. From there the flow is the ordinary one, attestation included.
+
+The person still approves the device, shown by name and by a short fingerprint of its keys that the CLI prints too. The code proves possession, not intent: a command pasted into a chat with an agent can travel further than intended, and approval is the moment to notice. An invitation is single-use and expires with its pairing slot.
+
 ## Message authenticity and confidentiality
 
 The server receives ciphertexts, not plaintext. A signed message covers the sender id, key epoch, message id, and every ciphertext/IV field. A recipient verifies the signature against the locally trusted device identity before persisting the message.
@@ -74,6 +82,14 @@ Record ids and timestamps remain available as local indexing metadata. Share-tar
 
 An encrypted recovery export can restore the device identity and its held key epochs. The recovery file and its one-time displayed code are equivalent to full access to that device's spaces, so they must be protected together. A recovery export is also a snapshot: it cannot decrypt content written after a later key rotation unless it is refreshed.
 
+## The CLI
+
+The `sendself` CLI is a client like the PWA, built from the same code (`packages/client`): it encrypts and signs on the machine it runs on, and the server receives only ciphertext. It joins through the normal pairing flow, so the device that adds it scans its keys out-of-band and attests to them.
+
+It joins as a *send-only* device: the Worker leaves it out of message recipients, so the space's messages are never delivered to it. That flag is a delivery rule, not a permission. It does not narrow what the device holds — the CLI has the `GroupKey` like any member, so it could decrypt space ciphertext it obtained — and it does not widen what the server can do, since a server could already withhold any message from any device.
+
+Its state is one file on disk (`device.json`) holding the device's private keys, bearer token and every `GroupKey` epoch it received, protected by owner-only file permissions and nothing else. There is no passphrase because the CLI is meant to run unattended; anyone who can read that file as its owner has the same access as the device. Revoking it from the app ends its API access and rotates the key, like any revocation. The CLI adopts rotated keys but never performs a rotation, which requires verifying the roster it wraps the new key for.
+
 ## What the service can see
 
 Application-level encryption does not hide metadata. Depending on the request and platform telemetry, the service can observe:
@@ -96,3 +112,4 @@ The service cannot decrypt message text, file contents, encrypted names, or the 
 - At-rest protection is opt-in and has no automatic inactivity lock.
 - Local history and file caches currently have no automatic retention policy.
 - Legacy devices without a published signing key can produce messages that are unverifiable rather than cryptographically authenticated.
+- The CLI keeps its keys in a file protected only by file-system permissions.

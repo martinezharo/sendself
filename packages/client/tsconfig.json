@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Runs in the browser, in the service worker and in Node (the CLI). Only
+    // APIs all three share are allowed: Web Crypto, fetch, TextEncoder, btoa.
+    // The DOM lib is how those are typed; nothing here may touch the document.
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}

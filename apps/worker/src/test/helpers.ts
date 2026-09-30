@@ -68,6 +68,7 @@ export async function seedDevice(
     signingPublicKey?: string | null;
     publicKey?: string;
     createdAt?: number;
+    sendOnly?: boolean;
   } = {},
 ): Promise<SeededDevice> {
   const id = options.id ?? uid("device");
@@ -78,8 +79,8 @@ export async function seedDevice(
   await env.DB.prepare(
     `INSERT INTO devices
        (id, group_id, name_enc, name_iv, public_key, signing_public_key,
-        auth_token_hash, role, key_epoch, name_key_epoch, created_at, revoked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        auth_token_hash, role, key_epoch, name_key_epoch, created_at, revoked_at, send_only)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -94,6 +95,7 @@ export async function seedDevice(
       options.nameKeyEpoch ?? 1,
       options.createdAt ?? Date.now(),
       options.revoked ? Date.now() : null,
+      options.sendOnly ? 1 : 0,
     )
     .run();
 

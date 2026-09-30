@@ -1,0 +1,11 @@
+-- Send-only devices: a device that sends into a space but never reads it, such
+-- as the `sendself` CLI running on a server for scripts and agents.
+--
+-- It is a full member in every other respect (it holds the GroupKey, signs
+-- what it sends and is handed every rotated key); the flag only takes it out of
+-- message recipients. Otherwise every message would wait on the server for a
+-- device that never collects it until the 24-hour cleanup, instead of being
+-- deleted as soon as the devices that do read the space have it.
+--
+-- Defaults to 0, so every existing device keeps receiving exactly as before.
+ALTER TABLE devices ADD COLUMN send_only INTEGER NOT NULL DEFAULT 0;

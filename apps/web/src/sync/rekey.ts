@@ -20,22 +20,13 @@
 import type { KeyWrap, PendingKeyDelivery, RotateKeyResponse } from "@sendself/shared";
 import { ApiError, type Auth, api } from "../api/client";
 import {
-  exportGroupKey,
   generateGroupKey,
-  importGroupKey,
   importPublicKey,
-  rekeyContext,
-  unwrapSecret,
-  wrapSecret,
-} from "../crypto/crypto";
+  unwrapRotatedKey,
+  wrapRotatedKey,
+} from "@sendself/client/crypto";
 import { type Keyring, saveKeyring, withEpoch } from "../crypto/keyring";
 import { noteKeyRotated, reconcileRoster } from "../state/events";
-
-/** Plaintext inside a rotation blob. Only the recipient device ever sees it. */
-interface RekeyPayload {
-  groupKey: string;
-  epoch: number;
-}
 
 export interface RotationResult {
   epoch: number;
@@ -80,15 +71,11 @@ export async function adoptPendingKeys(
       highest = Math.max(highest, delivery.epoch);
       continue;
     }
-    // The AAD binds the blob to this group, epoch and device, so a blob moved
-    // from another recipient or replayed at another epoch simply fails here.
-    const payload = await unwrapSecret<RekeyPayload>(
-      privateKey,
-      delivery.ephemeralPublicKey,
-      delivery.wrappedKey,
-      rekeyContext(groupId, delivery.epoch, deviceId),
+    updated = withEpoch(
+      updated,
+      delivery.epoch,
+      await unwrapRotatedKey(privateKey, delivery, groupId, deviceId),
     );
-    updated = withEpoch(updated, delivery.epoch, await importGroupKey(payload.groupKey));
     highest = Math.max(highest, delivery.epoch);
   }
 
@@ -124,16 +111,16 @@ export async function rotateGroupKey(
 
   const epoch = listing.keyEpoch + 1;
   const newKey = await generateGroupKey();
-  const raw = await exportGroupKey(newKey);
 
   const recipients = listing.devices.filter((device) => device.id !== deviceId);
   const wraps: KeyWrap[] = await Promise.all(
     recipients.map(async (device) => {
-      const payload: RekeyPayload = { groupKey: raw, epoch };
-      const wrapped = await wrapSecret(
+      const wrapped = await wrapRotatedKey(
         await importPublicKey(device.publicKey),
-        payload,
-        rekeyContext(groupId, epoch, device.id),
+        newKey,
+        groupId,
+        epoch,
+        device.id,
       );
       return {
         deviceId: device.id,

@@ -1,5 +1,7 @@
 import {
   ArrowRight,
+  Check,
+  Copy,
   EyeOff,
   FileUp,
   Link2,
@@ -13,7 +15,8 @@ import {
 } from "lucide-preact";
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { Toasts, cx } from "../ui/components";
+import { CLI_LINK_PLACEHOLDER, CLI_SEND_EXAMPLE, agentSetupPrompt } from "../cli";
+import { CommandLine, Toasts, cx, useCopy } from "../ui/components";
 import { ChatPreview } from "./ChatPreview";
 import {
   type Feature,
@@ -114,6 +117,10 @@ export const FAQS: Faq[] = [
     a: "On the new device, choose to link an existing space and show its QR code. Scan it from a linked device; the shared group key is transferred in an encrypted pairing package.",
   },
   {
+    q: "Can a script or an AI agent send me files?",
+    a: "Yes. The sendself command line links a server, a script or an agent to a space as a send-only device: it can send there but never receives anything. In the app, open Devices → Add device → Agent and copy the setup prompt for your agent, or run the command yourself. Everything is encrypted and signed on that machine, like in the app.",
+  },
+  {
     q: "Where are the encryption keys kept?",
     a: "Private device keys are generated locally and never sent to the server. The shared group key is transferred only to linked devices through encrypted pairing and key-rotation packages. An optional encrypted recovery file can carry a copy for restoring a device.",
   },
@@ -151,6 +158,7 @@ export function Landing({ prerendered = false }: { prerendered?: boolean }): JSX
         <Hero />
         <Features />
         <HowItWorks />
+        <Agents />
         <Security />
         <Faq />
       </main>
@@ -252,6 +260,93 @@ function HowItWorks(): JSX.Element {
             </li>
           ))}
         </ol>
+      </div>
+    </section>
+  );
+}
+
+const AGENT_ICONS = [
+  { name: "Claude Code", logo: "/agents/claude-code.svg" },
+  { name: "Codex", logo: "/agents/codex.svg" },
+  { name: "Cursor", logo: "/agents/cursor.svg" },
+];
+
+/**
+ * For agents and scripts: the CLI, pitched the way a person actually sets it up
+ * today — by handing a prompt to the agent that will use it.
+ */
+function Agents(): JSX.Element {
+  const prompt = useCopy();
+  const panel = "rounded-xl2 bg-surface-2 p-5 max-md:p-4";
+  const label = "font-mono text-meta font-medium uppercase tracking-[0.16em] text-muted";
+
+  return (
+    <section id="agents" class="scroll-mt-20 px-6 py-16 max-md:px-4 md:py-24">
+      <div class="mx-auto max-w-6xl">
+        <SectionHeading
+          kicker="For agents and scripts"
+          title="Let your agents send you things"
+          subtitle="Reports, screenshots, builds and logs: whatever an AI agent or a script on your server produces can land on your phone, end-to-end encrypted like everything else."
+        />
+        <div class="surface-card mx-auto mt-12 flex max-w-4xl flex-col gap-3 rounded-xl3 p-3 !shadow-float">
+          <div class={panel}>
+            <div class={label}>Set it up with your agent</div>
+            <button
+              type="button"
+              onClick={() => prompt.copy(agentSetupPrompt(), "Setup prompt copied")}
+              class="mt-4 flex w-full items-center gap-4 rounded-full bg-surface-3 py-2.5 pl-2.5 pr-5 text-left transition hover:bg-[color-mix(in_srgb,var(--c-accent)_14%,var(--c-surface-3))] active:scale-[0.99]"
+            >
+              <span class="flex flex-none" aria-hidden="true">
+                {AGENT_ICONS.map(({ name, logo }, i) => (
+                  <span
+                    key={name}
+                    title={name}
+                    class={cx(
+                      "grid size-10 place-items-center rounded-full bg-ink text-surface ring-2 ring-surface-3",
+                      i > 0 && "-ml-2.5",
+                    )}
+                  >
+                    <span
+                      class="size-5 bg-current"
+                      style={{ mask: `url(${logo}) center / contain no-repeat` }}
+                    />
+                  </span>
+                ))}
+              </span>
+              <span class="min-w-0 flex-1 text-body-lg font-semibold">
+                Copy the setup prompt for your agent
+              </span>
+              <span class="flex-none text-muted [&_svg]:size-[20px]">
+                {prompt.copied ? <Check class="text-success" /> : <Copy />}
+              </span>
+            </button>
+            <a
+              href="/cli/"
+              class="mt-4 inline-flex items-center gap-2 text-note font-medium text-subtle transition-[gap] hover:gap-3 hover:text-ink [&_svg]:size-4"
+            >
+              Works with Claude Code, Codex, Cursor or any agent that can run a command
+              <ArrowRight />
+            </a>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class={panel}>
+              <div class={label}>Link a machine, once</div>
+              <CommandLine class="mt-4" command={CLI_LINK_PLACEHOLDER} />
+              <p class="mt-3 text-note leading-relaxed text-muted">
+                Get the code in the app, under Devices → Add device → Agent. It joins as a send-only
+                device: it never receives anything.
+              </p>
+            </div>
+            <div class={panel}>
+              <div class={label}>Send anything</div>
+              <CommandLine class="mt-4" command={CLI_SEND_EXAMPLE} />
+              <p class="mt-3 text-note leading-relaxed text-muted">
+                Files up to {MAX_FILE_LABEL} each, text with <code class="font-mono">-m</code>.
+                Encrypted and signed on the machine that sends it.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

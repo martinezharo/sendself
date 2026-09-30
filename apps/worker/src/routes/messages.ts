@@ -6,7 +6,7 @@ import type {
   SendMessageResponse,
 } from "@sendself/shared";
 import { authenticate } from "../auth";
-import { activeDeviceIds, deleteGroupMessage, deleteMessageById, fileStorageKey } from "../db";
+import { deleteGroupMessage, deleteMessageById, fileStorageKey, messageRecipients } from "../db";
 import { ApiError, json } from "../errors";
 import { optionalString, readJsonObject, requireId, requireInt } from "../http";
 import { notifySpace } from "../realtime";
@@ -120,10 +120,8 @@ export async function sendMessage(c: RouteContext): Promise<Response> {
     await deleteGroupMessage(c.env, auth.groupId, deletesMessageId);
   }
 
-  // Recipients are every active device except the sender.
-  const recipients = (await activeDeviceIds(c.env, auth.groupId)).filter(
-    (d) => d !== auth.deviceId,
-  );
+  // Recipients are every active device except the sender and send-only ones.
+  const recipients = await messageRecipients(c.env, auth.groupId, auth.deviceId);
 
   // No recipients: nothing to deliver. Drop any uploaded file and skip storage
   // so the server keeps nothing around.

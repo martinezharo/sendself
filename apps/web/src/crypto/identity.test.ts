@@ -17,7 +17,7 @@ import {
   generateSigningKeyPair,
   signStatement,
   verifyStatement,
-} from "./crypto";
+} from "@sendself/client/crypto";
 import {
   type DeviceIdentities,
   createAttestation,

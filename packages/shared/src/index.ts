@@ -9,6 +9,9 @@
 // Constants
 // ---------------------------------------------------------------------------
 
+/** The public deployment: what the site links to and where the CLI connects by default. */
+export const SERVICE_ORIGIN = "https://sendself.4oli.com";
+
 /** Maximum size (bytes) of a single file *before* encryption: 50 MB. */
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -143,6 +146,8 @@ export interface DeviceInfo {
   keyEpoch: number;
   /** Epoch of the key that encrypted `encryptedName` (names are never rewritten). */
   nameKeyEpoch: number;
+  /** A send-only device (see `PairingRequestBody.sendOnly`): never a message recipient. */
+  sendOnly: boolean;
 }
 
 /** Payload encoded inside a QR code (or pasted as text) during pairing. */
@@ -159,6 +164,11 @@ export interface PairingQrPayload {
    * out-of-band and can attest to it (see DeviceAttestation).
    */
   signingPublicKey?: string;
+  /**
+   * The device only sends (see `PairingRequestBody.sendOnly`). Carried here so
+   * the device adding it can say what it is adding.
+   */
+  sendOnly?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +347,69 @@ export interface CreateGroupResponse {
 /** Device 2 -> server: reserve a pairing slot and publish its public material. */
 export interface PairingRequestBody {
   device: DeviceDescriptor;
+  /**
+   * The joining device will only ever send: a script or an agent on a server
+   * (the `sendself` CLI) rather than somewhere a person reads the space.
+   *
+   * The server then leaves it out of every message's recipients. Without that,
+   * each message would wait on the server for a device that never collects it
+   * until the 24-hour cleanup, instead of being deleted the moment the devices
+   * that do read it have it. It is still a full member for everything else: it
+   * holds the GroupKey, signs what it sends, and is handed every rotated key.
+   */
+  sendOnly?: true;
+  /**
+   * Set when the device answers an invitation (see `InviteSealFields`) rather
+   * than showing a QR code: its name, sealed with the invitation's secret over
+   * the keys it publishes here. The server can store and relay it but can
+   * neither read the name nor swap the keys without the seal failing.
+   */
+  invite?: string;
+}
+
+/**
+ * Pairing by invitation, the other way round from the QR code.
+ *
+ * With a QR code the joining device shows its keys and an existing device reads
+ * them out-of-band. A device with no screen worth scanning — a server, a script,
+ * an agent — cannot do that comfortably, so here the existing device mints an
+ * invitation instead: a slot id and a 256-bit secret, handed to the joining
+ * device out-of-band as one command to paste (`sendself link <code>`).
+ *
+ * The secret never reaches the server. The joining device seals its name with
+ * it, bound (as AES-GCM additional data) to exactly the keys it publishes, so
+ * the inviting device can tell those keys came from whoever holds the code: the
+ * same guarantee reading them from a QR code gives. Everything after that is
+ * the ordinary pairing flow.
+ */
+export interface InviteSealFields {
+  pairingId: string;
+  deviceId: string;
+  publicKey: string;
+  signingPublicKey: string;
+  sendOnly: boolean;
+}
+
+/** The additional data an invitation seal is bound to. */
+export function inviteSealStatement(fields: InviteSealFields): string {
+  return [
+    "fs-pairing-invite:1",
+    fields.pairingId,
+    fields.deviceId,
+    fields.publicKey,
+    fields.signingPublicKey,
+    fields.sendOnly ? "send-only" : "full",
+  ].join(":");
+}
+
+/** What the inviting device learns about the device that answered its invitation. */
+export interface PairingJoinerResponse {
+  /** False until a device has answered, and again once the pairing completed. */
+  present: boolean;
+  device?: DeviceDescriptor;
+  sendOnly?: boolean;
+  /** The sealed name (see `PairingRequestBody.invite`). */
+  invite?: string;
 }
 
 export interface PairingRequestResponse {
@@ -569,6 +642,16 @@ export interface PendingKeyDelivery {
   wrappedKey: string;
   /** Ephemeral ECDH P-256 public key (base64url SPKI) used to derive the wrap key. */
   ephemeralPublicKey: string;
+}
+
+/**
+ * Plaintext inside a rotation blob (`PendingKeyDelivery.wrappedKey`). Only the
+ * recipient device ever sees it.
+ */
+export interface RekeyPayload {
+  /** Raw AES-GCM 256 GroupKey, base64url. */
+  groupKey: string;
+  epoch: number;
 }
 
 /**

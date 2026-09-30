@@ -31,7 +31,7 @@ import type { DeviceAttestation, DeviceKeyBundle } from "@sendself/shared";
 import { attestationStatement } from "@sendself/shared";
 import { signal } from "@preact/signals";
 import { META_DEVICE_IDENTITIES, META_DEVICE_PINS, metaGet, metaSet } from "../db/store";
-import { importSigningPublicKey, signStatement, verifyStatement } from "./crypto";
+import { importSigningPublicKey, signStatement, verifyStatement } from "@sendself/client/crypto";
 
 /**
  * Every device id this one knows about, including itself.

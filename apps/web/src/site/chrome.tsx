@@ -15,7 +15,7 @@ import { REPO_URL } from "./facts";
  */
 
 /** Where a page sits on the site: the home page links to its sections in place. */
-export type SitePage = "home" | "security" | "privacy" | "other";
+export type SitePage = "home" | "security" | "privacy" | "cli" | "other";
 
 /**
  * The single way into the app. A real link: it is what a crawler follows, what
@@ -90,6 +90,13 @@ export function SiteHeader({
             How it works
           </a>
           <a
+            class={cx(NAV_LINK, page === "cli" && "text-ink")}
+            href={page === "home" ? "#agents" : "/cli/"}
+            aria-current={current("cli")}
+          >
+            Agents
+          </a>
+          <a
             class={cx(NAV_LINK, page === "security" && "text-ink")}
             href="/security/"
             aria-current={current("security")}
@@ -137,6 +144,9 @@ export function SiteFooter({ page }: { page: SitePage }): JSX.Element {
         >
           <a class={link} href={homeSection(page, "how")}>
             How it works
+          </a>
+          <a class={link} href="/cli/" aria-current={page === "cli" ? "page" : undefined}>
+            Command line
           </a>
           <a class={link} href="/security/" aria-current={page === "security" ? "page" : undefined}>
             Security

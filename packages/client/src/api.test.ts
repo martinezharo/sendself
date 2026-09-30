@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./client";
+import { createApi } from "./api";
+
+const api = createApi({ baseUrl: "/api" });
 
 describe("upload cancellation", () => {
   afterEach(() => {

@@ -134,6 +134,10 @@ const SECTIONS: DocSection[] = [
           browser removes it. There is no automatic clean-up of local history yet.
         </p>
         <p>
+          If you link the <code>sendself</code> command line on a machine, it keeps its keys in a
+          file there, and no history: it only sends.
+        </p>
+        <p>
           Besides that, SendSelf keeps a copy of its own app files so it opens offline, and your
           appearance setting (theme and colour) so it survives a reload. You can protect your
           history, files and keys with a lock; the{" "}

@@ -1,4 +1,4 @@
-import { MAX_FILE_SIZE, MESSAGE_TTL_MS, PAIRING_TTL_MS } from "@sendself/shared";
+import { MAX_FILE_SIZE, MESSAGE_TTL_MS, PAIRING_TTL_MS, SERVICE_ORIGIN } from "@sendself/shared";
 import { PBKDF2_ITERATIONS } from "../crypto/vault";
 
 /**
@@ -13,7 +13,7 @@ import { PBKDF2_ITERATIONS } from "../crypto/vault";
 const HOUR_MS = 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
-export const SITE_ORIGIN = "https://sendself.4oli.com";
+export const SITE_ORIGIN = SERVICE_ORIGIN;
 /** Who runs the service, and so answers for the data it processes. */
 export const OPERATOR = "Oliver Martínez Haro";
 export const REPO_URL = "https://github.com/martinezharo/sendself";

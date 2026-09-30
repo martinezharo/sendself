@@ -44,7 +44,7 @@ import {
   verifyStatement,
   wrapPairingPackage,
   wrapSecret,
-} from "../apps/web/src/crypto/crypto.ts";
+} from "../packages/client/src/crypto.ts";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:8787";
 

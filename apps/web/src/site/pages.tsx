@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { CliPage } from "./CliPage";
 import { NotFoundPage } from "./NotFoundPage";
 import { PrivacyPage } from "./PrivacyPage";
 import { SecurityPage } from "./SecurityPage";
@@ -36,6 +37,15 @@ export const STATIC_PAGES: StaticPage[] = [
     description:
       "What SendSelf stores, why and for how long: no account, no tracking, and end-to-end encrypted content that the service cannot read.",
     render: () => <PrivacyPage />,
+  },
+  {
+    path: "/cli/",
+    file: "cli/index.html",
+    name: "Command line",
+    title: "Command line for agents and scripts — SendSelf",
+    description:
+      "Let AI agents, scripts and servers send files and messages to your devices with the sendself command line, end-to-end encrypted.",
+    render: () => <CliPage />,
   },
   {
     path: "/404.html",

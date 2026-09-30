@@ -10,6 +10,7 @@ The service requires no account or email address. Content is encrypted on the se
 - [Home page](https://sendself.4oli.com/): Features, how pairing and sending work, installation, and FAQ.
 - [Security model](https://sendself.4oli.com/security/): Plain-language summary of encryption, keys, pairing, signatures, revocation, what the server can see, and known limits.
 - [Privacy policy](https://sendself.4oli.com/privacy/): What the service stores, why and for how long, network data and logs, cookies (none), service providers, and user rights.
+- [Command line for agents and scripts](https://sendself.4oli.com/cli/): How an AI agent, script, or server links to a user's space with `npx -y sendself link <code>` and sends files and messages with `npx -y sendself send`.
 
 ## Technical references
 

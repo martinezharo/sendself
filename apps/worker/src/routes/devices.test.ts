@@ -49,7 +49,18 @@ describe("GET /api/devices", () => {
       keyEpoch: 1,
       role: "member",
       attestation: null,
+      sendOnly: false,
     });
+  });
+
+  it("says which devices are send-only", async () => {
+    const { groupId, owner } = await seedSpace();
+    const cli = await seedDevice(groupId, { sendOnly: true });
+
+    const devices = (await list(owner)).devices;
+
+    expect(devices.find((d) => d.id === cli.id)?.sendOnly).toBe(true);
+    expect(devices.find((d) => d.id === owner.id)?.sendOnly).toBe(false);
   });
 
   it("hides revoked devices and every device of another group", async () => {
@@ -313,6 +324,17 @@ describe("PATCH /api/devices/:id/role", () => {
 
     expect(response.status).toBe(400);
     expect(await errorCode(response)).toBe("bad_request");
+  });
+
+  it("refuses to make a send-only device an administrator", async () => {
+    const { groupId, owner } = await seedSpace();
+    const cli = await seedDevice(groupId, { sendOnly: true });
+
+    const response = await setRole(owner, cli.id, "admin");
+
+    expect(response.status).toBe(400);
+    expect(await errorCode(response)).toBe("bad_request");
+    expect((await setRole(owner, cli.id, "member")).status).toBe(200);
   });
 
   it("404s on a revoked device or one from another group", async () => {

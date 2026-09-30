@@ -74,6 +74,34 @@ describe("POST /api/messages", () => {
     expect(rows.results.map((r) => r.deviceId)).not.toContain(owner.id);
   });
 
+  it("never queues a delivery for a send-only device, which would never collect it", async () => {
+    const { groupId, owner } = await seedSpace();
+    const reader = await seedDevice(groupId);
+    await seedDevice(groupId, { sendOnly: true });
+    const id = uid("msg");
+
+    await send(owner, { id });
+
+    const rows = await env.DB.prepare(
+      "SELECT device_id AS deviceId FROM delivery_status WHERE message_id = ?",
+    )
+      .bind(id)
+      .all<{ deviceId: string }>();
+    expect(rows.results.map((r) => r.deviceId)).toEqual([reader.id]);
+  });
+
+  it("delivers what a send-only device sends to every device that reads", async () => {
+    const { groupId, owner } = await seedSpace();
+    const reader = await seedDevice(groupId);
+    const cli = await seedDevice(groupId, { sendOnly: true });
+    const id = uid("msg");
+
+    expect((await send(cli, { id })).status).toBe(200);
+
+    expect((await pending(owner)).messages.map((m) => m.id)).toEqual([id]);
+    expect((await pending(reader)).messages.map((m) => m.id)).toEqual([id]);
+  });
+
   it("stores nothing when the sender is the only device left", async () => {
     const { owner } = await seedSpace();
     const id = uid("msg");

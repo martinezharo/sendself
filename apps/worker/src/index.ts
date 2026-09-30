@@ -8,7 +8,13 @@ import { downloadFile, uploadFile } from "./routes/files";
 import { createGroup } from "./routes/groups";
 import { ackKey, rotateKey } from "./routes/keys";
 import { ackMessage, pendingMessages, sendMessage } from "./routes/messages";
-import { completePairing, deletePairing, pollPairing, requestPairing } from "./routes/pairing";
+import {
+  completePairing,
+  deletePairing,
+  pairingJoiner,
+  pollPairing,
+  requestPairing,
+} from "./routes/pairing";
 import { updateSpaceName } from "./routes/space";
 import { withSecurityHeaders } from "./security";
 
@@ -21,6 +27,7 @@ router.post("/api/groups", createGroup);
 router.post("/api/pairing/:pairingId/request", requestPairing);
 router.post("/api/pairing/:pairingId/complete", completePairing);
 router.get("/api/pairing/:pairingId", pollPairing);
+router.get("/api/pairing/:pairingId/joiner", pairingJoiner);
 router.delete("/api/pairing/:pairingId", deletePairing);
 
 router.get("/api/realtime", realtimeConnect);

@@ -1,0 +1,24 @@
+{
+  "name": "@sendself/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./src/api.ts",
+    "./crypto": "./src/crypto.ts",
+    "./keyring": "./src/keyring.ts",
+    "./message": "./src/message.ts",
+    "./pairing": "./src/pairing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sendself/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

@@ -12,7 +12,7 @@
  * unsupported the credential is discarded and the user is offered a passphrase.
  */
 
-import { base64UrlToBuf, bufToBase64Url } from "./crypto";
+import { base64UrlToBuf, bufToBase64Url } from "@sendself/client/crypto";
 
 /** The relying-party id is the origin's host: this is a same-device credential. */
 function relyingParty(): PublicKeyCredentialRpEntity {

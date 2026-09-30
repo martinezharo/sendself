@@ -10,7 +10,7 @@
 
 import type { DeviceInfo } from "@sendself/shared";
 import { type Keyring, keyForEpoch } from "./keyring";
-import { decryptName } from "./crypto";
+import { decryptName } from "@sendself/client/crypto";
 
 /** The parts of a roster entry a name can be recovered from. */
 export type NamedDevice = Pick<DeviceInfo, "id" | "encryptedName" | "nameIv" | "nameKeyEpoch">;

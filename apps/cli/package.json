@@ -1,0 +1,39 @@
+{
+  "name": "sendself",
+  "version": "0.1.0",
+  "description": "Let AI agents, scripts and servers send files and messages to your devices, end-to-end encrypted with SendSelf.",
+  "keywords": ["sendself", "cli", "e2ee", "end-to-end-encryption", "file-sharing", "ai-agents"],
+  "homepage": "https://sendself.4oli.com/cli/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/martinezharo/sendself.git",
+    "directory": "apps/cli"
+  },
+  "bugs": "https://github.com/martinezharo/sendself/issues",
+  "license": "MIT",
+  "author": "Oliver Martínez Haro",
+  "type": "module",
+  "bin": {
+    "sendself": "./dist/sendself.mjs"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepublishOnly": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sendself/client": "workspace:*",
+    "@sendself/shared": "workspace:*",
+    "@types/node": "^26.2.0",
+    "@types/qrcode": "^1.5.5",
+    "esbuild": "^0.25.12",
+    "qrcode": "^1.5.4",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

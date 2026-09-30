@@ -26,7 +26,7 @@ vi.mock("../api/client", () => ({
 // `enc(name)` stands for the ciphertext, so a test can read what was published
 // and a decrypt is just the inverse. `enc(unreadable)` fails to open, like a
 // blob written under a key this device never held.
-vi.mock("../crypto/crypto", () => ({
+vi.mock("@sendself/client/crypto", () => ({
   encryptText: async (_key: CryptoKey, text: string) => ({
     ciphertext: `enc(${text})`,
     iv: "iv",

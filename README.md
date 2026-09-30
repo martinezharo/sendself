@@ -10,6 +10,7 @@ SendSelf is an end-to-end encrypted PWA for sharing text and files between your 
 - Real-time delivery hints with polling as the reliable fallback.
 - Optional at-rest protection for the local browser store.
 - A Cloudflare Worker serving the PWA and API from one origin.
+- A `sendself` CLI that links a server, script or AI agent to a space as a send-only device and sends to it with the same end-to-end encryption ([CLI notes](apps/cli/README.md)).
 
 The application-level security model and its limitations are documented in [Security](docs/security.md). The project is not independently security-audited.
 
@@ -38,7 +39,8 @@ pnpm build          # production PWA build
 
 Start with the [documentation index](docs/README.md), which links the
 architecture, security model, development, deployment, and API guides. The
-[Worker package notes](apps/worker/README.md) cover package-specific commands;
+[Worker package notes](apps/worker/README.md) cover package-specific commands, the
+[CLI notes](apps/cli/README.md) cover installing and linking the CLI;
 [TODO.md](TODO.md) and [AUDIT.md](AUDIT.md) record open design work and deferred
 decisions.
 

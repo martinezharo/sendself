@@ -38,6 +38,18 @@ export function showToast(message: string, kind: Toast["kind"] = "info"): void {
   }, 4000);
 }
 
+/** Copy `text`, saying so either way. Resolves whether it worked. */
+export async function copyText(text: string, done = "Copied to clipboard"): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(done);
+    return true;
+  } catch {
+    showToast("Couldn't copy to clipboard", "error");
+    return false;
+  }
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => (online.value = true));
   window.addEventListener("offline", () => (online.value = false));

@@ -19,7 +19,7 @@
  */
 
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
-import { randomId } from "../crypto/crypto";
+import { randomId } from "@sendself/client/crypto";
 import { PRE_REBRAND_ID } from "../legacy";
 import { type KeyChoice, type Sealed, openJson, sealJson } from "./atrest";
 

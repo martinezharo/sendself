@@ -19,14 +19,12 @@ import {
   messageSignatureStatement,
 } from "@sendself/shared";
 import { ApiError, type Auth, NetworkError, api } from "../api/client";
+import { bufToBase64Url, randomBytes, signStatement } from "@sendself/client/crypto";
 import {
-  bufToBase64Url,
-  encryptFile,
-  encryptJson,
-  encryptText,
-  randomBytes,
-  signStatement,
-} from "../crypto/crypto";
+  encryptMessageFile,
+  encryptMessageMeta,
+  encryptMessageText,
+} from "@sendself/client/message";
 import { type Keyring, currentKey, loadKeyring } from "../crypto/keyring";
 import {
   META_SESSION,
@@ -419,12 +417,7 @@ async function sendQueuedContent(message: LocalMessage, context: FlushContext): 
     await update({ ...message, file, keyEpoch: epoch, status: "uploading" }, context);
 
     signal?.throwIfAborted();
-    const encrypted = await encryptFile(
-      key,
-      await blob.arrayBuffer(),
-      `file:${message.id}`,
-      file.iv,
-    );
+    const encrypted = await encryptMessageFile(key, message.id, await blob.arrayBuffer(), file.iv);
     signal?.throwIfAborted();
     await api.uploadFile(file.r2Key, encrypted.ciphertext, auth, signal);
     signal?.throwIfAborted();
@@ -434,11 +427,11 @@ async function sendQueuedContent(message: LocalMessage, context: FlushContext): 
   const text =
     message.text === undefined
       ? undefined
-      : await encryptText(key, message.text, `text:${message.id}`);
+      : await encryptMessageText(key, message.id, message.text);
   signal?.throwIfAborted();
 
   const metaPlain = metaFor(message);
-  const meta = metaPlain ? await encryptJson(key, metaPlain, `meta:${message.id}`) : undefined;
+  const meta = metaPlain ? await encryptMessageMeta(key, message.id, metaPlain) : undefined;
   signal?.throwIfAborted();
 
   const payload = {

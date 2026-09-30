@@ -12,7 +12,7 @@
 
 import { MAX_FILE_SIZE } from "@sendself/shared";
 import { signal } from "@preact/signals";
-import { randomId } from "../crypto/crypto";
+import { randomId } from "@sendself/client/crypto";
 import { showToast } from "./ui";
 
 /** One attachment waiting to be sent. `id` is local and never leaves the app. */

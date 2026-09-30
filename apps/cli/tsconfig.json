@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The shared client code is typed against the DOM lib for Web Crypto and
+    // fetch, which Node provides with the same shapes.
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "scripts"]
+}

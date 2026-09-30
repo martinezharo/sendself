@@ -20,12 +20,23 @@ function joiner(overrides: Partial<DeviceDescriptor> = {}): DeviceDescriptor {
 }
 
 /** Step 1: the joining device reserves the slot anonymously. */
-function request(pairingId: string, device: unknown): Promise<Response> {
+function request(
+  pairingId: string,
+  device: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<Response> {
   return SELF.fetch(`https://x.dev/api/pairing/${pairingId}/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ device }),
+    body: JSON.stringify({ device, ...extra }),
   });
+}
+
+async function sendOnlyColumn(deviceId: string): Promise<number | undefined> {
+  const row = await env.DB.prepare("SELECT send_only AS sendOnly FROM devices WHERE id = ?")
+    .bind(deviceId)
+    .first<{ sendOnly: number }>();
+  return row?.sendOnly;
 }
 
 function rotate(adder: SeededDevice, body: RotateKeyRequest): Promise<Response> {
@@ -87,6 +98,27 @@ describe("POST /api/pairing/:id/request", () => {
     expect(await errorCode(response)).toBe("conflict");
   });
 
+  it("accepts a retried invitation without resetting its age or identity", async () => {
+    const slot = uid("slot");
+    const device = joiner();
+    const extra = { sendOnly: true, invite: "iv.sealed" };
+    await request(slot, device, extra);
+    await env.DB.prepare("UPDATE pairing SET created_at = 123 WHERE pairing_id = ?")
+      .bind(slot)
+      .run();
+
+    expect((await request(slot, device, extra)).status).toBe(200);
+    const row = await env.DB.prepare(
+      "SELECT created_at AS createdAt, new_device AS device FROM pairing WHERE pairing_id = ?",
+    )
+      .bind(slot)
+      .first<{ createdAt: number; device: string }>();
+    expect(row?.createdAt).toBe(123);
+    expect(JSON.parse(row!.device)).toEqual({ ...device, ...extra });
+    expect((await request(slot, device, { ...extra, invite: "iv.other" })).status).toBe(409);
+    expect((await request(slot, device, { ...extra, sendOnly: false })).status).toBe(409);
+  });
+
   it("rejects a slot id that is not URL-safe", async () => {
     // It never reaches the handler: the path does not route at all, which is
     // what keeps a traversal out of the id in the first place.
@@ -95,6 +127,10 @@ describe("POST /api/pairing/:id/request", () => {
 
   it("rejects a device without a public key", async () => {
     expect((await request(uid("slot"), { id: "d", publicKey: "" })).status).toBe(400);
+  });
+
+  it("rejects a sendOnly flag that is not a boolean", async () => {
+    expect((await request(uid("slot"), joiner(), { sendOnly: "yes" })).status).toBe(400);
   });
 });
 
@@ -128,6 +164,26 @@ describe("POST /api/pairing/:id/complete", () => {
       .bind(slot)
       .first<{ wrapped: string; groupId: string }>();
     expect(stored).toEqual({ wrapped: "wrapped", groupId });
+  });
+
+  it("registers a device that asked to be send-only as one", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: true });
+
+    expect((await complete(slot, owner, device)).status).toBe(200);
+    expect(await sendOnlyColumn(device.id)).toBe(1);
+  });
+
+  it("registers every other device as one that receives", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: false });
+
+    expect((await complete(slot, owner, device)).status).toBe(200);
+    expect(await sendOnlyColumn(device.id)).toBe(0);
   });
 
   it("lets an admin add a device", async () => {
@@ -351,6 +407,61 @@ describe("POST /api/pairing/:id/complete", () => {
     });
 
     expect(response.status).toBe(401);
+  });
+});
+
+describe("GET /api/pairing/:id/joiner", () => {
+  function joinerOf(caller: SeededDevice, slot: string): Promise<Response> {
+    return SELF.fetch(`https://x.dev/api/pairing/${slot}/joiner`, { headers: authHeader(caller) });
+  }
+
+  it("shows an admin the keys and sealed name of the device that answered an invitation", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: true, invite: "iv.sealed" });
+
+    const response = await joinerOf(owner, slot);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      present: true,
+      device,
+      sendOnly: true,
+      invite: "iv.sealed",
+    });
+  });
+
+  it("reports nothing until someone answers, and nothing for a QR-code slot", async () => {
+    const { owner } = await seedSpace();
+    const qrSlot = uid("slot");
+    await request(qrSlot, joiner());
+
+    expect(await (await joinerOf(owner, uid("slot"))).json()).toEqual({ present: false });
+    expect(await (await joinerOf(owner, qrSlot)).json()).toEqual({ present: false });
+  });
+
+  it("stops showing the slot once the pairing completed", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { invite: "iv.sealed" });
+    await complete(slot, owner, device);
+
+    expect(await (await joinerOf(owner, slot)).json()).toEqual({ present: false });
+  });
+
+  it("refuses a plain member, who may not add devices", async () => {
+    const { groupId } = await seedSpace();
+    const member = await seedDevice(groupId);
+    const slot = uid("slot");
+    await request(slot, joiner(), { invite: "iv.sealed" });
+
+    expect((await joinerOf(member, slot)).status).toBe(403);
+  });
+
+  it("rejects an oversized seal", async () => {
+    expect((await request(uid("slot"), joiner(), { invite: "x".repeat(5000) })).status).toBe(400);
   });
 });
 
