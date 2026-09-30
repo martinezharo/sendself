@@ -28,7 +28,11 @@ afterEach(async () => {
 });
 
 async function server(
-  options: { transient?: "rate_limited" | "network" | "server"; ready?: boolean } = {},
+  options: {
+    transient?: "rate_limited" | "network" | "server";
+    ready?: boolean;
+    persistent?: boolean;
+  } = {},
 ) {
   const groupKey = await exportGroupKey(await generateGroupKey());
   const printed: string[] = [];
@@ -66,7 +70,7 @@ async function server(
       polls++;
       firstPoll();
       if (polls === 1 && options.transient === "network") throw new TypeError("Connection lost");
-      if (polls === 1 && options.transient === "server") {
+      if ((polls === 1 || options.persistent) && options.transient === "server") {
         return Response.json(
           { error: { code: "internal", message: "Temporary failure" } },
           { status: 500 },
@@ -144,6 +148,20 @@ describe("link", () => {
     const result = link({ ...api.options, invite: createInvite() });
     const assertion = expect(result).rejects.toThrow(
       "The invitation expired before it was approved",
+    );
+    await api.polled;
+    await vi.advanceTimersByTimeAsync(PAIRING_TTL_MS + 2500);
+    await assertion;
+    expect(api.deleted()).toBe(true);
+    await expect(loadDevice(path)).rejects.toThrow("not linked");
+  });
+
+  it("reports the server failure when it persists until the deadline", async () => {
+    const api = await server({ transient: "server", persistent: true });
+    vi.useFakeTimers();
+    const result = link({ ...api.options, invite: createInvite() });
+    const assertion = expect(result).rejects.toThrow(
+      "Could not finish linking before the code expired: Temporary failure",
     );
     await api.polled;
     await vi.advanceTimersByTimeAsync(PAIRING_TTL_MS + 2500);

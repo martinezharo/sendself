@@ -104,18 +104,21 @@ async function waitForPackage(
   const { pairingId } = joining.payload;
 
   const deadline = Date.now() + PAIRING_TTL_MS;
+  let lastPollError: Error | undefined;
   try {
     while (Date.now() < deadline) {
       options.signal?.throwIfAborted();
       let result: Awaited<ReturnType<typeof api.pairingPoll>>;
       try {
         result = await api.pairingPoll(pairingId);
+        lastPollError = undefined;
       } catch (error) {
         // Shared IPs can hit the public rate limit while the invitation is
         // still valid. Back off and keep waiting, just as for network blips.
         const rateLimited = error instanceof ApiError && error.code === "rate_limited";
         const serverFailure = error instanceof ApiError && error.status >= 500;
         if (!(error instanceof NetworkError) && !rateLimited && !serverFailure) throw error;
+        lastPollError = error instanceof Error ? error : undefined;
         await wait(rateLimited ? RATE_LIMIT_WAIT_MS : POLL_INTERVAL_MS, options.signal);
         continue;
       }
@@ -142,6 +145,14 @@ async function waitForPackage(
         return device;
       }
       await wait(POLL_INTERVAL_MS, options.signal);
+    }
+    if (lastPollError) {
+      throw new Error(
+        `Could not finish linking before the code expired: ${lastPollError.message}`,
+        {
+          cause: lastPollError,
+        },
+      );
     }
     throw new Error(
       options.invite
