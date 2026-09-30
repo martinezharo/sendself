@@ -26,7 +26,10 @@ The browser WebSocket API cannot set an `Authorization` header. For `GET /api/re
 | `POST` | `/api/pairing/:pairingId/request` | Pairing id | Reserve a slot and publish the joining device's public keys. |
 | `POST` | `/api/pairing/:pairingId/complete` | Bearer; admin required | Verify the scanned keys, register the joining device, and store the wrapped pairing package. |
 | `GET` | `/api/pairing/:pairingId` | Pairing id | Poll for the wrapped package. |
+| `GET` | `/api/pairing/:pairingId/joiner` | Bearer; admin required | For an invitation: the keys, send-only flag and sealed name the joining device published, or `{ "present": false }`. Slots answered through a QR code are never shown. |
 | `DELETE` | `/api/pairing/:pairingId` | Pairing id | Cancel a pairing slot. |
+
+When the joining device answers an invitation rather than showing a QR code, the request body also carries `invite`: its name sealed with the invitation's secret over the keys it publishes (see [Security](security.md#pairing-by-invitation)). The server stores it opaquely.
 
 The request body may set `"sendOnly": true` for a device that will only send, such as the CLI. The flag travels with the slot and is applied when the pairing completes; see [Send-only devices](architecture.md#send-only-devices).
 

@@ -1,8 +1,10 @@
 import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useId, useRef } from "preact/hooks";
+import { useEffect, useId, useRef, useState } from "preact/hooks";
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
+  Copy,
   FileArchive,
   FileAudio,
   FileCode,
@@ -13,7 +15,7 @@ import {
   FileVideo,
   X,
 } from "lucide-preact";
-import { toasts } from "../state/ui";
+import { copyText, toasts } from "../state/ui";
 
 /** Tiny className joiner. */
 export function cx(...parts: Array<string | false | null | undefined>): string {
@@ -351,6 +353,62 @@ export function Modal({ title, onClose, children }: ModalProps): JSX.Element {
           {children}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------------
+   Copying commands and prompts
+   ------------------------------------------------------------------------ */
+
+/**
+ * Copy on demand, and remember for a moment that it worked, so the button that
+ * asked can show a check instead of leaving the click unanswered.
+ */
+export function useCopy(): { copied: boolean; copy: (text: string, done?: string) => void } {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return {
+    copied,
+    copy: (text, done) => {
+      void copyText(text, done).then((ok) => {
+        if (!ok) return;
+        setCopied(true);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => setCopied(false), 1600);
+      });
+    },
+  };
+}
+
+/** A shell command on one line, with a button that copies it. */
+export function CommandLine({
+  command,
+  label = "Copy command",
+  class: cls,
+}: {
+  command: string;
+  label?: string;
+  class?: string;
+}): JSX.Element {
+  const { copied, copy } = useCopy();
+  return (
+    <div
+      class={cx(
+        "flex min-w-0 items-center gap-2 rounded-card border border-line bg-surface-2 py-1 pl-3.5 pr-1 font-mono text-caption",
+        cls,
+      )}
+    >
+      <span class="flex-none text-accent" aria-hidden="true">
+        ›
+      </span>
+      <code class="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap py-1.5 text-ink">
+        {command}
+      </code>
+      <IconButton class="flex-none !size-[34px]" label={label} onClick={() => copy(command)}>
+        {copied ? <Check /> : <Copy />}
+      </IconButton>
     </div>
   );
 }

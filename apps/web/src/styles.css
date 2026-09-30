@@ -1025,6 +1025,9 @@
   .site-prose :where(p, li) code {
     @apply rounded-md bg-surface-3 px-1.5 py-0.5 font-mono text-[0.88em] text-ink;
   }
+  .site-prose > section > pre {
+    @apply my-4 overflow-x-auto rounded-card border border-line bg-surface-2 px-4 py-3.5 font-mono text-caption leading-relaxed text-ink;
+  }
 
   /* A table that turns into one card per row below `md`, where three columns
      of prose cannot fit side by side. Each cell's column name comes from its

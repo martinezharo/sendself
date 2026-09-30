@@ -389,6 +389,61 @@ describe("POST /api/pairing/:id/complete", () => {
   });
 });
 
+describe("GET /api/pairing/:id/joiner", () => {
+  function joinerOf(caller: SeededDevice, slot: string): Promise<Response> {
+    return SELF.fetch(`https://x.dev/api/pairing/${slot}/joiner`, { headers: authHeader(caller) });
+  }
+
+  it("shows an admin the keys and sealed name of the device that answered an invitation", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: true, invite: "iv.sealed" });
+
+    const response = await joinerOf(owner, slot);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      present: true,
+      device,
+      sendOnly: true,
+      invite: "iv.sealed",
+    });
+  });
+
+  it("reports nothing until someone answers, and nothing for a QR-code slot", async () => {
+    const { owner } = await seedSpace();
+    const qrSlot = uid("slot");
+    await request(qrSlot, joiner());
+
+    expect(await (await joinerOf(owner, uid("slot"))).json()).toEqual({ present: false });
+    expect(await (await joinerOf(owner, qrSlot)).json()).toEqual({ present: false });
+  });
+
+  it("stops showing the slot once the pairing completed", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { invite: "iv.sealed" });
+    await complete(slot, owner, device);
+
+    expect(await (await joinerOf(owner, slot)).json()).toEqual({ present: false });
+  });
+
+  it("refuses a plain member, who may not add devices", async () => {
+    const { groupId } = await seedSpace();
+    const member = await seedDevice(groupId);
+    const slot = uid("slot");
+    await request(slot, joiner(), { invite: "iv.sealed" });
+
+    expect((await joinerOf(member, slot)).status).toBe(403);
+  });
+
+  it("rejects an oversized seal", async () => {
+    expect((await request(uid("slot"), joiner(), { invite: "x".repeat(5000) })).status).toBe(400);
+  });
+});
+
 describe("GET /api/pairing/:id", () => {
   it("reports not ready until the package lands", async () => {
     const slot = uid("slot");

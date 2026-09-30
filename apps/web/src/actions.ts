@@ -3,11 +3,20 @@ import {
   type DeviceRole,
   INITIAL_KEY_EPOCH,
   MAX_FILE_SIZE,
+  PAIRING_TTL_MS,
   type PairingQrPayload,
 } from "@sendself/shared";
 import { signal } from "@preact/signals";
-import { createJoiningDevice } from "@sendself/client/pairing";
+import {
+  type Invite,
+  createInvite,
+  createJoiningDevice,
+  deviceFingerprint,
+  formatInviteCode,
+  openInvite,
+} from "@sendself/client/pairing";
 import { NetworkError, api } from "./api/client";
+import { agentSetupPrompt, linkCommand } from "./cli";
 import {
   encryptName,
   exportGroupKey,
@@ -90,7 +99,7 @@ import {
   openSpace,
   refreshSpaces,
 } from "./state/spaces";
-import { showToast } from "./state/ui";
+import { copyText, showToast } from "./state/ui";
 import { backgroundSyncSupported, requestBackgroundSync } from "./sync/background";
 import { DeviceKeyMismatchError, rotateGroupKey } from "./sync/rekey";
 import { startSync, stopSync, syncNow } from "./sync/sync";
@@ -390,11 +399,6 @@ export async function cancelLinking(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function addDeviceFromQr(qrText: string): Promise<void> {
-  const currentSession = session.value;
-  const ring = keyring.value;
-  if (!currentSession || !ring) throw new Error("Not signed in");
-  const currentGroupKey = currentKey(ring);
-
   let payload: PairingQrPayload;
   try {
     payload = JSON.parse(qrText) as PairingQrPayload;
@@ -404,6 +408,18 @@ export async function addDeviceFromQr(qrText: string): Promise<void> {
   if (payload.v !== 1 || !payload.pairingId || !payload.publicKey || !payload.deviceId) {
     throw new Error("Unsupported or malformed device code");
   }
+  await addDevice(payload);
+}
+
+/**
+ * Add a device whose keys this device learned out-of-band — scanned from its QR
+ * code, or proven by an invitation seal (see `checkDeviceInvite`).
+ */
+async function addDevice(payload: PairingQrPayload): Promise<void> {
+  const currentSession = session.value;
+  const ring = keyring.value;
+  if (!currentSession || !ring) throw new Error("Not signed in");
+  const currentGroupKey = currentKey(ring);
 
   const recipientPublicKey = await importPublicKey(payload.publicKey);
   const deviceAuthToken = randomToken();
@@ -478,6 +494,78 @@ export async function addDeviceFromQr(qrText: string): Promise<void> {
     trust: "scanned",
     byMe: true,
   });
+}
+
+/** An invitation this device is waiting on (see `InviteSealFields`). */
+export interface DeviceInvite {
+  invite: Invite;
+  /** The command to paste on the machine joining the space. */
+  command: string;
+  /** The same, as a prompt that has an agent set itself up. */
+  prompt: string;
+  expiresAt: number;
+}
+
+/**
+ * Invite a server, a script or an agent into the space as a send-only device.
+ *
+ * Nothing reaches the server here: the invitation is only a slot id and a
+ * secret, shown to the person as a command. It becomes real when the machine
+ * running that command answers, and a device when this one approves it.
+ */
+export function createDeviceInvite(): DeviceInvite {
+  const invite = createInvite();
+  const command = linkCommand(formatInviteCode(invite), window.location.origin);
+  return {
+    invite,
+    command,
+    prompt: agentSetupPrompt(command),
+    expiresAt: Date.now() + PAIRING_TTL_MS,
+  };
+}
+
+/** A device that answered an invitation, its keys already proven by the seal. */
+export interface InviteAnswer {
+  payload: PairingQrPayload;
+  /** Shown by the CLI too, so a person can tell it is the machine they started. */
+  fingerprint: string;
+}
+
+/**
+ * Whether anyone has answered the invitation yet. Throws `InviteMismatchError`
+ * when the answer was not sealed with the invitation's secret: the keys did not
+ * come from whoever holds the code, so they must not be let in.
+ */
+export async function checkDeviceInvite(invite: Invite): Promise<InviteAnswer | null> {
+  const answer = await api.pairingJoiner(invite.pairingId, authHeaders());
+  if (!answer.present || !answer.device?.signingPublicKey || !answer.invite) return null;
+  const { device } = answer;
+  const signingPublicKey = device.signingPublicKey!;
+  const sendOnly = answer.sendOnly === true;
+  const deviceName = await openInvite(invite, answer.invite, {
+    pairingId: invite.pairingId,
+    deviceId: device.id,
+    publicKey: device.publicKey,
+    signingPublicKey,
+    sendOnly,
+  });
+  return {
+    payload: {
+      v: 1,
+      pairingId: invite.pairingId,
+      deviceId: device.id,
+      deviceName,
+      publicKey: device.publicKey,
+      signingPublicKey,
+      ...(sendOnly ? { sendOnly: true as const } : {}),
+    },
+    fingerprint: await deviceFingerprint(device.publicKey, signingPublicKey),
+  };
+}
+
+/** Let in the device that answered an invitation. */
+export function approveInvitedDevice(answer: InviteAnswer): Promise<void> {
+  return addDevice(answer.payload);
 }
 
 /** Fetch the group's devices and decrypt their names for display. */
@@ -774,12 +862,7 @@ export async function saveFile(message: LocalMessage): Promise<boolean> {
 
 export async function copyMessageText(message: LocalMessage): Promise<void> {
   if (!message.text) return;
-  try {
-    await navigator.clipboard.writeText(message.text);
-    showToast("Copied to clipboard");
-  } catch {
-    showToast("Couldn't copy to clipboard", "error");
-  }
+  await copyText(message.text);
 }
 
 /** Whether the Web Share API can plausibly share this message from here. */

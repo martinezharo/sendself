@@ -32,17 +32,13 @@ importers:
         version: 5.9.3
 
   apps/cli:
-    dependencies:
+    devDependencies:
       '@sendself/client':
         specifier: workspace:*
         version: link:../../packages/client
       '@sendself/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      qrcode:
-        specifier: ^1.5.4
-        version: 1.5.4
-    devDependencies:
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -52,6 +48,9 @@ importers:
       esbuild:
         specifier: ^0.25.12
         version: 0.25.12
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

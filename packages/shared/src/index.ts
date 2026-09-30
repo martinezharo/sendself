@@ -9,6 +9,9 @@
 // Constants
 // ---------------------------------------------------------------------------
 
+/** The public deployment: what the site links to and where the CLI connects by default. */
+export const SERVICE_ORIGIN = "https://sendself.4oli.com";
+
 /** Maximum size (bytes) of a single file *before* encryption: 50 MB. */
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -355,6 +358,58 @@ export interface PairingRequestBody {
    * holds the GroupKey, signs what it sends, and is handed every rotated key.
    */
   sendOnly?: true;
+  /**
+   * Set when the device answers an invitation (see `InviteSealFields`) rather
+   * than showing a QR code: its name, sealed with the invitation's secret over
+   * the keys it publishes here. The server can store and relay it but can
+   * neither read the name nor swap the keys without the seal failing.
+   */
+  invite?: string;
+}
+
+/**
+ * Pairing by invitation, the other way round from the QR code.
+ *
+ * With a QR code the joining device shows its keys and an existing device reads
+ * them out-of-band. A device with no screen worth scanning — a server, a script,
+ * an agent — cannot do that comfortably, so here the existing device mints an
+ * invitation instead: a slot id and a 256-bit secret, handed to the joining
+ * device out-of-band as one command to paste (`sendself link <code>`).
+ *
+ * The secret never reaches the server. The joining device seals its name with
+ * it, bound (as AES-GCM additional data) to exactly the keys it publishes, so
+ * the inviting device can tell those keys came from whoever holds the code: the
+ * same guarantee reading them from a QR code gives. Everything after that is
+ * the ordinary pairing flow.
+ */
+export interface InviteSealFields {
+  pairingId: string;
+  deviceId: string;
+  publicKey: string;
+  signingPublicKey: string;
+  sendOnly: boolean;
+}
+
+/** The additional data an invitation seal is bound to. */
+export function inviteSealStatement(fields: InviteSealFields): string {
+  return [
+    "fs-pairing-invite:1",
+    fields.pairingId,
+    fields.deviceId,
+    fields.publicKey,
+    fields.signingPublicKey,
+    fields.sendOnly ? "send-only" : "full",
+  ].join(":");
+}
+
+/** What the inviting device learns about the device that answered its invitation. */
+export interface PairingJoinerResponse {
+  /** False until a device has answered, and again once the pairing completed. */
+  present: boolean;
+  device?: DeviceDescriptor;
+  sendOnly?: boolean;
+  /** The sealed name (see `PairingRequestBody.invite`). */
+  invite?: string;
 }
 
 export interface PairingRequestResponse {

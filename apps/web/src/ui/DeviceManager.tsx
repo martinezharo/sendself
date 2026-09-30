@@ -1,8 +1,12 @@
 import type { DeviceRole } from "@sendself/shared";
+import { InviteMismatchError } from "@sendself/client/pairing";
 import {
   AlertCircle,
   Ban,
+  Bot,
+  Check,
   ClipboardPaste,
+  Copy,
   Crown,
   KeyRound,
   MoreVertical,
@@ -10,13 +14,20 @@ import {
   ScanLine,
   Send,
   ShieldCheck,
+  Terminal,
   UserRound,
 } from "lucide-preact";
 import { Fragment, type JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { NetworkError } from "../api/client";
 import {
+  type DeviceInvite,
   type DeviceView,
+  type InviteAnswer,
   addDeviceFromQr,
+  approveInvitedDevice,
+  checkDeviceInvite,
+  createDeviceInvite,
   listDevicesDecrypted,
   revokeDevice,
   updateDeviceRole,
@@ -26,7 +37,17 @@ import { session } from "../state/session";
 import { showToast } from "../state/ui";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { SecurityPanel } from "./SecurityPanel";
-import { Button, IconButton, Modal, Spinner, cx, initials } from "./components";
+import { AGENT_INSTRUCTIONS } from "../cli";
+import {
+  Button,
+  CommandLine,
+  IconButton,
+  Modal,
+  Spinner,
+  cx,
+  initials,
+  useCopy,
+} from "./components";
 
 /**
  * One management action on one device, as offered by the row's menu.
@@ -447,7 +468,7 @@ function AddDeviceModal({
   onClose: () => void;
   onAdded: () => void;
 }): JSX.Element {
-  const [tab, setTab] = useState<"scan" | "paste">("scan");
+  const [tab, setTab] = useState<"scan" | "paste" | "agent">("scan");
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -508,7 +529,13 @@ function AddDeviceModal({
           <ClipboardPaste />
           Paste code
         </SegItem>
+        <SegItem active={tab === "agent"} onClick={() => setTab("agent")}>
+          <Terminal />
+          Agent
+        </SegItem>
       </div>
+
+      {tab === "agent" && <InviteDevicePanel onDone={onAdded} />}
 
       {tab === "scan" && (
         <div class="flex flex-col items-center gap-3">
@@ -560,6 +587,200 @@ function AddDeviceModal({
         </form>
       )}
     </Modal>
+  );
+}
+
+/** How often the dialog asks whether the invited machine has answered. */
+const INVITE_POLL_MS = 2500;
+
+type InviteStage =
+  | { kind: "waiting" }
+  | { kind: "confirm"; answer: InviteAnswer }
+  | { kind: "approving"; answer: InviteAnswer }
+  | { kind: "done"; name: string }
+  | { kind: "failed"; message: string };
+
+/**
+ * Invite a server, a script or an AI agent: one command to paste there (or a
+ * prompt to hand the agent), and an approval here once it answers.
+ *
+ * Approval is a step of its own on purpose. The code proves the answer came
+ * from whoever holds it, but a code pasted into a chat can travel further than
+ * intended, so the person sees what is asking to join — its name and the same
+ * short code the command printed — before it gets the space's key.
+ */
+function InviteDevicePanel({ onDone }: { onDone: () => void }): JSX.Element {
+  const [invite, setInvite] = useState<DeviceInvite>(() => createDeviceInvite());
+  const [stage, setStage] = useState<InviteStage>({ kind: "waiting" });
+  const [now, setNow] = useState(Date.now());
+  const prompt = useCopy();
+  const instructions = useCopy();
+
+  const expired = stage.kind === "waiting" && now >= invite.expiresAt;
+
+  useEffect(() => {
+    if (stage.kind !== "waiting") return;
+    let active = true;
+    const tick = async (): Promise<void> => {
+      setNow(Date.now());
+      if (Date.now() >= invite.expiresAt) return;
+      try {
+        const answer = await checkDeviceInvite(invite.invite);
+        if (active && answer) setStage({ kind: "confirm", answer });
+      } catch (error) {
+        if (!active || error instanceof NetworkError) return;
+        setStage({
+          kind: "failed",
+          message:
+            error instanceof InviteMismatchError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Could not check the invitation",
+        });
+      }
+    };
+    const timer = setInterval(() => void tick(), INVITE_POLL_MS);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [invite, stage.kind]);
+
+  function restart(): void {
+    setInvite(createDeviceInvite());
+    setStage({ kind: "waiting" });
+    setNow(Date.now());
+  }
+
+  async function approve(answer: InviteAnswer): Promise<void> {
+    setStage({ kind: "approving", answer });
+    try {
+      await approveInvitedDevice(answer);
+      setStage({ kind: "done", name: answer.payload.deviceName });
+    } catch (error) {
+      setStage({
+        kind: "failed",
+        message: error instanceof Error ? error.message : "Could not add the device",
+      });
+    }
+  }
+
+  if (stage.kind === "confirm" || stage.kind === "approving") {
+    const { payload, fingerprint } = stage.answer;
+    return (
+      <div class="flex flex-col gap-3.5">
+        <p class="text-note leading-5 text-subtle">This machine is asking to join the space:</p>
+        <div class="flex items-center gap-3.5 rounded-card border border-line bg-surface-2 px-4 py-3.5">
+          <div class="grid size-[42px] flex-none place-items-center rounded-xl bg-accent font-mono text-body font-medium text-on-accent">
+            {initials(payload.deviceName)}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2 text-body font-medium">
+              <span class="truncate">{payload.deviceName}</span>
+              {payload.sendOnly && <SendOnlyBadge />}
+            </div>
+            <div class="font-mono text-meta text-muted">Code {fingerprint}</div>
+          </div>
+        </div>
+        <p class="text-caption leading-5 text-muted">
+          The command printed the same code. Approve only if you started it: the machine gets this
+          space's key and can send here. It never receives anything.
+        </p>
+        <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+          <Button
+            class="sm:w-auto"
+            variant="secondary"
+            disabled={stage.kind === "approving"}
+            onClick={restart}
+          >
+            Reject
+          </Button>
+          <Button
+            class="sm:w-auto"
+            variant="primary"
+            disabled={stage.kind === "approving"}
+            onClick={() => void approve(stage.answer)}
+          >
+            {stage.kind === "approving" ? <Spinner /> : "Approve"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage.kind === "done") {
+    return (
+      <div class="flex flex-col gap-3.5">
+        <div class="flex gap-3 rounded-card border border-success/25 bg-success/10 px-4 py-3.5 text-success">
+          <Check class="mt-0.5 size-[19px] flex-none" aria-hidden="true" />
+          <p class="text-note font-medium leading-5">
+            {stage.name} is linked. It can send to this space from now on.
+          </p>
+        </div>
+        <p class="text-note leading-5 text-subtle">
+          If it runs an AI agent, give the agent these instructions so it knows how to send you
+          things. The setup prompt already included them.
+        </p>
+        <Button
+          variant="secondary"
+          onClick={() => instructions.copy(AGENT_INSTRUCTIONS, "Instructions copied")}
+        >
+          {instructions.copied ? <Check /> : <Copy />}
+          Copy instructions for your agent
+        </Button>
+        <Button variant="primary" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    );
+  }
+
+  if (stage.kind === "failed" || expired) {
+    return (
+      <div class="flex flex-col gap-3.5">
+        <div class="flex w-full gap-3 rounded-card border border-danger/25 bg-danger-soft p-3.5 text-danger">
+          <AlertCircle class="mt-0.5 size-[19px] flex-none" aria-hidden="true" />
+          <p class="text-note font-medium leading-5">
+            {stage.kind === "failed"
+              ? stage.message
+              : "This invitation expired before anything answered it."}
+          </p>
+        </div>
+        <Button variant="primary" onClick={restart}>
+          Create a new invitation
+        </Button>
+      </div>
+    );
+  }
+
+  const minutesLeft = Math.max(1, Math.ceil((invite.expiresAt - now) / 60_000));
+  return (
+    <div class="flex flex-col gap-3.5">
+      <p class="text-note leading-5 text-subtle">
+        Let a server, a script or an AI agent send you files. It joins as a{" "}
+        <strong class="font-semibold text-ink">send-only</strong> device: it can send here, and
+        never receives anything.
+      </p>
+      <Button variant="primary" onClick={() => prompt.copy(invite.prompt, "Setup prompt copied")}>
+        {prompt.copied ? <Check /> : <Bot />}
+        Copy the setup prompt for your agent
+      </Button>
+      <div class="flex flex-col gap-2">
+        <span class="font-mono text-meta uppercase tracking-[0.12em] text-muted">
+          Or run it yourself
+        </span>
+        <CommandLine command={invite.command} />
+      </div>
+      <p class="flex items-center gap-2 text-caption text-muted">
+        <Spinner class="!size-3 !border-[1.5px]" />
+        Waiting for it to connect · expires in {minutesLeft} min
+      </p>
+      <p class="text-caption leading-5 text-muted">
+        The command is a one-time key to this space for {minutesLeft} min. Share it only with the
+        machine you are linking. Needs Node.js 20 or newer there.
+      </p>
+    </div>
   );
 }
 

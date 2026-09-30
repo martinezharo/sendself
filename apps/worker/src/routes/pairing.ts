@@ -2,6 +2,7 @@ import type {
   DeviceDescriptor,
   PairingCompleteBody,
   PairingCompleteResponse,
+  PairingJoinerResponse,
   PairingPollResponse,
   PairingRequestBody,
   PairingRequestResponse,
@@ -21,7 +22,7 @@ import type { RouteContext } from "../router";
 import { clientIp, rateLimit } from "../security";
 
 /** What a pairing slot remembers about the joining device (`pairing.new_device`). */
-type SlotDevice = DeviceDescriptor & { sendOnly?: true };
+type SlotDevice = DeviceDescriptor & { sendOnly?: true; invite?: string };
 
 /**
  * Step 1 (joining device, semi-open): reserve a pairing slot and publish the
@@ -40,11 +41,14 @@ export async function requestPairing(c: RouteContext): Promise<Response> {
   if (body.sendOnly !== undefined && typeof body.sendOnly !== "boolean") {
     throw new ApiError("bad_request", "sendOnly must be a boolean");
   }
+  // Opaque to the server: sealed with a secret it never sees (see `InviteSealFields`).
+  const invite = optionalString(body.invite, "invite", 4096);
   const descriptor: SlotDevice = {
     id: requireId(device.id, "device.id"),
     publicKey: requireString(device.publicKey, "device.publicKey", 2048),
     ...(signingPublicKey === undefined ? {} : { signingPublicKey }),
     ...(body.sendOnly ? { sendOnly: true as const } : {}),
+    ...(invite === undefined ? {} : { invite }),
   };
 
   const existing = await c.env.DB.prepare("SELECT pairing_id FROM pairing WHERE pairing_id = ?")
@@ -223,6 +227,38 @@ export async function completePairing(c: RouteContext): Promise<Response> {
   }
 
   return json({ ok: true } satisfies PairingCompleteResponse);
+}
+
+/**
+ * Step 1½, invitations only (inviting device, authed): see who answered.
+ *
+ * With a QR code the adding device already holds the joining device's keys; an
+ * invitation hands the code over instead, so the inviting device polls here for
+ * the keys and the sealed name the answer published, and checks the seal itself
+ * before completing. Only slots answered through an invitation are shown: a
+ * QR-code slot has nothing to offer here, and no reason to be readable.
+ */
+export async function pairingJoiner(c: RouteContext): Promise<Response> {
+  const auth = await authenticate(c.request, c.env);
+  requireAdmin(auth);
+  const pairingId = requireId(c.params.pairingId, "pairingId");
+  const slot = await c.env.DB.prepare(
+    "SELECT new_device AS newDevice, wrapped_package AS wrapped FROM pairing WHERE pairing_id = ?",
+  )
+    .bind(pairingId)
+    .first<{ newDevice: string | null; wrapped: string | null }>();
+
+  const device = slot?.newDevice ? (JSON.parse(slot.newDevice) as SlotDevice) : null;
+  if (!device?.invite || slot?.wrapped) {
+    return json({ present: false } satisfies PairingJoinerResponse);
+  }
+  const { sendOnly, invite, ...descriptor } = device;
+  return json({
+    present: true,
+    device: descriptor,
+    sendOnly: sendOnly === true,
+    invite,
+  } satisfies PairingJoinerResponse);
 }
 
 /**

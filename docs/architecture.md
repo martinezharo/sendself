@@ -50,6 +50,10 @@ The browser reaches the Durable Object through `GET /api/realtime`; it does not 
 3. The package contains the joining device's bearer token, the current `GroupKey`, and the key epoch. When the introducer has a signing identity, it also carries the introducer's verified roster. The Worker stores only the wrapped package.
 4. The joining device polls the slot, unwraps the package locally, and persists its own session and keys.
 
+### Pairing by invitation
+
+Devices that cannot show a QR code comfortably pair the other way round: an admin device creates an invitation (a pairing id and a secret that never reaches the server), the person runs the resulting `sendself link <code>` command on the joining machine, and the joining device seals its answer with the secret. The inviting device verifies the seal, shows the device's name and fingerprint for approval, and completes the pairing as usual. See [Security](security.md#pairing-by-invitation).
+
 ### Send-only devices
 
 A device can join as send-only, which is what the `sendself` CLI does: a script or an agent on a server sends into the space but never reads it. It pairs, holds the `GroupKey` and signs exactly like any other device, and is handed every rotated key. The only difference is that the Worker leaves it out of message recipients, so nothing waits on the server for a device that would never collect it. It cannot be made an administrator.

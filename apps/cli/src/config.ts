@@ -21,9 +21,10 @@ import {
   serializeKeyPair,
 } from "@sendself/client/crypto";
 import { type Keyring, createKeyring, withEpoch } from "@sendself/client/keyring";
+import { SERVICE_ORIGIN } from "@sendself/shared";
 
 /** The service a device links to unless told otherwise. */
-export const DEFAULT_SERVER = "https://sendself.4oli.com";
+export const DEFAULT_SERVER = SERVICE_ORIGIN;
 
 /** A linked device, ready to use. */
 export interface Device {

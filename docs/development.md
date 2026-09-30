@@ -58,7 +58,7 @@ If the app reports that Web Crypto is unavailable, check the origin before chang
 | `pnpm lint` | Runs Biome linting. |
 | `pnpm format:check` | Checks Biome formatting. |
 | `pnpm build` | Builds the production PWA assets and the CLI bundle. |
-| `pnpm --filter @sendself/cli build` | Builds only the CLI, into `apps/cli/dist/sendself.mjs`. |
+| `pnpm --filter sendself build` | Builds only the CLI, into `apps/cli/dist/sendself.mjs`. |
 | `pnpm check:migrations` | Checks pending remote migrations for known breaking operations. |
 
 ## Unit and Worker integration tests

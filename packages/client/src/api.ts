@@ -16,6 +16,7 @@ import {
   type CreateGroupResponse,
   type DevicesListResponse,
   type PairingCompleteBody,
+  type PairingJoinerResponse,
   type PairingPollResponse,
   type PairingRequestBody,
   type PendingMessagesResponse,
@@ -193,6 +194,10 @@ export function createApi(config: ApiOptions) {
 
     pairingComplete(pairingId: string, body: PairingCompleteBody, auth: Auth): Promise<void> {
       return jsonRequest("POST", `/pairing/${pairingId}/complete`, { jsonBody: body, auth });
+    },
+
+    pairingJoiner(pairingId: string, auth: Auth): Promise<PairingJoinerResponse> {
+      return jsonRequest("GET", `/pairing/${pairingId}/joiner`, { auth, retries: 0 });
     },
 
     pairingPoll(pairingId: string): Promise<PairingPollResponse> {

@@ -12,6 +12,7 @@ import { basename, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ApiError, NetworkError } from "@sendself/client/api";
 import { assertWebCryptoAvailable } from "@sendself/client/crypto";
+import { parseInviteCode } from "@sendself/client/pairing";
 import { DEFAULT_SERVER, devicePath, isLinked, loadDevice, removeDevice } from "./config";
 import { link } from "./link";
 import { mimeFor } from "./mime";
@@ -25,7 +26,7 @@ const HELP = `sendself — send files and text to your SendSelf devices
 
 Usage:
   sendself send [options] [FILE...]   Send files, text, or both
-  sendself link [options]             Link this machine to a space (once)
+  sendself link CODE [options]        Link this machine to a space (once)
   sendself status                     Show which space this machine sends to
   sendself unlink                     Forget the link on this machine
 
@@ -35,6 +36,8 @@ send:
   With no FILE and no --message, text is read from stdin when it is piped.
 
 link:
+  CODE                 The invitation from the app: Devices → Add device →
+                       Agent. Without one, a code to scan is shown.
   -n, --name NAME      How this machine appears in the space (default: hostname)
       --server URL     SendSelf server (default: ${DEFAULT_SERVER})
       --force          Replace an existing link on this machine
@@ -113,7 +116,7 @@ async function runSend(args: string[]): Promise<number> {
 }
 
 async function runLink(args: string[]): Promise<number> {
-  const { values } = parse(args, {
+  const { values, positionals } = parse(args, {
     name: { type: "string", short: "n" },
     server: { type: "string" },
     force: { type: "boolean" },
@@ -122,6 +125,14 @@ async function runLink(args: string[]): Promise<number> {
     const device = await loadDevice();
     throw new UsageError(
       `Already linked as "${device.deviceName}" (${devicePath()}). Use --force to replace it, and revoke the old one from the app.`,
+    );
+  }
+
+  if (positionals.length > 1) throw new UsageError("link takes at most one invitation code.");
+  const invite = positionals[0] === undefined ? undefined : parseInviteCode(positionals[0]);
+  if (invite === null) {
+    throw new UsageError(
+      "That is not an invitation code. Copy the whole command from Devices → Add device → Agent.",
     );
   }
 
@@ -136,6 +147,7 @@ async function runLink(args: string[]): Promise<number> {
     const device = await link({
       server,
       deviceName,
+      ...(invite ? { invite } : {}),
       print: (line) => process.stderr.write(`${line}\n`),
       signal: controller.signal,
     });
