@@ -28,7 +28,9 @@ The browser reaches the Durable Object through `GET /api/realtime`; it does not 
 | Component | Responsibility |
 | --- | --- |
 | `apps/web` | Preact UI, Web Crypto operations, IndexedDB persistence, service worker, background outbox, and real-time client. |
+| `apps/cli` | The `sendself` command-line client: links a machine to a space as a send-only device and sends to it from scripts and agents. |
 | `apps/worker` | Cloudflare Worker entry point, routing, authentication, API handlers, D1 queries, R2 streaming, cleanup cron, and Durable Object integration. |
+| `packages/client` | What every client shares and the server never runs: the Web Crypto core, the API client, the keyring, the message ciphertext contexts and the joining side of pairing. Used by the PWA (page and service worker) and the CLI, so the two cannot drift apart on the wire. |
 | `packages/shared` | DTOs, constants, device roles, pending-message shapes, and the exact bytes covered by signatures. |
 | `e2e` | Playwright tests that exercise the built PWA in a real browser across page and browser restarts. |
 | `scripts` | Deployment migration guard and an end-to-end protocol verification helper. |
@@ -48,10 +50,14 @@ The browser reaches the Durable Object through `GET /api/realtime`; it does not 
 3. The package contains the joining device's bearer token, the current `GroupKey`, and the key epoch. When the introducer has a signing identity, it also carries the introducer's verified roster. The Worker stores only the wrapped package.
 4. The joining device polls the slot, unwraps the package locally, and persists its own session and keys.
 
+### Send-only devices
+
+A device can join as send-only, which is what the `sendself` CLI does: a script or an agent on a server sends into the space but never reads it. It pairs, holds the `GroupKey` and signs exactly like any other device, and is handed every rotated key. The only difference is that the Worker leaves it out of message recipients, so nothing waits on the server for a device that would never collect it. It cannot be made an administrator.
+
 ### Sending and receiving
 
 1. The sender encrypts text, file contents, and the metadata envelope locally with the current `GroupKey`.
-2. An encrypted file is uploaded to R2 first. The message metadata and per-device pending delivery rows are then written to D1.
+2. An encrypted file is uploaded to R2 first. The message metadata and per-device pending delivery rows (one for every active device except the sender and send-only devices) are then written to D1.
 3. The Worker sends a best-effort notification to the space's Durable Object. The object broadcasts only `{ "type": "sync" }` to other connected devices.
 4. Each recipient performs the normal authenticated pending-message sync, downloads and decrypts any file, stores the result locally, and acknowledges the message.
 5. When every active recipient has acknowledged, the Worker deletes the message row and its R2 object. An hourly cron job is the safety net for content older than 24 hours.

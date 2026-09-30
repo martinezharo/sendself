@@ -28,6 +28,8 @@ The browser WebSocket API cannot set an `Authorization` header. For `GET /api/re
 | `GET` | `/api/pairing/:pairingId` | Pairing id | Poll for the wrapped package. |
 | `DELETE` | `/api/pairing/:pairingId` | Pairing id | Cancel a pairing slot. |
 
+The request body may set `"sendOnly": true` for a device that will only send, such as the CLI. The flag travels with the slot and is applied when the pairing completes; see [Send-only devices](architecture.md#send-only-devices).
+
 Pairing slots are reaped after 10 minutes. The joining device receives the raw token and `GroupKey` only after it unwraps the package locally.
 
 ### Synchronization and files
@@ -36,7 +38,7 @@ Pairing slots are reaped after 10 minutes. The joining device receives the raw t
 | --- | --- | --- | --- |
 | `GET` | `/api/realtime` | Bearer or `fs-auth.*` subprotocol | Upgrade to a WebSocket that receives contentless `{ "type": "sync" }` hints. |
 | `GET` | `/api/messages/pending` | Bearer | Return messages pending for this device, pending rotated keys, the current key epoch, rotation status, and the shared space name. Accepts the optional `since=<timestamp>` query parameter. |
-| `POST` | `/api/messages` | Bearer | Store encrypted message metadata or a signed global-delete tombstone and queue it for other active devices. |
+| `POST` | `/api/messages` | Bearer | Store encrypted message metadata or a signed global-delete tombstone and queue it for the other active devices that receive (every one except send-only devices). |
 | `POST` | `/api/messages/:id/ack` | Bearer | Acknowledge delivery for this device. The message and R2 object are deleted when no active recipient remains pending. |
 | `PUT` | `/api/files/:r2key` | Bearer | Store an already-encrypted file blob in R2. The request must provide a known `Content-Length`. |
 | `GET` | `/api/files/:r2key` | Bearer | Stream an encrypted file blob from R2. |
@@ -57,10 +59,10 @@ The `since` parameter is accepted as a timestamp cursor, but the current client 
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/devices` | Bearer | List active devices, roles, public keys, attestations, and key epochs. |
+| `GET` | `/api/devices` | Bearer | List active devices, roles, public keys, attestations, key epochs, and whether each is send-only. |
 | `POST` | `/api/devices/self/signing-key` | Bearer | Publish this device's ECDSA public key. It is set once and cannot be replaced. |
 | `DELETE` | `/api/devices/:id` | Bearer; admin required | Revoke another device and mark the space for key rotation. The owner cannot be revoked; only the owner can revoke an administrator. |
-| `PATCH` | `/api/devices/:id/role` | Bearer; owner required | Set another active device's role to `admin` or `member`. Ownership transfer is not implemented. |
+| `PATCH` | `/api/devices/:id/role` | Bearer; owner required | Set another active device's role to `admin` or `member`. A send-only device cannot be made `admin`. Ownership transfer is not implemented. |
 
 ## Message contract
 

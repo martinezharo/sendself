@@ -11,7 +11,7 @@
     "dev": "concurrently -n worker,web -c blue,green \"pnpm dev:worker\" \"pnpm dev:web\"",
     "dev:worker": "pnpm --filter @sendself/worker dev",
     "dev:web": "pnpm --filter @sendself/web dev",
-    "build": "pnpm --filter @sendself/web build",
+    "build": "pnpm --filter @sendself/web build && pnpm --filter @sendself/cli build",
     "deploy": "pnpm --filter @sendself/web build && pnpm --filter @sendself/worker run deploy",
     "check:migrations": "node scripts/check-migrations.mts",
     "db:migrate:local": "pnpm --filter @sendself/worker db:migrate:local",

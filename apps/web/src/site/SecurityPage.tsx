@@ -208,6 +208,14 @@ const SECTIONS: DocSection[] = [
           A recovery file is a snapshot. After a device is revoked and the key changes, create a new
           one to cover what is sent from then on.
         </p>
+        <h3>Command-line devices</h3>
+        <p>
+          The <code>sendself</code> command line lets a server, a script or an agent send to a
+          space. It encrypts and signs on that machine exactly like the app, and it only sends:
+          nothing in the space is ever delivered to it. Its keys live in a file on that machine,
+          readable only by the account that linked it and with no lock of its own. Revoke it from
+          your devices like any other device.
+        </p>
       </>
     ),
   },

@@ -57,12 +57,13 @@ If the app reports that Web Crypto is unavailable, check the origin before chang
 | `pnpm typecheck` | Type-checks the workspace and E2E code. |
 | `pnpm lint` | Runs Biome linting. |
 | `pnpm format:check` | Checks Biome formatting. |
-| `pnpm build` | Builds the production PWA assets. |
+| `pnpm build` | Builds the production PWA assets and the CLI bundle. |
+| `pnpm --filter @sendself/cli build` | Builds only the CLI, into `apps/cli/dist/sendself.mjs`. |
 | `pnpm check:migrations` | Checks pending remote migrations for known breaking operations. |
 
 ## Unit and Worker integration tests
 
-The web package uses Vitest for crypto, storage, state, sync, and outbox behavior. Worker tests run through `@cloudflare/vitest-pool-workers`: D1 and R2 are real workerd bindings, the Worker is invoked as a deployed-style `SELF`, and the schema is built from the actual `apps/worker/migrations` directory before each test file.
+The web package uses Vitest for storage, state, sync, and outbox behavior; the crypto core, API client and message format it shares with the CLI are tested in `packages/client`, and the CLI's own send and link-storage logic in `apps/cli`. Worker tests run through `@cloudflare/vitest-pool-workers`: D1 and R2 are real workerd bindings, the Worker is invoked as a deployed-style `SELF`, and the schema is built from the actual `apps/worker/migrations` directory before each test file.
 
 This is intentional. Pairing guards, delivery cleanup, key-rotation compare-and-swap behavior, and cross-space authorization depend on SQL and Worker runtime behavior that ordinary mocks would not cover.
 

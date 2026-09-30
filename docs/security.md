@@ -74,6 +74,14 @@ Record ids and timestamps remain available as local indexing metadata. Share-tar
 
 An encrypted recovery export can restore the device identity and its held key epochs. The recovery file and its one-time displayed code are equivalent to full access to that device's spaces, so they must be protected together. A recovery export is also a snapshot: it cannot decrypt content written after a later key rotation unless it is refreshed.
 
+## The CLI
+
+The `sendself` CLI is a client like the PWA, built from the same code (`packages/client`): it encrypts and signs on the machine it runs on, and the server receives only ciphertext. It joins through the normal pairing flow, so the device that adds it scans its keys out-of-band and attests to them.
+
+It joins as a *send-only* device: the Worker leaves it out of message recipients, so the space's messages are never delivered to it. That flag is a delivery rule, not a permission. It does not narrow what the device holds — the CLI has the `GroupKey` like any member, so it could decrypt space ciphertext it obtained — and it does not widen what the server can do, since a server could already withhold any message from any device.
+
+Its state is one file on disk (`device.json`) holding the device's private keys, bearer token and every `GroupKey` epoch it received, protected by owner-only file permissions and nothing else. There is no passphrase because the CLI is meant to run unattended; anyone who can read that file as its owner has the same access as the device. Revoking it from the app ends its API access and rotates the key, like any revocation. The CLI adopts rotated keys but never performs a rotation, which requires verifying the roster it wraps the new key for.
+
 ## What the service can see
 
 Application-level encryption does not hide metadata. Depending on the request and platform telemetry, the service can observe:
@@ -96,3 +104,4 @@ The service cannot decrypt message text, file contents, encrypted names, or the 
 - At-rest protection is opt-in and has no automatic inactivity lock.
 - Local history and file caches currently have no automatic retention policy.
 - Legacy devices without a published signing key can produce messages that are unverifiable rather than cryptographically authenticated.
+- The CLI keeps its keys in a file protected only by file-system permissions.
