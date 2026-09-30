@@ -98,6 +98,27 @@ describe("POST /api/pairing/:id/request", () => {
     expect(await errorCode(response)).toBe("conflict");
   });
 
+  it("accepts a retried invitation without resetting its age or identity", async () => {
+    const slot = uid("slot");
+    const device = joiner();
+    const extra = { sendOnly: true, invite: "iv.sealed" };
+    await request(slot, device, extra);
+    await env.DB.prepare("UPDATE pairing SET created_at = 123 WHERE pairing_id = ?")
+      .bind(slot)
+      .run();
+
+    expect((await request(slot, device, extra)).status).toBe(200);
+    const row = await env.DB.prepare(
+      "SELECT created_at AS createdAt, new_device AS device FROM pairing WHERE pairing_id = ?",
+    )
+      .bind(slot)
+      .first<{ createdAt: number; device: string }>();
+    expect(row?.createdAt).toBe(123);
+    expect(JSON.parse(row!.device)).toEqual({ ...device, ...extra });
+    expect((await request(slot, device, { ...extra, invite: "iv.other" })).status).toBe(409);
+    expect((await request(slot, device, { ...extra, sendOnly: false })).status).toBe(409);
+  });
+
   it("rejects a slot id that is not URL-safe", async () => {
     // It never reaches the handler: the path does not route at all, which is
     // what keeps a traversal out of the id in the first place.

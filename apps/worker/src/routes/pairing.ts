@@ -51,18 +51,26 @@ export async function requestPairing(c: RouteContext): Promise<Response> {
     ...(invite === undefined ? {} : { invite }),
   };
 
-  const existing = await c.env.DB.prepare("SELECT pairing_id FROM pairing WHERE pairing_id = ?")
-    .bind(pairingId)
-    .first();
-  if (existing) {
-    throw new ApiError("conflict", "Pairing slot already in use");
-  }
-
-  await c.env.DB.prepare(
-    "INSERT INTO pairing (pairing_id, new_device, created_at) VALUES (?, ?, ?)",
+  const serialized = JSON.stringify(descriptor);
+  // The response can be lost after insertion. Retrying the same request must
+  // keep the slot and its original deadline, without allowing another identity
+  // or invitation seal to replace it.
+  const inserted = await c.env.DB.prepare(
+    `INSERT INTO pairing (pairing_id, new_device, created_at) VALUES (?, ?, ?)
+     ON CONFLICT(pairing_id) DO NOTHING`,
   )
-    .bind(pairingId, JSON.stringify(descriptor), Date.now())
+    .bind(pairingId, serialized, Date.now())
     .run();
+  if (inserted.meta.changes === 0) {
+    const existing = await c.env.DB.prepare(
+      "SELECT new_device AS newDevice FROM pairing WHERE pairing_id = ?",
+    )
+      .bind(pairingId)
+      .first<{ newDevice: string | null }>();
+    if (existing?.newDevice !== serialized) {
+      throw new ApiError("conflict", "Pairing slot already in use");
+    }
+  }
 
   return json({ ok: true } satisfies PairingRequestResponse);
 }

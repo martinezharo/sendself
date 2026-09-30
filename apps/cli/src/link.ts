@@ -14,7 +14,7 @@
  * Nothing secret is ever shown or sent in the clear.
  */
 
-import { type Api, NetworkError } from "@sendself/client/api";
+import { type Api, ApiError, NetworkError } from "@sendself/client/api";
 import { importGroupKey, unwrapPairingPackage } from "@sendself/client/crypto";
 import { createKeyring } from "@sendself/client/keyring";
 import {
@@ -29,6 +29,7 @@ import { type Device, saveDevice } from "./config";
 import { apiFor } from "./session";
 
 const POLL_INTERVAL_MS = 2500;
+const RATE_LIMIT_WAIT_MS = 15_000;
 
 export interface LinkOptions {
   server: string;
@@ -110,10 +111,11 @@ async function waitForPackage(
       try {
         result = await api.pairingPoll(pairingId);
       } catch (error) {
-        // A blip on the network is no reason to give up a pairing that is
-        // still valid; the next poll gets another chance.
-        if (!(error instanceof NetworkError)) throw error;
-        await wait(POLL_INTERVAL_MS, options.signal);
+        // Shared IPs can hit the public rate limit while the invitation is
+        // still valid. Back off and keep waiting, just as for network blips.
+        const rateLimited = error instanceof ApiError && error.code === "rate_limited";
+        if (!(error instanceof NetworkError) && !rateLimited) throw error;
+        await wait(rateLimited ? RATE_LIMIT_WAIT_MS : POLL_INTERVAL_MS, options.signal);
         continue;
       }
       if (result.ready && result.wrappedPackage && result.ephemeralPublicKey) {
@@ -154,14 +156,18 @@ async function waitForPackage(
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      },
-      { once: true },
-    );
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

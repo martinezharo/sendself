@@ -535,7 +535,9 @@ function AddDeviceModal({
         </SegItem>
       </div>
 
-      {tab === "agent" && <InviteDevicePanel onDone={onAdded} />}
+      <div hidden={tab !== "agent"}>
+        <InviteDevicePanel active={tab === "agent"} onDone={onAdded} />
+      </div>
 
       {tab === "scan" && (
         <div class="flex flex-col items-center gap-3">
@@ -609,7 +611,10 @@ type InviteStage =
  * intended, so the person sees what is asking to join — its name and the same
  * short code the command printed — before it gets the space's key.
  */
-function InviteDevicePanel({ onDone }: { onDone: () => void }): JSX.Element {
+function InviteDevicePanel({
+  active: visible,
+  onDone,
+}: { active: boolean; onDone: () => void }): JSX.Element {
   const [invite, setInvite] = useState<DeviceInvite>(() => createDeviceInvite());
   const [stage, setStage] = useState<InviteStage>({ kind: "waiting" });
   const [now, setNow] = useState(Date.now());
@@ -619,7 +624,7 @@ function InviteDevicePanel({ onDone }: { onDone: () => void }): JSX.Element {
   const expired = stage.kind === "waiting" && now >= invite.expiresAt;
 
   useEffect(() => {
-    if (stage.kind !== "waiting") return;
+    if (!visible || stage.kind !== "waiting") return;
     let active = true;
     const tick = async (): Promise<void> => {
       setNow(Date.now());
@@ -645,7 +650,7 @@ function InviteDevicePanel({ onDone }: { onDone: () => void }): JSX.Element {
       active = false;
       clearInterval(timer);
     };
-  }, [invite, stage.kind]);
+  }, [invite, stage.kind, visible]);
 
   function restart(): void {
     setInvite(createDeviceInvite());
