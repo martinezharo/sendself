@@ -23,7 +23,7 @@
  * something — worth stating plainly, and far less than the messages themselves.
  */
 
-import { base64UrlToBuf, bufToBase64Url, randomBytes } from "../crypto/crypto";
+import { base64UrlToBuf, bufToBase64Url, randomBytes } from "@sendself/client/crypto";
 
 const AES = "AES-GCM";
 const IV_BYTES = 12;

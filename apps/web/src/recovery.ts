@@ -31,8 +31,8 @@ import {
   importGroupKey,
   importSigningKeyPair,
   randomBytes,
-} from "./crypto/crypto";
-import type { SerializedKeyPair } from "./crypto/crypto";
+} from "@sendself/client/crypto";
+import type { SerializedKeyPair } from "@sendself/client/crypto";
 import type { Keyring } from "./crypto/keyring";
 import {
   PBKDF2_ITERATIONS,

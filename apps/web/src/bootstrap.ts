@@ -2,7 +2,7 @@ import { effect, untracked } from "@preact/signals";
 import { applyRoute, handleAuthFailure, hasPendingShare, noteSharedContent } from "./actions";
 import { setAuthFailureHandler } from "./api/client";
 import { initAppearance } from "./state/appearance";
-import { assertWebCryptoAvailable } from "./crypto/crypto";
+import { assertWebCryptoAvailable } from "@sendself/client/crypto";
 import { claimSharedContent } from "./share/incoming";
 import { loadLockState } from "./state/lock";
 import { navigate, route, startupSpaceTarget } from "./state/route";

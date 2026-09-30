@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 type Events = typeof import("./events");
-type Crypto = typeof import("../crypto/crypto");
+type Crypto = typeof import("@sendself/client/crypto");
 
 let events: Events;
 let identity: typeof import("../crypto/identity");
@@ -47,7 +47,7 @@ beforeEach(async () => {
 
   const store = await import("../db/store");
   store.setActiveSpace("space-1");
-  cryptoModule = await import("../crypto/crypto");
+  cryptoModule = await import("@sendself/client/crypto");
   identity = await import("../crypto/identity");
   const keyring = await import("../crypto/keyring");
   const session = await import("./session");

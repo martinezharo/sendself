@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRE_REBRAND_ID } from "../legacy";
-import { exportGroupKey, generateGroupKey, importGroupKey } from "./crypto";
+import { exportGroupKey, generateGroupKey, importGroupKey } from "@sendself/client/crypto";
 import {
   MAX_PBKDF2_ITERATIONS,
   MIN_PASSPHRASE_LENGTH,

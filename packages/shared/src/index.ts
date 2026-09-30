@@ -572,6 +572,16 @@ export interface PendingKeyDelivery {
 }
 
 /**
+ * Plaintext inside a rotation blob (`PendingKeyDelivery.wrappedKey`). Only the
+ * recipient device ever sees it.
+ */
+export interface RekeyPayload {
+  /** Raw AES-GCM 256 GroupKey, base64url. */
+  groupKey: string;
+  epoch: number;
+}
+
+/**
  * One poll answers everything the client needs to stay in sync: new messages,
  * any GroupKey it has not adopted yet, and whether a rotation is still owed.
  * Bundling them keeps the rotation protocol free of extra round-trips.

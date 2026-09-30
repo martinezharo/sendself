@@ -20,7 +20,7 @@
  * requests carry a bearer token; only its hash is stored server-side.
  */
 
-import type { PairingPayload } from "@sendself/shared";
+import type { PairingPayload, PendingKeyDelivery, RekeyPayload } from "@sendself/shared";
 
 const AES = "AES-GCM";
 const EC = "ECDH";
@@ -364,6 +364,38 @@ export async function unwrapSecret<T>(
 /** AAD context binding a rotated-key blob to one recipient and one epoch. */
 export function rekeyContext(groupId: string, epoch: number, deviceId: string): string {
   return `rekey:${groupId}:${epoch}:${deviceId}`;
+}
+
+/** Wrap a rotated GroupKey for one remaining device. */
+export async function wrapRotatedKey(
+  recipientPublicKey: CryptoKey,
+  groupKey: CryptoKey,
+  groupId: string,
+  epoch: number,
+  deviceId: string,
+): Promise<WrappedSecret> {
+  const payload: RekeyPayload = { groupKey: await exportGroupKey(groupKey), epoch };
+  return wrapSecret(recipientPublicKey, payload, rekeyContext(groupId, epoch, deviceId));
+}
+
+/**
+ * Open a rotated GroupKey delivered to this device. The AAD binds the blob to
+ * this group, epoch and device, so a blob moved from another recipient or
+ * replayed at another epoch simply fails here.
+ */
+export async function unwrapRotatedKey(
+  myPrivateKey: CryptoKey,
+  delivery: PendingKeyDelivery,
+  groupId: string,
+  deviceId: string,
+): Promise<CryptoKey> {
+  const payload = await unwrapSecret<RekeyPayload>(
+    myPrivateKey,
+    delivery.ephemeralPublicKey,
+    delivery.wrappedKey,
+    rekeyContext(groupId, delivery.epoch, deviceId),
+  );
+  return importGroupKey(payload.groupKey);
 }
 
 /** Encrypt the pairing payload for a recipient's public key. */

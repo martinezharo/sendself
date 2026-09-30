@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generateGroupKey } from "./crypto/crypto";
+import { generateGroupKey } from "@sendself/client/crypto";
 import type { LocalMessage, Session } from "./types";
 
 /**

@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sendself/client": "workspace:*",
     "@sendself/shared": "workspace:*",
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",
     "@fontsource-variable/hanken-grotesk": "^5.2.8",

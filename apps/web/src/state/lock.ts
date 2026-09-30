@@ -29,7 +29,7 @@ import {
   importGroupKey,
   importSigningKeyPair,
   serializeKeyPair,
-} from "../crypto/crypto";
+} from "@sendself/client/crypto";
 import { type Keyring, loadKeyring, saveKeyring } from "../crypto/keyring";
 import { PasskeyUnsupportedError, createPasskey, evaluatePrf } from "../crypto/passkey";
 import {

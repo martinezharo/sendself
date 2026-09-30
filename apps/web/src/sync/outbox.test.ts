@@ -40,7 +40,7 @@ vi.mock("../db/store", () => ({
   },
 }));
 
-vi.mock("../crypto/crypto", () => ({
+vi.mock("@sendself/client/crypto", () => ({
   bufToBase64Url: () => "pinned-iv",
   encryptFile: async () => ({ ciphertext: new ArrayBuffer(16), iv: "pinned-iv" }),
   encryptJson: async (_key: CryptoKey, payload: unknown, context: string) => {

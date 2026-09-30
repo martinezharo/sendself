@@ -20,7 +20,7 @@
 
 import type { SpaceNameRecord } from "@sendself/shared";
 import { api } from "../api/client";
-import { decryptText, encryptText } from "../crypto/crypto";
+import { decryptText, encryptText } from "@sendself/client/crypto";
 import { type Keyring, currentKey, keyForEpoch } from "../crypto/keyring";
 import {
   type SpaceRecord,

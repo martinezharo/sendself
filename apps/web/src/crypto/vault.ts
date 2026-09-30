@@ -23,7 +23,12 @@
 
 import type { Session } from "../types";
 import { PRE_REBRAND_ID } from "../legacy";
-import { type SerializedKeyPair, base64UrlToBuf, bufToBase64Url, randomBytes } from "./crypto";
+import {
+  type SerializedKeyPair,
+  base64UrlToBuf,
+  bufToBase64Url,
+  randomBytes,
+} from "@sendself/client/crypto";
 
 const AES = "AES-GCM";
 const IV_BYTES = 12;

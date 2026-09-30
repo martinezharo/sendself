@@ -6,6 +6,7 @@ import {
   type PairingQrPayload,
 } from "@sendself/shared";
 import { signal } from "@preact/signals";
+import { createJoiningDevice } from "@sendself/client/pairing";
 import { NetworkError, api } from "./api/client";
 import {
   encryptName,
@@ -22,7 +23,7 @@ import {
   sha256Hex,
   unwrapPairingPackage,
   wrapPairingPackage,
-} from "./crypto/crypto";
+} from "@sendself/client/crypto";
 import {
   createAttestation,
   identityBundles,
@@ -238,24 +239,14 @@ export async function ensureSigningIdentity(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function startLinking(deviceName: string): Promise<void> {
-  const keyPair = await generateDeviceKeyPair();
-  const signingPair = await generateSigningKeyPair();
-  const deviceId = randomId();
-  const pairingId = randomId();
-  const publicKey = await exportPublicKey(keyPair.publicKey);
-  const signingPublicKey = await exportSigningPublicKey(signingPair.publicKey);
-
-  // The signing key rides in the QR code so the adding device learns it
-  // out-of-band and can attest to it for everyone else.
-  const payload: PairingQrPayload = {
-    v: 1,
-    pairingId,
-    deviceId,
-    deviceName,
-    publicKey,
-    signingPublicKey,
-  };
-  await api.pairingRequest(pairingId, { device: { id: deviceId, publicKey, signingPublicKey } });
+  const {
+    keyPair,
+    signingKeyPair: signingPair,
+    payload,
+    request,
+  } = await createJoiningDevice(deviceName);
+  const { pairingId, deviceId } = payload;
+  await api.pairingRequest(pairingId, request);
 
   // The pairing belongs to no space yet — that is what it is trying to join —
   // so it waits in the device-global registry rather than in a space's storage.
