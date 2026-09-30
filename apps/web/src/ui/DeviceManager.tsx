@@ -469,6 +469,7 @@ function AddDeviceModal({
   onAdded: () => void;
 }): JSX.Element {
   const [tab, setTab] = useState<"scan" | "paste" | "agent">("scan");
+  const [agentVisited, setAgentVisited] = useState(false);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -529,15 +530,23 @@ function AddDeviceModal({
           <ClipboardPaste />
           Paste code
         </SegItem>
-        <SegItem active={tab === "agent"} onClick={() => setTab("agent")}>
+        <SegItem
+          active={tab === "agent"}
+          onClick={() => {
+            setAgentVisited(true);
+            setTab("agent");
+          }}
+        >
           <Terminal />
           Agent
         </SegItem>
       </div>
 
-      <div hidden={tab !== "agent"}>
-        <InviteDevicePanel active={tab === "agent"} onDone={onAdded} />
-      </div>
+      {agentVisited && (
+        <div hidden={tab !== "agent"}>
+          <InviteDevicePanel active={tab === "agent"} onDone={onAdded} />
+        </div>
+      )}
 
       {tab === "scan" && (
         <div class="flex flex-col items-center gap-3">
@@ -645,6 +654,8 @@ function InviteDevicePanel({
         });
       }
     };
+    // Refresh the deadline immediately when returning to this tab.
+    void tick();
     const timer = setInterval(() => void tick(), INVITE_POLL_MS);
     return () => {
       active = false;

@@ -27,7 +27,9 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-async function server(options: { transient?: "rate_limited" | "network"; ready?: boolean } = {}) {
+async function server(
+  options: { transient?: "rate_limited" | "network" | "server"; ready?: boolean } = {},
+) {
   const groupKey = await exportGroupKey(await generateGroupKey());
   const printed: string[] = [];
   let request: PairingRequestBody | undefined;
@@ -64,6 +66,12 @@ async function server(options: { transient?: "rate_limited" | "network"; ready?:
       polls++;
       firstPoll();
       if (polls === 1 && options.transient === "network") throw new TypeError("Connection lost");
+      if (polls === 1 && options.transient === "server") {
+        return Response.json(
+          { error: { code: "internal", message: "Temporary failure" } },
+          { status: 500 },
+        );
+      }
       if (polls === 1 && options.transient === "rate_limited") {
         return Response.json(
           { error: { code: "rate_limited", message: "Slow down" } },
@@ -116,7 +124,7 @@ describe("link", () => {
     expect(api.deleted()).toBe(true);
   });
 
-  it.each(["rate_limited", "network"] as const)(
+  it.each(["rate_limited", "network", "server"] as const)(
     "keeps linking after a transient %s failure",
     async (transient) => {
       const api = await server({ transient });

@@ -114,7 +114,8 @@ async function waitForPackage(
         // Shared IPs can hit the public rate limit while the invitation is
         // still valid. Back off and keep waiting, just as for network blips.
         const rateLimited = error instanceof ApiError && error.code === "rate_limited";
-        if (!(error instanceof NetworkError) && !rateLimited) throw error;
+        const serverFailure = error instanceof ApiError && error.status >= 500;
+        if (!(error instanceof NetworkError) && !rateLimited && !serverFailure) throw error;
         await wait(rateLimited ? RATE_LIMIT_WAIT_MS : POLL_INTERVAL_MS, options.signal);
         continue;
       }
