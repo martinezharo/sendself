@@ -38,6 +38,7 @@ async function device(id: string, name: string, publicKey: string): Promise<Devi
     attestation: null,
     keyEpoch: 1,
     nameKeyEpoch: 1,
+    sendOnly: false,
   };
 }
 

@@ -488,6 +488,8 @@ export interface DeviceView {
   role: DeviceRole;
   /** False while this device still has to pick up the latest key rotation. */
   keyUpToDate: boolean;
+  /** Sends into the space but never receives, like the `sendself` CLI. */
+  sendOnly: boolean;
 }
 
 export interface DeviceManagementView {
@@ -515,6 +517,7 @@ export async function listDevicesDecrypted(): Promise<DeviceManagementView> {
       createdAt: d.createdAt,
       role: d.role,
       keyUpToDate: d.keyEpoch >= keyEpoch,
+      sendOnly: d.sendOnly,
       name: names.get(d.id) ?? d.id,
     })),
   };

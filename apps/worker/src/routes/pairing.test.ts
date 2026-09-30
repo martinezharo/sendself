@@ -20,12 +20,23 @@ function joiner(overrides: Partial<DeviceDescriptor> = {}): DeviceDescriptor {
 }
 
 /** Step 1: the joining device reserves the slot anonymously. */
-function request(pairingId: string, device: unknown): Promise<Response> {
+function request(
+  pairingId: string,
+  device: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<Response> {
   return SELF.fetch(`https://x.dev/api/pairing/${pairingId}/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ device }),
+    body: JSON.stringify({ device, ...extra }),
   });
+}
+
+async function sendOnlyColumn(deviceId: string): Promise<number | undefined> {
+  const row = await env.DB.prepare("SELECT send_only AS sendOnly FROM devices WHERE id = ?")
+    .bind(deviceId)
+    .first<{ sendOnly: number }>();
+  return row?.sendOnly;
 }
 
 function rotate(adder: SeededDevice, body: RotateKeyRequest): Promise<Response> {
@@ -96,6 +107,10 @@ describe("POST /api/pairing/:id/request", () => {
   it("rejects a device without a public key", async () => {
     expect((await request(uid("slot"), { id: "d", publicKey: "" })).status).toBe(400);
   });
+
+  it("rejects a sendOnly flag that is not a boolean", async () => {
+    expect((await request(uid("slot"), joiner(), { sendOnly: "yes" })).status).toBe(400);
+  });
 });
 
 describe("POST /api/pairing/:id/complete", () => {
@@ -128,6 +143,26 @@ describe("POST /api/pairing/:id/complete", () => {
       .bind(slot)
       .first<{ wrapped: string; groupId: string }>();
     expect(stored).toEqual({ wrapped: "wrapped", groupId });
+  });
+
+  it("registers a device that asked to be send-only as one", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: true });
+
+    expect((await complete(slot, owner, device)).status).toBe(200);
+    expect(await sendOnlyColumn(device.id)).toBe(1);
+  });
+
+  it("registers every other device as one that receives", async () => {
+    const { owner } = await seedSpace();
+    const device = joiner();
+    const slot = uid("slot");
+    await request(slot, device, { sendOnly: false });
+
+    expect((await complete(slot, owner, device)).status).toBe(200);
+    expect(await sendOnlyColumn(device.id)).toBe(0);
   });
 
   it("lets an admin add a device", async () => {

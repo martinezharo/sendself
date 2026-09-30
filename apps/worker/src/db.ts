@@ -21,8 +21,7 @@ export interface ActiveDevice {
 
 /**
  * Active (non-revoked) devices in a group. Single source of truth for "who is
- * still in this space": message recipients, key-rotation targets and the
- * management listing all derive from it.
+ * still in this space", and so for who a key rotation must reach.
  */
 export async function activeDevices(env: Env, groupId: string): Promise<ActiveDevice[]> {
   const rows = await env.DB.prepare(
@@ -35,9 +34,25 @@ export async function activeDevices(env: Env, groupId: string): Promise<ActiveDe
   return rows.results;
 }
 
-/** Active (non-revoked) device ids for a group. */
-export async function activeDeviceIds(env: Env, groupId: string): Promise<string[]> {
-  return (await activeDevices(env, groupId)).map((d) => d.id);
+/**
+ * The devices a message from `senderId` is delivered to: every active device
+ * except the sender and the send-only ones, which never collect anything (see
+ * `PairingRequestBody.sendOnly`). Send-only devices are still in
+ * `activeDevices`, because a rotated key has to reach them like anyone else.
+ */
+export async function messageRecipients(
+  env: Env,
+  groupId: string,
+  senderId: string,
+): Promise<string[]> {
+  const rows = await env.DB.prepare(
+    `SELECT id
+       FROM devices
+      WHERE group_id = ? AND revoked_at IS NULL AND send_only = 0 AND id != ?`,
+  )
+    .bind(groupId, senderId)
+    .all<{ id: string }>();
+  return rows.results.map((row) => row.id);
 }
 
 /** Delete a set of messages (and their R2 files + delivery rows) by id. */

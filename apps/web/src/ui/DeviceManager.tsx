@@ -8,6 +8,7 @@ import {
   MoreVertical,
   Plus,
   ScanLine,
+  Send,
   ShieldCheck,
   UserRound,
 } from "lucide-preact";
@@ -108,7 +109,9 @@ export function DeviceManager(): JSX.Element {
     // while it is in flight would race that rotation.
     const pending = revoking || changingRole === device.id;
     const actions: DeviceAction[] = [];
-    if (currentRole === "owner" && device.role !== "owner") {
+    // A send-only device never reads the space, so it cannot vet the devices
+    // an administrator adds; the server refuses the promotion too.
+    if (currentRole === "owner" && device.role !== "owner" && !device.sendOnly) {
       const promoting = device.role !== "admin";
       actions.push({
         key: "role",
@@ -222,6 +225,7 @@ export function DeviceManager(): JSX.Element {
                     <div class="flex flex-wrap items-center gap-2 text-body font-medium">
                       <span class="truncate">{device.name}</span>
                       <RoleBadge role={device.role} />
+                      {device.sendOnly && <SendOnlyBadge />}
                     </div>
                     <div class="font-mono text-meta text-muted">
                       {device.id === myId && <span class="text-accent">This device · </span>}
@@ -403,13 +407,16 @@ function KeyStatus({ rotating, waiting }: { rotating: boolean; waiting: number }
   );
 }
 
+const BADGE =
+  "inline-flex flex-none items-center gap-1 rounded-full px-2 py-0.5 font-mono text-meta font-medium uppercase tracking-[0.08em]";
+
 function RoleBadge({ role }: { role: DeviceRole }): JSX.Element {
   const Icon = role === "owner" ? Crown : role === "admin" ? ShieldCheck : UserRound;
   const label = role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
   return (
     <span
       class={cx(
-        "inline-flex flex-none items-center gap-1 rounded-full px-2 py-0.5 font-mono text-meta font-medium uppercase tracking-[0.08em]",
+        BADGE,
         role === "owner"
           ? "bg-amber-500/12 text-amber-700 dark:text-amber-300"
           : role === "admin"
@@ -419,6 +426,16 @@ function RoleBadge({ role }: { role: DeviceRole }): JSX.Element {
     >
       <Icon class="size-3" aria-hidden="true" />
       {label}
+    </span>
+  );
+}
+
+/** A device that sends into the space but never receives, such as the `sendself` CLI. */
+function SendOnlyBadge(): JSX.Element {
+  return (
+    <span class={cx(BADGE, "bg-surface-3 text-muted")} title="Sends to this space, never receives">
+      <Send class="size-3" aria-hidden="true" />
+      Send only
     </span>
   );
 }

@@ -26,12 +26,16 @@ export interface JoiningDevice {
  * rides in the QR code too, so the adding device learns it out-of-band and can
  * attest to it for everyone else.
  */
-export async function createJoiningDevice(deviceName: string): Promise<JoiningDevice> {
+export async function createJoiningDevice(
+  deviceName: string,
+  options: { sendOnly?: boolean } = {},
+): Promise<JoiningDevice> {
   const keyPair = await generateDeviceKeyPair();
   const signingKeyPair = await generateSigningKeyPair();
   const deviceId = randomId();
   const publicKey = await exportPublicKey(keyPair.publicKey);
   const signingPublicKey = await exportSigningPublicKey(signingKeyPair.publicKey);
+  const sendOnly = options.sendOnly ? { sendOnly: true as const } : {};
 
   return {
     keyPair,
@@ -43,7 +47,8 @@ export async function createJoiningDevice(deviceName: string): Promise<JoiningDe
       deviceName,
       publicKey,
       signingPublicKey,
+      ...sendOnly,
     },
-    request: { device: { id: deviceId, publicKey, signingPublicKey } },
+    request: { device: { id: deviceId, publicKey, signingPublicKey }, ...sendOnly },
   };
 }

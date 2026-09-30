@@ -1,10 +1,10 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
-  activeDeviceIds,
   activeDevices,
   deleteMessageById,
   fileStorageKey,
+  messageRecipients,
   purgeDeliveredMessages,
   purgeExpiredMessages,
 } from "./db";
@@ -56,8 +56,33 @@ describe("activeDevices", () => {
     const { groupId, owner } = await seedSpace();
     const revoked = await seedDevice(groupId, { revoked: true });
 
-    expect(await activeDeviceIds(env, groupId)).toEqual([owner.id]);
-    expect(await activeDeviceIds(env, groupId)).not.toContain(revoked.id);
+    const ids = (await activeDevices(env, groupId)).map((d) => d.id);
+    expect(ids).toEqual([owner.id]);
+    expect(ids).not.toContain(revoked.id);
+  });
+
+  it("includes send-only devices, which a rotated key still has to reach", async () => {
+    const { groupId, owner } = await seedSpace();
+    const cli = await seedDevice(groupId, { sendOnly: true });
+
+    const ids = (await activeDevices(env, groupId)).map((d) => d.id);
+    expect(ids.sort()).toEqual([owner.id, cli.id].sort());
+  });
+});
+
+describe("messageRecipients", () => {
+  it("is every active device but the sender, the revoked and the send-only", async () => {
+    const { groupId, owner } = await seedSpace();
+    const member = await seedDevice(groupId);
+    await seedDevice(groupId, { revoked: true });
+    const cli = await seedDevice(groupId, { sendOnly: true });
+    const other = await seedSpace();
+    await seedDevice(other.groupId);
+
+    expect(await messageRecipients(env, groupId, owner.id)).toEqual([member.id]);
+    expect((await messageRecipients(env, groupId, cli.id)).sort()).toEqual(
+      [owner.id, member.id].sort(),
+    );
   });
 });
 

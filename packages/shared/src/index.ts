@@ -143,6 +143,8 @@ export interface DeviceInfo {
   keyEpoch: number;
   /** Epoch of the key that encrypted `encryptedName` (names are never rewritten). */
   nameKeyEpoch: number;
+  /** A send-only device (see `PairingRequestBody.sendOnly`): never a message recipient. */
+  sendOnly: boolean;
 }
 
 /** Payload encoded inside a QR code (or pasted as text) during pairing. */
@@ -159,6 +161,11 @@ export interface PairingQrPayload {
    * out-of-band and can attest to it (see DeviceAttestation).
    */
   signingPublicKey?: string;
+  /**
+   * The device only sends (see `PairingRequestBody.sendOnly`). Carried here so
+   * the device adding it can say what it is adding.
+   */
+  sendOnly?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +344,17 @@ export interface CreateGroupResponse {
 /** Device 2 -> server: reserve a pairing slot and publish its public material. */
 export interface PairingRequestBody {
   device: DeviceDescriptor;
+  /**
+   * The joining device will only ever send: a script or an agent on a server
+   * (the `sendself` CLI) rather than somewhere a person reads the space.
+   *
+   * The server then leaves it out of every message's recipients. Without that,
+   * each message would wait on the server for a device that never collects it
+   * until the 24-hour cleanup, instead of being deleted the moment the devices
+   * that do read it have it. It is still a full member for everything else: it
+   * holds the GroupKey, signs what it sends, and is handed every rotated key.
+   */
+  sendOnly?: true;
 }
 
 export interface PairingRequestResponse {

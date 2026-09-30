@@ -29,17 +29,23 @@ export async function listDevices(c: RouteContext): Promise<Response> {
     `SELECT id, name_enc AS encryptedName, name_iv AS nameIv, role,
             public_key AS publicKey, signing_public_key AS signingPublicKey,
             attestation, key_epoch AS keyEpoch,
-            name_key_epoch AS nameKeyEpoch, created_at AS createdAt
+            name_key_epoch AS nameKeyEpoch, send_only AS sendOnly, created_at AS createdAt
        FROM devices
       WHERE group_id = ? AND revoked_at IS NULL
       ORDER BY created_at ASC, id ASC`,
   )
     .bind(auth.groupId)
-    .all<Omit<DeviceInfo, "attestation"> & { attestation: string | null }>();
+    .all<
+      Omit<DeviceInfo, "attestation" | "sendOnly"> & {
+        attestation: string | null;
+        sendOnly: number;
+      }
+    >();
   return json({
     devices: rows.results.map((row) => ({
       ...row,
       attestation: parseAttestation(row.attestation),
+      sendOnly: row.sendOnly === 1,
     })),
     currentRole: auth.role,
     keyEpoch: auth.groupKeyEpoch,
@@ -156,6 +162,19 @@ export async function updateDeviceRole(c: RouteContext): Promise<Response> {
     throw new ApiError("bad_request", "Role must be admin or member");
   }
   const role: AssignableDeviceRole = body.role;
+
+  // Administering a space means scanning codes and verifying who is in it,
+  // which a device that never reads the space is not in a position to do.
+  const target = await c.env.DB.prepare(
+    "SELECT send_only AS sendOnly FROM devices WHERE id = ? AND group_id = ? AND revoked_at IS NULL AND role != 'owner'",
+  )
+    .bind(deviceId, auth.groupId)
+    .first<{ sendOnly: number }>();
+  if (!target) throw new ApiError("not_found", "Active device not found");
+  if (role === "admin" && target.sendOnly === 1) {
+    throw new ApiError("bad_request", "A send-only device cannot be an administrator");
+  }
+
   const result = await c.env.DB.prepare(
     "UPDATE devices SET role = ? WHERE id = ? AND group_id = ? AND revoked_at IS NULL AND role != 'owner'",
   )
