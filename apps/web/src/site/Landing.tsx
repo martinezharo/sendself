@@ -419,7 +419,10 @@ function Faq(): JSX.Element {
         <SectionHeading kicker="FAQ" title="Questions, answered" />
         <div class="mt-10 flex flex-col gap-3">
           {FAQS.map(({ q, a }) => (
-            <details key={q} class="disclosure surface-card group rounded-xl2 px-5 transition open:shadow-pop">
+            <details
+              key={q}
+              class="disclosure surface-card group rounded-xl2 px-5 transition open:shadow-pop"
+            >
               <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-body-lg font-semibold [&::-webkit-details-marker]:hidden">
                 {q}
                 <ChevronDown

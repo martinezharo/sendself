@@ -953,16 +953,15 @@
      toggle — the element stays native, so keyboard, find-in-page and the
      prerendered text all keep working without any script. */
   .disclosure {
+    /* biome-ignore lint/correctness/noUnknownProperty: valid CSS Biome doesn't know yet */
     interpolate-size: allow-keywords;
   }
   .disclosure::details-content {
     block-size: 0;
     opacity: 0;
     overflow: clip;
-    transition:
-      block-size 0.28s var(--ease-emphasized),
-      opacity 0.2s ease,
-      content-visibility 0.28s allow-discrete;
+    transition: block-size 0.28s var(--ease-emphasized), opacity 0.2s ease, content-visibility 0.28s
+      allow-discrete;
   }
   .disclosure[open]::details-content {
     block-size: auto;
