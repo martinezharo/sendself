@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   Copy,
   EyeOff,
   FileUp,
@@ -418,12 +419,13 @@ function Faq(): JSX.Element {
         <SectionHeading kicker="FAQ" title="Questions, answered" />
         <div class="mt-10 flex flex-col gap-3">
           {FAQS.map(({ q, a }) => (
-            <details key={q} class="surface-card group rounded-xl2 px-5 transition open:shadow-pop">
+            <details key={q} class="disclosure surface-card group rounded-xl2 px-5 transition open:shadow-pop">
               <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-body-lg font-semibold [&::-webkit-details-marker]:hidden">
                 {q}
-                <span class="grid size-7 flex-none place-items-center rounded-full bg-surface-3 text-muted transition group-open:rotate-45 group-open:bg-accent-soft group-open:text-accent">
-                  <Plus class="size-4" />
-                </span>
+                <ChevronDown
+                  aria-hidden="true"
+                  class="size-5 flex-none text-muted transition duration-300 ease-emphasized group-open:rotate-180"
+                />
               </summary>
               <p class="pb-5 text-body leading-relaxed text-muted">{a}</p>
             </details>
