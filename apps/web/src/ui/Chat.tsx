@@ -47,6 +47,7 @@ import { session } from "../state/session";
 import { currentMatch, threadEntries } from "../state/thread";
 import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
 import { useActionFeedback } from "./feedback";
+import { useKeyboardDock, usePinnedScrollEnd } from "./keyboard";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
 import { Highlighted } from "./SearchBar";
@@ -135,6 +136,7 @@ export function Chat(): JSX.Element {
   const [deviceNames, setDeviceNames] = useState<Map<string, string>>(() => new Map());
   const chatScrollerRef = useRef<HTMLDivElement>(null);
   const hasScrolledRef = useRef(false);
+  usePinnedScrollEnd(chatScrollerRef);
 
   useEffect(() => {
     // Open the chat already at the bottom; only animate for what arrives
@@ -1093,6 +1095,7 @@ function Composer(): JSX.Element {
   const armed = viewOnceArmed.value;
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  useKeyboardDock();
 
   function autosize(): void {
     const ta = taRef.current;
@@ -1130,7 +1133,7 @@ function Composer(): JSX.Element {
   const canSend = !!text.trim() || queue.length > 0;
 
   return (
-    <div class="flex-none px-6 pb-[calc(16px+env(safe-area-inset-bottom))] pt-2 max-md:px-[14px] max-md:pb-[calc(14px+env(safe-area-inset-bottom))]">
+    <div class="keyboard-dock flex-none px-6 pt-2 max-md:px-[14px]">
       <div
         class={cx(
           "surface-card mx-auto w-full max-w-[760px] rounded-[24px] !shadow-pop transition",

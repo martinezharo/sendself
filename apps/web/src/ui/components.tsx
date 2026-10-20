@@ -322,9 +322,12 @@ export function Modal({ title, onClose, children }: ModalProps): JSX.Element {
     };
   }, [onClose]);
 
+  // The bottom padding keeps a dialog opened over the chat clear of the
+  // keyboard, which overlays the page there (ui/keyboard.ts); it is 0 elsewhere.
+  // `dvh` ignores an overlaid keyboard, so the panel's cap subtracts it too.
   return (
     <div
-      class="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,#0a0a0c_55%,transparent)] p-4 backdrop-blur-[4px]"
+      class="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,#0a0a0c_55%,transparent)] p-4 pb-[calc(1rem+var(--keyboard-inset,0px))] backdrop-blur-[4px]"
       onClick={() => onClose?.()}
     >
       <div
@@ -333,7 +336,7 @@ export function Modal({ title, onClose, children }: ModalProps): JSX.Element {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        class="animate-modal-in flex max-h-[calc(100dvh-2rem)] w-full max-w-[440px] flex-col overflow-hidden rounded-xl3 bg-elevated shadow-float outline-none"
+        class="animate-modal-in flex max-h-[calc(100dvh-2rem-var(--keyboard-inset,0px))] w-full max-w-[440px] flex-col overflow-hidden rounded-xl3 bg-elevated shadow-float outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <header class="flex flex-none items-center justify-between py-4 pl-[22px] pr-[18px]">

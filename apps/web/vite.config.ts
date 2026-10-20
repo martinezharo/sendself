@@ -98,7 +98,12 @@ export default defineConfig(({ command, isSsrBuild }) => {
                   "Private, end-to-end encrypted text & file sharing between your devices",
                 lang: "en",
                 theme_color: "#c2410c",
-                background_color: "#f8f4f2",
+                // Chrome on Android also paints an installed app's navigation bar
+                // with this, and the manifest has no dark variant. A light bar
+                // under the dark theme is a glaring strip (and flashes as the
+                // keyboard opens); a dark one under the light theme reads as
+                // ordinary system chrome. So it is the dark `--d-bg`.
+                background_color: "#0c0a09",
                 display: "standalone",
                 // The app opens on the spaces of this device, not the marketing
                 // page: an installed PWA has already been "landed on".
