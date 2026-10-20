@@ -66,7 +66,6 @@ Biggest remaining items (need design decisions, don't do blindly):
 - [ ] 🔵⚡ **`Modal` has no full focus trap** (Escape + focus restore are done). Trap Tab within the dialog.
 - [ ] 🔵⚡ **Rename a device** after creation: doesn't exist.
 - [ ] 🔵⚡ **Delivery/read indicators.** The server already has `delivery_status`; could show "delivered to N devices".
-- [ ] 🔵🛠️ **No search** in messages.
 - [ ] 🔵⚡ **QR scanner** has no torch/camera switch.
 - [ ] 🔵⚡ **No manual theme toggle** (system `dark:` only). Optional.
 - [ ] 🟡🛠️ **A dead session marks its queue `failed`.** When a flush hits `unauthorized`/`device_revoked` the messages in flight are marked permanently failed, and re-linking the device does not bring them back — the user has to find each bubble. Leaving them `queued` and stopping the pass would let a new session resume them, but it needs a bound: a device that is never re-linked would keep a queue forever. Decide before changing (`isRetriable` in `apps/web/src/sync/outbox.ts`).

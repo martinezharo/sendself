@@ -984,6 +984,17 @@
     box-shadow: var(--ring);
   }
 
+  /* A search hit inside a bubble. A fixed yellow with dark ink rather than a
+     theme token: the bubbles it lands on range from the light surface to the
+     accent, and this is the one pairing that stays legible on all of them in
+     both themes. */
+  .search-hit {
+    border-radius: 3px;
+    background: #facc15;
+    color: #1c1917;
+    padding: 0 1px;
+  }
+
   /* Message-menu hover trigger: pointless without a hovering pointer, so it
      only exists on mouse-driven devices (touch long-presses the bubble). */
   .msg-actions-trigger {

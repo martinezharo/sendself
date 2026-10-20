@@ -32,6 +32,7 @@ import { DropZone } from "./DropZone";
 import { useInstallApp } from "./Install";
 import { Landing } from "../site/Landing";
 import { LockScreen } from "./LockScreen";
+import { SearchLayer, SearchToggle, coveredBySearch } from "./SearchBar";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { Spaces } from "./Spaces";
 import { Button, IconButton, Loading, Modal, Toasts, cx } from "./components";
@@ -171,25 +172,51 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
             ) : (
               <BackLink to={spacePath(spaceId)} label={`Back to ${spaceName}`} />
             )}
-            <span class="truncate px-1.5 font-display text-body-lg font-semibold tracking-[-0.022em]">
+            <span
+              class={cx(
+                "truncate px-1.5 font-display text-body-lg font-semibold tracking-[-0.022em]",
+                section === "chat" && coveredBySearch(),
+              )}
+            >
               {section === "chat" ? spaceName : sectionLabel(section)}
             </span>
           </div>
           {section === "chat" && (
-            <SpaceMenuButton
-              spaceId={spaceId}
-              showDevices
-              onRename={() => setRenaming(true)}
-              onLeave={() => setConfirmLeaveOpen(true)}
-            />
+            <div class={cx("flex items-center", coveredBySearch())}>
+              <SearchToggle />
+              <SpaceMenuButton
+                spaceId={spaceId}
+                showDevices
+                onRename={() => setRenaming(true)}
+                onLeave={() => setConfirmLeaveOpen(true)}
+              />
+            </div>
+          )}
+          {/* Over everything but the way back, so the search never costs the
+              arrow its place. */}
+          {section === "chat" && (
+            <SearchLayer class="absolute bottom-0 left-[52px] right-[10px] h-14" />
           )}
         </header>
 
         {/* Desktop view header */}
-        <div class="hidden h-[60px] flex-none items-center justify-between gap-3 border-b border-line px-6 md:flex">
-          <div class="font-display text-title-sm font-semibold tracking-[-0.022em]">
+        <div class="relative hidden h-[60px] flex-none items-center justify-between gap-3 border-b border-line px-6 md:flex">
+          <div
+            class={cx(
+              "font-display text-title-sm font-semibold tracking-[-0.022em]",
+              section === "chat" && coveredBySearch(),
+            )}
+          >
             {sectionLabel(section)}
           </div>
+          {section === "chat" && (
+            <>
+              <div class={coveredBySearch()}>
+                <SearchToggle />
+              </div>
+              <SearchLayer class="absolute inset-y-0 left-6 right-6" />
+            </>
+          )}
         </div>
 
         <main class="flex min-h-0 flex-1 flex-col">

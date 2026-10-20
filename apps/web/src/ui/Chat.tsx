@@ -39,15 +39,17 @@ import {
   unstageFile,
   viewOnceArmed,
 } from "../state/composer";
-import { spaceEvents } from "../state/events";
-import { type AlbumEntry, albumCaption, chatEntries } from "../state/grouping";
+import { type AlbumEntry, albumCaption } from "../state/grouping";
 import { failedSends, visibleMessages } from "../state/messages";
 import { showSpaceSection } from "../state/route";
+import { closeSearch, searchOpen } from "../state/search";
 import { session } from "../state/session";
+import { currentMatch, threadEntries } from "../state/thread";
 import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
 import { useActionFeedback } from "./feedback";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
+import { Highlighted } from "./SearchBar";
 import {
   Button,
   FileTypeIcon,
@@ -61,7 +63,11 @@ import {
 
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
 
-function Linkify({ text }: { text: string }): JSX.Element {
+function Linkify({ text, highlight = false }: { text: string; highlight?: boolean }): JSX.Element {
+  // Search hits are marked only where the message is actually on display; the
+  // viewer of a view-once message shows content search never matched.
+  const plain = (value: string): string | JSX.Element =>
+    highlight ? <Highlighted text={value} /> : value;
   const parts: (string | JSX.Element)[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -69,7 +75,7 @@ function Linkify({ text }: { text: string }): JSX.Element {
   URL_RE.lastIndex = 0;
   while ((match = URL_RE.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(plain(text.slice(lastIndex, match.index)));
     }
     const url = match[0];
     parts.push(
@@ -79,13 +85,13 @@ function Linkify({ text }: { text: string }): JSX.Element {
         rel="noopener noreferrer"
         class="underline underline-offset-2 decoration-current opacity-80 hover:opacity-100"
       >
-        {url}
+        {plain(url)}
       </a>,
     );
     lastIndex = match.index + url.length;
   }
   if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+    parts.push(plain(text.slice(lastIndex)));
   }
   return <>{parts}</>;
 }
@@ -118,8 +124,9 @@ export function Chat(): JSX.Element {
   // Files picked together arrive as separate messages; the chat puts them back
   // together, and space notices are merged into the same thread by time (see
   // state/grouping.ts).
-  const entries = chatEntries(list, spaceEvents.value);
+  const entries = threadEntries.value;
   const { receiving, stranded } = countIncomingFiles(list);
+  const currentKey = currentMatch.value;
   // Tombstones are retried with the rest but never counted: "2 messages didn't
   // send" is about things the user wrote, and a deletion order has no bubble.
   const unsent = failedSends.value.filter((m) => !m.deletes).length;
@@ -142,7 +149,9 @@ export function Chat(): JSX.Element {
     // could leave the page scrolled underneath the composer. The thread is the
     // only surface that should move when a message arrives.
     const scroller = chatScrollerRef.current;
-    if (scroller) {
+    // Not while searching: a message landing mid-search must not pull the
+    // reader away from the hit they are looking at.
+    if (scroller && !searchOpen.peek()) {
       scroller.scrollTo({
         top: scroller.scrollHeight,
         behavior: hasScrolledRef.current ? "smooth" : "auto",
@@ -150,6 +159,30 @@ export function Chat(): JSX.Element {
     }
     if (entries.length > 0) hasScrolledRef.current = true;
   }, [entries.length]);
+
+  // Bring the current hit to the middle of the thread. Done by hand for the
+  // same reason as the autoscroll above: `scrollIntoView` may move the page.
+  useEffect(() => {
+    const scroller = chatScrollerRef.current;
+    if (!scroller || currentKey === null) return;
+    const bubble = scroller.querySelector<HTMLElement>(
+      `[data-entry-key="${CSS.escape(currentKey)}"]`,
+    );
+    if (!bubble) return;
+    const scrollerBox = scroller.getBoundingClientRect();
+    const bubbleBox = bubble.getBoundingClientRect();
+    scroller.scrollTo({
+      top:
+        scroller.scrollTop +
+        (bubbleBox.top - scrollerBox.top) -
+        Math.max(0, (scroller.clientHeight - bubbleBox.height) / 2),
+      behavior: "smooth",
+    });
+  }, [currentKey]);
+
+  // The search belongs to the thread it was opened on: leaving the chat (for
+  // the devices screen, or another space) must not carry a query along.
+  useEffect(() => closeSearch, []);
 
   useEffect(() => {
     if (!currentSession) return;
@@ -251,6 +284,8 @@ export function Chat(): JSX.Element {
                 message={first}
                 {...(entry.kind === "album" ? { album: entry } : {})}
                 mine={first.senderDeviceId === myId}
+                entryKey={entry.key}
+                current={entry.key === currentKey}
                 deviceName={deviceNames.get(first.senderDeviceId)}
                 // The name answers "who sent this?", so it is only worth
                 // repeating when the answer changes.
@@ -432,14 +467,20 @@ const LONG_PRESS_DRIFT_PX = 10;
 function MessageBubble({
   message,
   album,
+  entryKey,
   mine,
+  current,
   deviceName,
   showSender,
 }: {
   /** The message itself, or the batch's representative when `album` is set. */
   message: LocalMessage;
   album?: AlbumEntry;
+  /** The thread entry this bubble draws; what search results point at. */
+  entryKey: string;
   mine: boolean;
+  /** The bubble the search is on. */
+  current: boolean;
   deviceName?: string;
   showSender: boolean;
 }): JSX.Element {
@@ -522,6 +563,7 @@ function MessageBubble({
 
   return (
     <div
+      data-entry-key={entryKey}
       class={cx(
         // items-start, not items-center: the trigger is sticky within this
         // row, and centering it would leave it only the bottom half of a tall
@@ -545,6 +587,7 @@ function MessageBubble({
             ? "rounded-br-[5px] bg-bubble text-on-bubble shadow-soft"
             : "surface-card rounded-bl-[5px] text-ink",
           menu && "ring-2 ring-accent/60",
+          current && "ring-2 ring-[#facc15]",
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -619,7 +662,7 @@ function MessageBubble({
               (album || message.file) && "px-1.5 pb-0.5 pt-[7px]",
             )}
           >
-            <Linkify text={caption} />
+            <Linkify text={caption} highlight />
           </div>
         )}
         <div
@@ -961,7 +1004,7 @@ function FileAttachment({ message, mine }: { message: LocalMessage; mine: boolea
       )}
       <div class="min-w-0 flex-1">
         <div class="truncate text-note font-medium max-md:text-body" title={file.name}>
-          {file.name}
+          <Highlighted text={file.name} />
         </div>
         <div
           class={cx(
