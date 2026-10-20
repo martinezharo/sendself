@@ -1,3 +1,4 @@
+import { ASSETLINKS_PATH, assetLinks } from "./assetlinks";
 import { runCleanup } from "./cron";
 import type { Env } from "./env";
 import { ApiError } from "./errors";
@@ -136,6 +137,12 @@ export default {
 
     const retired = redirectRetiredPage(request);
     if (retired) return retired;
+
+    // Android's Digital Asset Links verifier fetches this exact path. It must be
+    // served before the assets binding, which would otherwise answer 404.
+    if (url.pathname === ASSETLINKS_PATH) {
+      return withSecurityHeaders(assetLinks());
+    }
 
     // The Worker owns /api/* and applies the same security policy to static PWA
     // assets. The assets binding handles public HTML and the custom 404 page.

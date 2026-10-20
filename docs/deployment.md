@@ -90,10 +90,11 @@ A direct `wrangler deploy` from `apps/worker` still bypasses the guard, since th
 After publishing:
 
 1. Confirm that the canonical HTTPS site loads the public page and `/app` shell.
-2. Confirm that HTTP redirects to HTTPS and the `www` hostname redirects to the canonical hostname.
-3. Exercise a real device flow: create or open a space, pair a second device, send text, send a file, and verify delivery after reconnecting.
-4. Check Cloudflare deployment/Worker logs for errors without logging or copying credentials or plaintext.
-5. Verify the R2 lifecycle configuration still exists.
+2. Confirm that `https://sendself.4oli.com/.well-known/assetlinks.json` returns the Android package and certificate fingerprints from [`android.config.json`](../android.config.json). Play-installed builds need the Play App Signing SHA-256, not only the upload key; see [Google Play Store](play-store.md).
+3. Confirm that HTTP redirects to HTTPS and the `www` hostname redirects to the canonical hostname.
+4. Exercise a real device flow: create or open a space, pair a second device, send text, send a file, and verify delivery after reconnecting.
+5. Check Cloudflare deployment/Worker logs for errors without logging or copying credentials or plaintext.
+6. Verify the R2 lifecycle configuration still exists.
 
 The public canonical hostname currently configured in the Worker is `sendself.4oli.com`; if the deployment target changes, update the Worker configuration and this verification step together.
 

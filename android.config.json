@@ -1,0 +1,8 @@
+{
+  "packageId": "com.fourli.sendself",
+  "host": "sendself.4oli.com",
+  "startUrl": "https://sendself.4oli.com/app",
+  "sha256CertFingerprints": [
+    "80:A2:42:38:5A:A5:FC:31:FC:67:D0:F5:CE:0B:EF:AB:7F:32:53:E8:B8:14:78:B3:10:4F:4F:CA:10:60:86:36"
+  ]
+}
