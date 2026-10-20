@@ -26,7 +26,17 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      - name: Locate the preinstalled Android SDK
+        run: |
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(find "$sdk_root/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          if [ -z "$sdkmanager" ]; then
+            echo "::error::sdkmanager not found under $sdk_root"
+            exit 1
+          fi
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
 
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses > /dev/null
