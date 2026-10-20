@@ -947,6 +947,24 @@
     @apply bg-surface shadow-soft dark:bg-surface-2 dark:ring-1 dark:ring-inset dark:ring-line;
   }
 
+  /* The strip a view docks to the bottom edge, lifted clear of the on-screen
+     keyboard where the page overlays it. `--keyboard-inset` comes from
+     ui/keyboard.ts, which sets it as the keyboard starts to move; the curve and
+     duration follow Android's own IME animation so the two travel together.
+     The keyboard covers the home-indicator inset, so the two are not added:
+     whichever is taller wins. */
+  .keyboard-dock {
+    --dock-gap: 16px;
+    padding-bottom: calc(
+      var(--dock-gap) +
+      max(env(safe-area-inset-bottom, 0px), var(--keyboard-inset, 0px))
+    );
+    transition: padding-bottom 0.285s cubic-bezier(0.2, 0, 0, 1);
+    @variant max-md {
+      --dock-gap: 14px;
+    }
+  }
+
   /* A `<details>` whose body eases open and shut instead of snapping. Height
      can only tween to `auto` where `interpolate-size` exists (Chromium); other
      engines that know `::details-content` still fade, and the rest simply
