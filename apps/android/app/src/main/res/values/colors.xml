@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the PWA manifest's theme/background colours. -->
+    <color name="status_bar">#F8F4F2</color>
+    <color name="status_bar_dark">#0C0A09</color>
+    <color name="navigation_bar">#F8F4F2</color>
+    <color name="navigation_bar_dark">#0C0A09</color>
+    <color name="splash_background">#F8F4F2</color>
+    <color name="ic_launcher_background">#C2410C</color>
+</resources>
