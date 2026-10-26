@@ -10,6 +10,7 @@ If documentation and code disagree, treat the code and its tests as the current 
 - [Security](security.md) describes the cryptographic protocol, trust boundaries, threat model, and known limitations.
 - [Development](development.md) covers local setup, secure contexts, tests, and browser tooling.
 - [Deployment](deployment.md) covers D1/R2 provisioning, migrations, and the release sequence.
+- [Google Play Store](play-store.md) covers the Android Trusted Web Activity, signing, Digital Asset Links, and the Play Console declarations.
 - [API](api.md) lists the Worker routes and their authentication rules.
 
 ## Other sources

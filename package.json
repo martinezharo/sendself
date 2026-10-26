@@ -19,6 +19,11 @@
     "test": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "android:icons": "node apps/android/scripts/generate-icons.mjs",
+    "android:fingerprint": "node apps/android/scripts/add-fingerprint.mjs",
+    "android:play-assets": "node apps/android/scripts/capture-play-assets.mjs",
+    "android:debug": "apps/android/gradlew -p apps/android assembleDebug",
+    "android:bundle": "apps/android/gradlew -p apps/android bundleRelease",
     "typecheck": "pnpm -r --if-present typecheck && tsc --noEmit -p e2e/tsconfig.json",
     "lint": "biome lint .",
     "format": "biome format --write .",
@@ -29,6 +34,7 @@
     "@playwright/test": "1.62.1",
     "@types/node": "^26.6.5",
     "concurrently": "^10.0.6",
+    "sharp": "^0.35.5",
     "typescript": "^5.9.3"
   },
   "pnpm": {

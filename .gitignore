@@ -11,3 +11,13 @@ coverage/
 test-results/
 playwright-report/
 .dev-certs/
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
+apps/android/keystore.properties
+*.jks
+*.keystore
+
+# The Gradle wrapper jar is a tracked build input, not a local artifact.
+!apps/android/gradle/wrapper/gradle-wrapper.jar
