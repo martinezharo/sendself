@@ -15,7 +15,7 @@ project and the Worker:
 | Field | Used by |
 | --- | --- |
 | `packageId` | Android `namespace`/`applicationId` and `assetlinks.json` |
-| `host` | App Links intent filter and `assetlinks.json` |
+| `host` | App Links intent filter, absolute Android share target and `assetlinks.json` |
 | `startUrl` | TWA default URL and the Manage Space URL |
 | `sha256CertFingerprints` | `assetlinks.json` only |
 
@@ -96,8 +96,10 @@ automatically.
 ## Share target
 
 The launcher activity registers `ACTION_SEND`/`ACTION_SEND_MULTIPLE` and passes
-the same `share_target` declaration as the PWA manifest to Chrome
-(`METADATA_SHARE_TARGET`). Chrome performs the multipart POST to
+the PWA's share parameters to Chrome (`METADATA_SHARE_TARGET`), using an absolute
+action URL generated from the configured host as required by Android browser helper.
+The launcher uses the default launch mode so the helper can forward new intents
+to an existing browser activity. Chrome performs the multipart POST to
 `/share-target`, which the service worker already handles. Support depends on the
 TWA provider; if it is unavailable, sharing still works through the browser PWA.
 

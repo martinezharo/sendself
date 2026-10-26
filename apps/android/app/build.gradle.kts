@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
 import java.util.Properties
 
 plugins {
@@ -49,6 +50,18 @@ android {
         manifestPlaceholders["twaHost"] = host
         manifestPlaceholders["twaStartUrl"] = startUrl
 
+        // Android browser helper requires an absolute action, unlike the PWA manifest.
+        val shareTarget = mapOf(
+            "action" to "https://$host/share-target",
+            "method" to "POST",
+            "enctype" to "multipart/form-data",
+            "params" to mapOf(
+                "title" to "title", "text" to "text", "url" to "url",
+                "files" to listOf(mapOf("name" to "files", "accept" to listOf("*/*"))),
+            ),
+        )
+        resValue("string", "twa_share_target", JsonOutput.toJson(shareTarget).replace("\"", "\\\""))
+
         // Legacy Digital Asset Links hint used by the FIDO2/credential-sharing
         // flow. Modern App Links verification reads the file from the host.
         resValue(
@@ -82,7 +95,7 @@ android {
     }
 
     buildFeatures {
-        // Used for the legacy asset_statements resource, generated from
+        // Used for the share target and legacy asset_statements resources, generated from
         // android.config.json.
         resValues = true
     }

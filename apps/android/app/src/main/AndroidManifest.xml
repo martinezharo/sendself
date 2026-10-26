@@ -33,8 +33,7 @@
 
         <activity
             android:name=".LauncherActivity"
-            android:exported="true"
-            android:launchMode="singleTask">
+            android:exported="true">
 
             <meta-data
                 android:name="android.support.customtabs.trusted.DEFAULT_URL"
