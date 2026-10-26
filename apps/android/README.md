@@ -48,8 +48,10 @@ Signing is read from `apps/android/keystore.properties` (git-ignored) or from
 `SENDSELF_KEY_PASSWORD`. The local upload key and its password file live in
 `~/.config/sendself/`; back up both, and never commit them.
 
-The version is `sendselfVersionCode` / `sendselfVersionName` in
-`gradle.properties`, overridable with `-PsendselfVersionCode=2`.
+Local builds default to version code `1` and name `1.0.0`. Override them with
+`-PsendselfVersionCode=2 -PsendselfVersionName=1.1.0`, or set those properties in
+`gradle.properties`. CI uses the Android workflow run number as its version
+code; the version name comes from the release tag or manual dispatch input.
 
 ## Play App Signing fingerprint
 

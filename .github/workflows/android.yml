@@ -2,6 +2,12 @@ name: Android
 
 on:
   workflow_dispatch:
+    inputs:
+      version_name:
+        description: Public Android version name
+        required: true
+        default: "1.0.0"
+        type: string
   push:
     tags: ["android-v*"]
   pull_request:
@@ -71,7 +77,12 @@ jobs:
           SENDSELF_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           SENDSELF_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SENDSELF_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --no-daemon
+          SENDSELF_VERSION_CODE: ${{ github.run_number }}
+          SENDSELF_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || github.ref_name }}
+        run: |
+          ./gradlew bundleRelease --no-daemon \
+            "-PsendselfVersionCode=$SENDSELF_VERSION_CODE" \
+            "-PsendselfVersionName=${SENDSELF_VERSION_NAME#android-v}"
 
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'

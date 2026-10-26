@@ -211,6 +211,13 @@ apps/android/gradlew -p apps/android bundleRelease \
   -PsendselfVersionCode=2 -PsendselfVersionName=1.1.0
 ```
 
+CI uses the Android workflow's `github.run_number` as the version code, which
+increases for each new workflow run. Tag builds derive the version name from
+`android-v<version>`; manual dispatches use the `version_name` input. Rerunning
+an existing workflow run keeps its version code, so start a new run for a new
+Play upload. If a local upload uses a higher code, account for it before the
+next CI release.
+
 Pushing the web app does not require a new Android build: the TWA loads the live
 site. A new AAB is only needed when the wrapper itself changes (icon, package,
 permissions, target SDK, share target).
