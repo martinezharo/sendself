@@ -59,6 +59,7 @@ import {
   metaSet,
   putOutgoingFileMessages,
 } from "./db/store";
+import { copyImageBlob, canCopyImages } from "./share/clipboard-image";
 import { takeSharedContent } from "./share/incoming";
 import {
   clearComposer,
@@ -863,6 +864,43 @@ export async function saveFile(message: LocalMessage): Promise<boolean> {
 export async function copyMessageText(message: LocalMessage): Promise<void> {
   if (!message.text) return;
   await copyText(message.text);
+}
+
+/**
+ * Whether "Copy image" can work for this message: an image attachment whose
+ * decrypted blob is cached locally, in a browser that can write images.
+ */
+export function canCopyImage(message: LocalMessage): boolean {
+  return (
+    !!message.file?.mime.startsWith("image/") &&
+    message.fileState === "downloaded" &&
+    canCopyImages()
+  );
+}
+
+export async function copyMessageImage(message: LocalMessage): Promise<void> {
+  if (!message.file) return;
+
+  let blob: Blob | undefined;
+  try {
+    blob = await getFile(message.file.r2Key);
+  } catch {
+    showToast("Couldn't open this file on this device", "error");
+    return;
+  }
+  if (!blob) {
+    showToast("File is no longer available", "error");
+    return;
+  }
+
+  try {
+    // The stored blob keeps whatever type it was saved with; the message's own
+    // mime is the reliable one.
+    await copyImageBlob(blob.type ? blob : new Blob([blob], { type: message.file.mime }));
+    showToast("Image copied to clipboard");
+  } catch {
+    showToast("Couldn't copy the image", "error");
+  }
 }
 
 /** Whether the Web Share API can plausibly share this message from here. */

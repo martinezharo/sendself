@@ -1,9 +1,11 @@
-import { Copy, Share2, Trash2, Users } from "lucide-preact";
+import { Copy, ImageIcon, Share2, Trash2, Users } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import {
+  canCopyImage,
   canDeleteEverywhere,
   canShareMessage,
+  copyMessageImage,
   copyMessageText,
   deleteMessageEverywhere,
   deleteMessageLocally,
@@ -21,7 +23,8 @@ import { Button, Modal } from "./components";
  * takes the album with it, which is what the user is looking at and pointing
  * at — offering to delete one hidden third of a group would be a surprise.
  * Copy and share still act on the representative message alone: those produce
- * one thing, not N.
+ * one thing, not N. For that reason "Copy image" is not offered on an album at
+ * all — it would copy a photo the user never pointed at.
  */
 export function MessageMenu({
   message,
@@ -44,6 +47,8 @@ export function MessageMenu({
   const [confirmingGlobalDelete, setConfirmingGlobalDelete] = useState(false);
 
   const targets = album ?? [message];
+  const copyableImage = targets.length === 1 && canCopyImage(message);
+  const hasActions = !!message.text || copyableImage || canShareMessage(message);
 
   function run(action: (message: LocalMessage) => Promise<void>): void {
     onClose();
@@ -94,12 +99,17 @@ export function MessageMenu({
           Copy text
         </MenuItem>
       )}
+      {copyableImage && (
+        <MenuItem icon={<ImageIcon />} onClick={() => run(copyMessageImage)}>
+          Copy image
+        </MenuItem>
+      )}
       {canShareMessage(message) && (
         <MenuItem icon={<Share2 />} onClick={() => run(shareMessage)}>
           Share…
         </MenuItem>
       )}
-      {(message.text || canShareMessage(message)) && <MenuSeparator />}
+      {hasActions && <MenuSeparator />}
       <MenuItem danger icon={<Trash2 />} onClick={() => runAll(deleteMessageLocally)}>
         Delete on this device
       </MenuItem>

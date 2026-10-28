@@ -283,6 +283,106 @@ describe("saveFile", () => {
 });
 
 /**
+ * "Copy image" reads the cached blob back and hands it to the clipboard. The
+ * re-encoding to PNG lives in the browser and is covered end to end; what is
+ * pinned here is when the entry is offered and that every dead end is spoken.
+ */
+describe("copyMessageImage", () => {
+  const AN_IMAGE_MESSAGE: LocalMessage = {
+    id: "image-1",
+    direction: "in",
+    senderDeviceId: "other-device",
+    createdAt: 1,
+    status: "sent",
+    fileState: "downloaded",
+    file: { r2Key: "key-img", iv: "", name: "photo.png", size: 5, mime: "image/png" },
+  };
+
+  /** A clipboard that records what it was asked to write. */
+  function stubClipboard(): { written: Record<string, unknown>[] } {
+    const clipboard = { written: [] as Record<string, unknown>[] };
+    vi.stubGlobal(
+      "ClipboardItem",
+      class {
+        constructor(readonly items: Record<string, unknown>) {}
+      },
+    );
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        write: async (items: { items: Record<string, unknown> }[]) => {
+          for (const item of items) clipboard.written.push(item.items);
+        },
+      },
+    });
+    return clipboard;
+  }
+
+  beforeEach(async () => {
+    await spaces.beginSpace("Home");
+    session.session.value = A_SESSION;
+    ui.toasts.value = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is offered for a downloaded image, and for nothing else", () => {
+    stubClipboard();
+    expect(actions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(true);
+    expect(actions.canCopyImage({ ...AN_IMAGE_MESSAGE, fileState: "remote" })).toBe(false);
+    expect(
+      actions.canCopyImage({
+        ...AN_IMAGE_MESSAGE,
+        file: { r2Key: "k", iv: "", name: "a.pdf", size: 1, mime: "application/pdf" },
+      }),
+    ).toBe(false);
+    expect(actions.canCopyImage({ ...AN_IMAGE_MESSAGE, file: undefined })).toBe(false);
+  });
+
+  it("is not offered where the browser cannot write images", () => {
+    vi.stubGlobal("navigator", { clipboard: {} });
+    expect(actions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(false);
+  });
+
+  it("puts the cached image on the clipboard and confirms it", async () => {
+    const clipboard = stubClipboard();
+    await store.putFile("key-img", new Blob(["png"], { type: "image/png" }));
+
+    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+
+    expect(clipboard.written).toHaveLength(1);
+    expect(Object.keys(clipboard.written[0] ?? {})).toEqual(["image/png"]);
+    expect(ui.toasts.value).toMatchObject([{ kind: "info" }]);
+  });
+
+  it("says so when the blob is no longer on this device", async () => {
+    const clipboard = stubClipboard();
+
+    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+
+    expect(clipboard.written).toEqual([]);
+    expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
+  });
+
+  it("says so when the browser refuses the write", async () => {
+    stubClipboard();
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        write: async () => {
+          throw new DOMException("denied", "NotAllowedError");
+        },
+      },
+    });
+    await store.putFile("key-img", new Blob(["png"], { type: "image/png" }));
+
+    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+
+    expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
+  });
+});
+
+/**
  * A failed transfer is retried through the message itself, not only through the
  * sync loop: `syncNow()` does nothing while a pass is already running, so the
  * card has to leave its failed state on the click that asked for it.
