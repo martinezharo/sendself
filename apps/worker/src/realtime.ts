@@ -1,7 +1,13 @@
-import { REALTIME_AUTH_PROTOCOL_PREFIX, type RealtimeEvent } from "@sendself/shared";
+import {
+  REALTIME_AUTH_PROTOCOL_PREFIX,
+  REALTIME_PRESENCE_HIDDEN,
+  REALTIME_PRESENCE_VISIBLE,
+  type RealtimeEvent,
+} from "@sendself/shared";
 import { type AuthContext, authenticate } from "./auth";
 import type { Env } from "./env";
 import { ApiError } from "./errors";
+import { pushToDevices } from "./push";
 import type { RouteContext } from "./router";
 
 /**
@@ -34,9 +40,20 @@ interface NotifyBody {
   exclude?: string;
 }
 
+/** What `/notify` answers: devices that have the space on screen right now. */
+interface NotifyResult {
+  present: string[];
+}
+
 /** Per-socket data, so a broadcast can skip the device that caused the event. */
 interface SocketAttachment {
   deviceId: string;
+  /**
+   * Whether the space is on screen on that device (see
+   * `REALTIME_PRESENCE_VISIBLE`). Absent on a socket that never said, which
+   * counts as on screen.
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -52,8 +69,7 @@ export class SpaceHub implements DurableObject {
 
     if (url.pathname === "/notify") {
       const { exclude } = (await request.json()) as NotifyBody;
-      this.broadcast(exclude);
-      return new Response(null, { status: 204 });
+      return Response.json({ present: this.broadcast(exclude) } satisfies NotifyResult);
     }
 
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -84,26 +100,43 @@ export class SpaceHub implements DurableObject {
    * a close frame, rather than sitting on a socket that will never deliver.
    */
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
-    if (message === "ping") ws.send("pong");
+    if (message === "ping") {
+      ws.send("pong");
+      return;
+    }
+    // Presence is the other thing a client may say. Kept on the socket's own
+    // attachment, so it survives hibernation and dies with the connection.
+    if (message === REALTIME_PRESENCE_VISIBLE || message === REALTIME_PRESENCE_HIDDEN) {
+      const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+      if (!attachment) return;
+      ws.serializeAttachment({
+        deviceId: attachment.deviceId,
+        hidden: message === REALTIME_PRESENCE_HIDDEN,
+      } satisfies SocketAttachment);
+    }
   }
 
   webSocketError(ws: WebSocket): void {
     ws.close(1011, "socket error");
   }
 
-  private broadcast(exclude?: string): void {
+  /** Tell every connected device, and report which ones have the space on screen. */
+  private broadcast(exclude?: string): string[] {
     const event: RealtimeEvent = { type: "sync" };
     const payload = JSON.stringify(event);
+    const present = new Set<string>();
     for (const socket of this.state.getWebSockets()) {
       const attachment = socket.deserializeAttachment() as SocketAttachment | null;
       if (exclude && attachment?.deviceId === exclude) continue;
       try {
         socket.send(payload);
+        if (attachment && !attachment.hidden) present.add(attachment.deviceId);
       } catch {
         // A socket that died between `getWebSockets` and `send` is exactly the
         // case the polling safety net exists for. Nothing to do here.
       }
     }
+    return [...present];
   }
 }
 
@@ -115,14 +148,32 @@ function hub(env: Env, groupId: string): DurableObjectStub {
  * Tell a space's devices that something is waiting. Best-effort and never
  * awaited by a request handler: a failed notification costs one poll interval
  * of latency, while a failed *send* would cost the user their message.
+ *
+ * `push` lists the devices that should also get a Web Push if they do not have
+ * the space on screen — the recipients of a new message. Other changes (a
+ * rename, a rotation) only ever go over the socket: they are not worth waking
+ * a phone for.
  */
-export function notifySpace(env: Env, groupId: string, exclude?: string): Promise<unknown> {
-  return hub(env, groupId)
-    .fetch("https://space-hub/notify", {
+export async function notifySpace(
+  env: Env,
+  groupId: string,
+  exclude?: string,
+  push: readonly string[] = [],
+): Promise<void> {
+  let present: string[] = [];
+  try {
+    const response = await hub(env, groupId).fetch("https://space-hub/notify", {
       method: "POST",
       body: JSON.stringify({ exclude } satisfies NotifyBody),
-    })
-    .catch(() => undefined);
+    });
+    if (response.ok) present = ((await response.json()) as NotifyResult).present;
+  } catch {
+    // The socket fan-out failed; pushing to everyone is still the right call.
+  }
+
+  if (push.length === 0) return;
+  const absent = push.filter((deviceId) => !present.includes(deviceId));
+  await pushToDevices(env, groupId, absent).catch(() => undefined);
 }
 
 /**

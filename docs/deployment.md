@@ -20,6 +20,7 @@ The names and bindings are declared in [`apps/worker/wrangler.jsonc`](../apps/wo
 | R2 | `FILES` | `sendself-files`, encrypted file blobs. |
 | Durable Object | `SPACE_HUB` | One `SpaceHub` instance per space for sync notifications. |
 | Rate limiters | `RL_PUBLIC`, `RL_WRITE`, `RL_UPLOAD` | Edge abuse protection; absent in local dev and Worker tests. |
+| Secrets | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web Push identity. Optional: without them the Worker sends no pushes and the app does not offer notifications. `VAPID_SUBJECT` (a `mailto:` or `https:` contact) defaults to the site URL. |
 
 The deployed Worker also runs an hourly cleanup trigger. The R2 lifecycle rule is configured on the bucket, not in `wrangler.jsonc`.
 
@@ -48,6 +49,18 @@ pnpm db:migrate:remote
 ```
 
 Every deployment also applies pending remote migrations, so this is mainly a provisioning or schema-only operation.
+
+### Web Push keys
+
+New-message notifications need a VAPID key pair, generated once per deployment and stored as Worker secrets:
+
+```bash
+node scripts/generate-vapid-keys.mts
+pnpm --filter @sendself/worker exec wrangler secret put VAPID_PUBLIC_KEY
+pnpm --filter @sendself/worker exec wrangler secret put VAPID_PRIVATE_KEY
+```
+
+Keep the pair. Every browser subscription is bound to the public key, so replacing it stops pushes to every subscribed device until that device's app is opened again (it then subscribes again on its own). For local development, put the same two values in `apps/worker/.dev.vars`; notifications additionally need the production build, because `pnpm dev` runs without the service worker.
 
 ## Release sequence
 

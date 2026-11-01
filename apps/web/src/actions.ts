@@ -15,6 +15,12 @@ import {
   formatInviteCode,
   openInvite,
 } from "@sendself/client/pairing";
+import {
+  clearSpaceNotifications,
+  forgetPushForSpace,
+  syncPushSubscription,
+} from "./state/notifications";
+import { applyHistoryRetention } from "./state/retention";
 import { NetworkError, api } from "./api/client";
 import { agentSetupPrompt, linkCommand } from "./cli";
 import {
@@ -1058,6 +1064,12 @@ export async function releaseViewOnce(message: LocalMessage): Promise<void> {
 export async function leaveSpace(): Promise<void> {
   const space = activeSpace.value;
   if (!space) return;
+  // Before the credentials are wiped: afterwards nothing could tell the server
+  // to stop waking this browser for a space it no longer has.
+  if (!(await forgetPushForSpace())) {
+    showToast("Connect to the internet to leave this space, so its notifications stop", "error");
+    return;
+  }
   stopSync();
   // The next space this device joins mints its own identity, so the guard must
   // not carry the previous session's answer over.
@@ -1178,6 +1190,9 @@ export async function resumeAfterUnlock(): Promise<void> {
  * the two paths cannot drift into starting the app up differently.
  */
 export async function startSession(): Promise<void> {
+  // Before loading, so history past the device's retention is never read into
+  // memory just to be thrown away. A cleanup that fails costs nothing but room.
+  await applyHistoryRetention().catch(() => 0);
   await loadMessages();
   await loadSpaceEvents();
   // Populate the local view of the space's devices before anything asks how
@@ -1187,6 +1202,9 @@ export async function startSession(): Promise<void> {
   await loadIdentities();
   startSync();
   void ensureSigningIdentity();
+  void syncPushSubscription();
+  const spaceId = activeSpace.value?.id;
+  if (spaceId) void clearSpaceNotifications(spaceId);
 }
 
 /**

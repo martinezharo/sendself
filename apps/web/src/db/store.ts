@@ -1,6 +1,14 @@
-import { type DBSchema, type IDBPDatabase, deleteDB, openDB } from "idb";
+import {
+  type DBSchema,
+  type IDBPDatabase,
+  type IDBPTransaction,
+  type StoreNames,
+  deleteDB,
+  openDB,
+} from "idb";
 import type { LocalEvent, LocalMessage } from "../types";
 import { PRE_REBRAND_ID } from "../legacy";
+import { isQueuedOutgoing } from "./queue";
 import {
   type Sealed,
   directoryContext,
@@ -122,6 +130,27 @@ export const META_LEGACY_VAULT = "vault";
 export const META_RECOVERY_EPOCH = "recoveryExportEpoch";
 /** Ids deleted for everyone, so a late copy is dropped instead of reappearing (db/deletions.ts). */
 export const META_DELETED_MESSAGES = "deletedMessages";
+/** Ids of outgoing messages still owed to the server (see `queuedMessages`). */
+export const META_OUTBOX = "outbox";
+
+/**
+ * Which messages the outbox has to look at.
+ *
+ * Without it every flush pass — the page's, and the service worker's once per
+ * space per file — read and decrypted the whole history to find the handful of
+ * rows still queued. A real IndexedDB index cannot do the job: under an at-rest
+ * lock a row's status is sealed, and only its id and timestamp are readable.
+ *
+ * The list may hold *extra* ids (a row that has since been sent or deleted):
+ * reading it filters on the real status and drops them. It must never *miss*
+ * one, so every write of an outgoing row updates it in the same transaction,
+ * and `complete` is only set by a scan that could open every row. A device
+ * whose history predates the index gets one such scan, then never again.
+ */
+interface OutboxIndex {
+  complete: boolean;
+  ids: string[];
+}
 
 const handles = new Map<string, Promise<IDBPDatabase<SendSelfDB>>>();
 
@@ -214,8 +243,62 @@ async function fromStored(stored: StoredMessage | undefined): Promise<LocalMessa
   return openJson<LocalMessage>(stored.sealed, messageContext(stored.id));
 }
 
+/** Any read-write transaction that includes `meta`, where the index lives. */
+type OutboxTransaction = IDBPTransaction<SendSelfDB, StoreNames<SendSelfDB>[], "readwrite">;
+
+/**
+ * Bring the outbox index in line with `messages`, inside the transaction that
+ * writes them, so another context can never observe the row without the index
+ * entry. With no index yet the ids are still recorded (as incomplete): the scan
+ * that will build it may already be running, and merges them in.
+ */
+async function trackOutbox(
+  transaction: OutboxTransaction,
+  messages: readonly LocalMessage[],
+  { addOnly = false }: { addOnly?: boolean } = {},
+): Promise<void> {
+  const store = transaction.objectStore("meta");
+  const current = (await store.get(META_OUTBOX)) as OutboxIndex | undefined;
+  const ids = new Set(current?.ids);
+  for (const message of messages) {
+    if (isQueuedOutgoing(message)) ids.add(message.id);
+    else if (!addOnly) ids.delete(message.id);
+  }
+  await store.put({ complete: current?.complete ?? false, ids: [...ids] }, META_OUTBOX);
+}
+
+/** Drop `ids` from the outbox index, if there is one. */
+async function untrackOutbox(
+  transaction: OutboxTransaction,
+  ids: readonly string[],
+): Promise<void> {
+  const store = transaction.objectStore("meta");
+  const current = (await store.get(META_OUTBOX)) as OutboxIndex | undefined;
+  if (!current) return;
+  const drop = new Set(ids);
+  const kept = current.ids.filter((id) => !drop.has(id));
+  if (kept.length !== current.ids.length) {
+    await store.put({ complete: current.complete, ids: kept }, META_OUTBOX);
+  }
+}
+
 export async function putMessage(message: LocalMessage, spaceId?: string): Promise<void> {
-  await (await db(spaceId)).put("messages", await toStored(message));
+  // Resolved before sealing, which is async: leaving or switching spaces in the
+  // meantime must not change which database this write lands in.
+  const database = await db(spaceId);
+  const stored = await toStored(message);
+  // Incoming rows never enter the outbox, so they skip the index entirely:
+  // they are the bulk of the writes on a receiving device.
+  if (message.direction !== "out") {
+    await database.put("messages", stored);
+    return;
+  }
+  const transaction = database.transaction(["messages", "meta"], "readwrite");
+  await Promise.all([
+    transaction.objectStore("messages").put(stored),
+    trackOutbox(transaction, [message]),
+    transaction.done,
+  ]);
 }
 
 /**
@@ -228,6 +311,8 @@ export async function putOutgoingFileMessages(
   spaceId?: string,
 ): Promise<void> {
   if (entries.length === 0) return;
+  // The destination is fixed before the awaits below: see `putMessage`.
+  const database = await db(spaceId);
   // Sealing is async and IndexedDB transactions do not survive an await that
   // isn't a request, so everything is encrypted first and written after.
   const prepared = await Promise.all(
@@ -236,11 +321,14 @@ export async function putOutgoingFileMessages(
       file: await toStoredFile(message.file!.r2Key, blob),
     })),
   );
-  const database = await db(spaceId);
-  const transaction = database.transaction(["messages", "files"], "readwrite");
+  const transaction = database.transaction(["messages", "files", "meta"], "readwrite");
   await Promise.all([
     ...prepared.map(({ stored }) => transaction.objectStore("messages").put(stored)),
     ...prepared.map(({ file }) => transaction.objectStore("files").put(file)),
+    trackOutbox(
+      transaction,
+      entries.map(({ message }) => message),
+    ),
     transaction.done,
   ]);
 }
@@ -261,7 +349,169 @@ export async function allMessages(spaceId?: string): Promise<LocalMessage[]> {
 }
 
 export async function deleteMessage(id: string, spaceId?: string): Promise<void> {
-  await (await db(spaceId)).delete("messages", id);
+  const transaction = (await db(spaceId)).transaction(["messages", "meta"], "readwrite");
+  await Promise.all([
+    transaction.objectStore("messages").delete(id),
+    untrackOutbox(transaction, [id]),
+    transaction.done,
+  ]);
+}
+
+const byCreatedAt = (a: LocalMessage, b: LocalMessage): number => a.createdAt - b.createdAt;
+
+/**
+ * Every outgoing message still owed to the server, oldest first — what the
+ * outbox flushes, read without touching the rest of the history.
+ *
+ * Like `allMessages` this is empty for rows this context cannot open (a locked
+ * service worker), and those ids are kept: they are still owed.
+ */
+export async function queuedMessages(spaceId?: string): Promise<LocalMessage[]> {
+  const database = await db(spaceId);
+  const index = (await database.get("meta", META_OUTBOX)) as OutboxIndex | undefined;
+  if (!index?.complete) return rebuildOutboxIndex(database);
+
+  const rows = await Promise.all(index.ids.map((id) => database.get("messages", id)));
+  const queued: LocalMessage[] = [];
+  /** Ids that look done, with the row as it was read (undefined: no row). */
+  const stale = new Map<string, StoredMessage | undefined>();
+  await Promise.all(
+    rows.map(async (row, i) => {
+      if (!row) {
+        stale.set(index.ids[i]!, undefined);
+        return;
+      }
+      const message = await fromStored(row);
+      if (!message) return;
+      if (isQueuedOutgoing(message)) queued.push(message);
+      else stale.set(message.id, row);
+    }),
+  );
+  if (stale.size > 0) await dropStale(database, stale);
+  return queued.sort(byCreatedAt);
+}
+
+/**
+ * Drop index entries that turned out to be done — but only those whose row is
+ * still exactly what was read. Opening a sealed row is async, so the decision
+ * is made outside this transaction; another context re-queueing the message in
+ * between must win, or the index would lose an id that is owed again.
+ */
+async function dropStale(
+  database: IDBPDatabase<SendSelfDB>,
+  stale: ReadonlyMap<string, StoredMessage | undefined>,
+): Promise<void> {
+  const transaction = database.transaction(["messages", "meta"], "readwrite");
+  const work = (async () => {
+    const unchanged: string[] = [];
+    for (const [id, seen] of stale) {
+      const now = await transaction.objectStore("messages").get(id);
+      if (JSON.stringify(now) === JSON.stringify(seen)) unchanged.push(id);
+    }
+    await untrackOutbox(transaction, unchanged);
+  })();
+  await Promise.all([work, transaction.done]);
+}
+
+/**
+ * Make sure every queued message in `messages` is in the outbox index. Adding
+ * is always safe, so this is the self-heal for a row written by something that
+ * does not maintain the index (an older build still open in another tab, a
+ * rollback). Called with the history the chat loads anyway, so it costs one
+ * read of the index and, almost always, nothing else.
+ */
+export async function trackQueued(
+  messages: readonly LocalMessage[],
+  spaceId?: string,
+): Promise<void> {
+  const queued = messages.filter(isQueuedOutgoing);
+  if (queued.length === 0) return;
+  const database = await db(spaceId);
+  const index = (await database.get("meta", META_OUTBOX)) as OutboxIndex | undefined;
+  if (index && queued.every((message) => index.ids.includes(message.id))) return;
+  const transaction = database.transaction(["messages", "meta"], "readwrite");
+  await Promise.all([trackOutbox(transaction, queued, { addOnly: true }), transaction.done]);
+}
+
+/**
+ * Build the outbox index from one full scan. Only a scan that could open every
+ * row may call the index complete; a locked context records what it found and
+ * leaves the full scan to the next one that can.
+ */
+async function rebuildOutboxIndex(database: IDBPDatabase<SendSelfDB>): Promise<LocalMessage[]> {
+  const rows = await database.getAllFromIndex("messages", "by-createdAt");
+  const opened = await Promise.all(rows.map((row) => fromStored(row)));
+  const complete = opened.every((message) => message !== undefined);
+  const queued = opened.filter(
+    (message): message is LocalMessage => message !== undefined && isQueuedOutgoing(message),
+  );
+
+  const transaction = database.transaction(["messages", "meta"], "readwrite");
+  const store = transaction.objectStore("meta");
+  const write = (async () => {
+    // Merge rather than overwrite: anything queued while the scan ran was
+    // recorded by `trackOutbox` and is not in `queued`.
+    const current = (await store.get(META_OUTBOX)) as OutboxIndex | undefined;
+    const ids = new Set([...(current?.ids ?? []), ...queued.map((message) => message.id)]);
+    await store.put({ complete: complete || !!current?.complete, ids: [...ids] }, META_OUTBOX);
+  })();
+  await Promise.all([write, transaction.done]);
+  return queued;
+}
+
+/** Rows deleted per transaction while pruning, so a big cleanup never holds one open for long. */
+const PRUNE_BATCH = 200;
+
+/**
+ * Delete this device's copy of everything older than `cutoff`: messages, their
+ * cached files and the space notices around them.
+ *
+ * Outgoing messages that have not been delivered are kept whatever their age:
+ * deleting one would silently cancel a send, and a `failed` one is still
+ * waiting for the user to decide. A row this context cannot open is kept too.
+ * Returns how many messages were removed.
+ */
+export async function pruneHistory(cutoff: number, spaceId?: string): Promise<number> {
+  const database = await db(spaceId);
+  const range = IDBKeyRange.upperBound(cutoff, true);
+
+  const rows = await database.getAllFromIndex("messages", "by-createdAt", range);
+  const doomed: LocalMessage[] = [];
+  for (const row of rows) {
+    const message = await fromStored(row);
+    if (!message) continue;
+    if (message.direction === "out" && message.status !== "sent") continue;
+    doomed.push(message);
+  }
+
+  for (let start = 0; start < doomed.length; start += PRUNE_BATCH) {
+    const batch = doomed.slice(start, start + PRUNE_BATCH);
+    const transaction = database.transaction(["messages", "files", "meta"], "readwrite");
+    await Promise.all([
+      ...batch.map((message) => transaction.objectStore("messages").delete(message.id)),
+      ...batch.flatMap((message) =>
+        message.file ? [transaction.objectStore("files").delete(message.file.r2Key)] : [],
+      ),
+      untrackOutbox(
+        transaction,
+        batch.map((message) => message.id),
+      ),
+      transaction.done,
+    ]);
+  }
+
+  const events = await database.getAllKeysFromIndex("events", "by-createdAt", range);
+  for (let start = 0; start < events.length; start += PRUNE_BATCH) {
+    const transaction = database.transaction("events", "readwrite");
+    await Promise.all([
+      ...events
+        .slice(start, start + PRUNE_BATCH)
+        .map((key) => transaction.objectStore("events").delete(key)),
+      transaction.done,
+    ]);
+  }
+
+  return doomed.length;
 }
 
 // --- events ---
@@ -379,10 +629,18 @@ export async function rewriteLocalContent(
     const message = await fromStored(await database.get("messages", key));
     if (!message) continue;
     const sealed = await sealJson(message, messageContext(message.id), target);
-    await database.put(
-      "messages",
-      sealed ? { id: message.id, createdAt: message.createdAt, sealed } : message,
-    );
+    // This rewrite can race a flush that just sent the message, and put back
+    // the copy it read. Keeping the index in step (add-only) means the worst
+    // case is a resend the server answers with `conflict` — never a message
+    // left showing "uploading" with nothing ever picking it up.
+    const transaction = database.transaction(["messages", "meta"], "readwrite");
+    await Promise.all([
+      transaction
+        .objectStore("messages")
+        .put(sealed ? { id: message.id, createdAt: message.createdAt, sealed } : message),
+      trackOutbox(transaction, [message], { addOnly: true }),
+      transaction.done,
+    ]);
   }
 
   for (const key of await database.getAllKeys("events")) {

@@ -36,6 +36,7 @@ import { type Scanner, startScanner } from "../qr/scan";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
+import { DevicePreferences } from "./DevicePreferences";
 import { SecurityPanel } from "./SecurityPanel";
 import { AGENT_INSTRUCTIONS } from "../cli";
 import {
@@ -285,6 +286,7 @@ export function DeviceManager(): JSX.Element {
         )}
 
         {!loading && <SecurityPanel />}
+        {!loading && <DevicePreferences />}
       </div>
 
       {menuDevice && menu && (

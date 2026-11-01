@@ -21,6 +21,9 @@ import {
   type PairingRequestBody,
   type PendingMessagesResponse,
   type PublishSigningKeyRequest,
+  type PushStatusResponse,
+  type PushSubscribeRequest,
+  type PushSubscribeResponse,
   type PublishSigningKeyResponse,
   type RotateKeyRequest,
   type RotateKeyResponse,
@@ -263,6 +266,18 @@ export function createApi(config: ApiOptions) {
 
     updateDeviceRole(id: string, role: AssignableDeviceRole, auth: Auth): Promise<void> {
       return jsonRequest("PATCH", `/devices/${id}/role`, { jsonBody: { role }, auth });
+    },
+
+    pushStatus(auth: Auth): Promise<PushStatusResponse> {
+      return jsonRequest("GET", "/push", { auth, retries: 1 });
+    },
+
+    pushSubscribe(body: PushSubscribeRequest, auth: Auth): Promise<PushSubscribeResponse> {
+      return jsonRequest("PUT", "/push", { jsonBody: body, auth });
+    },
+
+    async pushUnsubscribe(auth: Auth): Promise<void> {
+      await rawRequest("DELETE", "/push", { auth, retries: 0 });
     },
   };
 }

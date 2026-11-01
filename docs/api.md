@@ -67,6 +67,16 @@ The `since` parameter is accepted as a timestamp cursor, but the current client 
 | `DELETE` | `/api/devices/:id` | Bearer; admin required | Revoke another device and mark the space for key rotation. The owner cannot be revoked; only the owner can revoke an administrator. |
 | `PATCH` | `/api/devices/:id/role` | Bearer; owner required | Set another active device's role to `admin` or `member`. A send-only device cannot be made `admin`. Ownership transfer is not implemented. |
 
+### Notifications
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/push` | Bearer | Return the server's VAPID public key (`null` when push is not configured) and the endpoint this device is subscribed with. |
+| `PUT` | `/api/push` | Bearer | Store or replace this device's browser push subscription (`endpoint`, `p256dh`, `auth`). The endpoint must belong to a known browser push service. |
+| `DELETE` | `/api/push` | Bearer | Remove this device's subscription. Revoking a device removes it too. |
+
+When a message is stored, every recipient without the space on screen gets a Web Push whose encrypted payload is `{ "type": "message", "groupId": "…" }` and nothing else. A client reports whether the space is on screen by sending `visible` or `hidden` over its real-time socket; a socket that says neither counts as on screen. Deletions, renames and key rotations never trigger a push.
+
 ## Message contract
 
 The server accepts encrypted text fields, an encrypted metadata envelope, an R2 object key, the key epoch, and an optional signature. A normal message must contain text, a file reference, or both. A tombstone sets `deletesMessageId` and carries no content fields.

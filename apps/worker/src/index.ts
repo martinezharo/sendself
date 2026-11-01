@@ -16,6 +16,7 @@ import {
   pollPairing,
   requestPairing,
 } from "./routes/pairing";
+import { pushStatus, pushSubscribe, pushUnsubscribe } from "./routes/push";
 import { updateSpaceName } from "./routes/space";
 import { withSecurityHeaders } from "./security";
 
@@ -49,6 +50,10 @@ router.get("/api/devices", listDevices);
 router.post("/api/devices/self/signing-key", publishSigningKey);
 router.delete("/api/devices/:id", revokeDevice);
 router.patch("/api/devices/:id/role", updateDeviceRole);
+
+router.get("/api/push", pushStatus);
+router.put("/api/push", pushSubscribe);
+router.delete("/api/push", pushUnsubscribe);
 
 export { SpaceHub };
 

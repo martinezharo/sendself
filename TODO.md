@@ -13,12 +13,12 @@
 
 Biggest remaining items (need design decisions, don't do blindly):
 
-- **Web Push**: new-message notifications with the app closed. 🟠🏗️ The Durable Object that
-  now fans out real-time notifications is the natural place to send them from — it already
-  knows which devices are connected, so the ones that are *not* are exactly the ones to push to.
-- **A multi-file selection stalls when the screen goes off** 🟠🛠️ (details in §3). The design is
-  decided everywhere else in this file; this one is not, because the cause is not the same on
-  iOS as on Chrome. Measure on a real device before choosing a fix.
+- **Resumable/chunked uploads** 🟡🏗️ (§7). The screen-off stall now has a wake lock and a
+  time-budgeted background pass, but a single large file still has to finish in one request —
+  and on iOS, where the service worker outlives the page by seconds, nothing short of
+  chunking lets it finish after the screen goes off. Verify the new behaviour on a real
+  iPhone and a real Android phone before deciding how far to go.
+- **Replay/reorder protection** 🟡🛠️ (§1).
 
 ---
 
@@ -36,12 +36,12 @@ Biggest remaining items (need design decisions, don't do blindly):
 
 - [ ] 🔵⚡ **The safety-net poll is a fixed 60 s** while the socket is up. It could back off further (or stop while the tab is hidden and a notification would wake it anyway), but only once there is evidence about how often a notification is actually lost.
 - [ ] 🟡⚡ **Dead `since` cursor — needs a design decision, not a blind wire-up.** `apps/web/src/sync/sync.ts` always calls `api.pendingMessages(auth)` with `since=0`. On inspection this isn't just an unused optimization: the worker query (`apps/worker/src/routes/messages.ts`) already scopes results via `ds.device_id = ? AND ds.downloaded_at IS NULL` (backed by `idx_delivery_device_pending`), so every row returned is, by definition, still pending for this device — `since` currently adds nothing. Naively wiring it to "last acked `createdAt`" would filter on `m.created_at`, which is a wall-clock timestamp assigned by whichever edge Worker handled `sendMessage`; under clock skew/out-of-order arrival across colos, a message from another device could land with a `created_at` at or before the cursor and get **silently filtered out and never delivered**. If this is worth doing, it needs a monotonic cursor (e.g. an auto-increment `rowid`/sequence) instead of `created_at`, which is a real design decision — left for §0.
-- [ ] 🟠🛠️ **A multi-file selection stalls when the screen goes off.** While the page is visible, `sync/sync.ts` calls `flushQueuedOutbox` with no `maxMessages` and drains the whole queue — which is why keeping the screen on works. Once the page is frozen the service worker takes over at **one file per space per pass** (`sw.ts`, `maxMessages: 1`), re-registering a `sync` for the next one; in practice two or three files land and the rest wait for the user to reopen the app. The per-file granularity is deliberate (it is what makes a selection resumable) so the fix is not to coarsen it: on iOS there is no Background Sync at all — `registerNextOutboxSync()` returns `false` — and the worker only outlives the page by seconds, while on Chrome re-registering the same tag from inside the handler is throttled. Candidates, cheapest first: a Wake Lock while uploads are pending (this automates the workaround users find on their own), a *time* budget per pass instead of a count, and ultimately chunked uploads (§7). Different cause per platform, so measure first.
+- [ ] 🟡⚡ **Measure the screen-off upload fixes on real devices.** The page now holds a screen wake lock while a file is uploading (`sync/wakeLock.ts`), and a background pass keeps sending one file per space per round for up to 60 s before handing over to a fresh `sync` (`sw.ts`, `BACKGROUND_PASS_BUDGET_MS`). Neither has been measured on a physical iPhone/Android yet; if a selection still stalls after the user turns the screen off, the remaining fix is chunked uploads (§7).
 - [ ] 🟡🛠️ **One-shot in-memory file crypto.** `encryptFile`/`decryptFile` load the whole file + ciphertext + decrypted copy (up to ~3×50 MB) into RAM. Move to chunked/streaming crypto for low-end phones and to be able to raise the size limit.
 - [ ] 🟡🛠️ **Heavy initial bundle.** `jsqr`, `qrcode` and the scanner are now lazy-loaded for pairing; the 3 variable font families (`bricolage`, `hanken`, `jetbrains-mono`) are still loaded eagerly in `main.tsx`. Subset or selectively preload fonts if the remaining cost is significant.
 - [ ] 🔵🛠️ **Chat list not virtualized** (`Chat.tsx`): full re-render. Virtualize for long histories.
 - [ ] 🔵🟡 **Base64 ciphertext in D1** (up to 1 MB per `encryptedPayload`) bloats the database. Acceptable, keep an eye on it.
-- [ ] 🟠🛠️ **IndexedDB grows without bound.** `apps/web/src/db/store.ts` only prunes on `logout()` / `clearAll()`. Sent + received messages, the `files` blob store, and the device names all accumulate forever; `allMessages()` is loaded into memory on every `loadMessages` and on every outbox flush (`sync/outbox.ts:90`) to filter the queue. After months of use this hurts both memory and every sync pass. Add a local retention policy (e.g. keep last N months, cap blob count, configurable) and a status index so the outbox doesn't need a full scan.
+- [ ] 🔵🛠️ **The chat still loads the whole local history into memory** on every space open (`loadMessages` → `allMessages()`). The outbox no longer does (it reads an index of queued ids, `queuedMessages`), and a per-device retention period now bounds growth when the user picks one — but the default is "forever", so a long-lived space still pays this. The fix is pagination, together with the virtualization item above.
 
 ## 4. Best practices / tooling
 
@@ -72,7 +72,6 @@ Biggest remaining items (need design decisions, don't do blindly):
 
 ## 7. Features (roadmap "next level")
 
-- [ ] 🟠🏗️ **Web Push**: new-message notifications with the app closed (fits the async model perfectly).
 - [ ] 🟡🛠️ **Ownership transfer.** Add an explicit, confirmed hand-off to another admin before the owner leaves. (Recovering a permanently lost owner is now covered by the recovery file, which restores that device's identity, role included.)
 - [ ] 🟡🏗️ **Resumable/chunked uploads** and raise the 50 MB limit. Also the eventual fix for the background-send stall in §3, and the only thing that would make any form of message-level file grouping safe.
 - [ ] 🔵🛠️ **Self-destruct timers** per message. Time-based, and it should layer on the view-once mechanism that now exists (`viewOnce` in the encrypted `MessageMeta` envelope, consumed into a global-delete tombstone) rather than growing a second pipeline beside it.

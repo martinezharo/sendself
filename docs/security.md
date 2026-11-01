@@ -100,6 +100,7 @@ Application-level encryption does not hide metadata. Depending on the request an
 - That a message carries a metadata envelope and roughly how long it is — but not its contents, so not whether a message is temporary or which files were sent together.
 - Which devices are active or awaiting delivery, and when a file or message is removed.
 - Network and platform metadata such as source IP information and access timing, subject to the Cloudflare deployment and its logging configuration.
+- For a device with notifications on: its browser push endpoint, and whether the space is on screen while the app is connected. The push service relaying a notification (Google, Apple, Mozilla or Microsoft, depending on the browser) sees that a push was sent to that browser, its size and its time. The payload — which space it is about — is encrypted to the browser, and no content ever travels in it.
 
 The service cannot decrypt message text, file contents, encrypted names, or the `GroupKey` from the application data it stores. That statement does not cover a compromised browser/device, malicious JavaScript served to the browser, or a user who exports plaintext.
 
@@ -110,6 +111,6 @@ The service cannot decrypt message text, file contents, encrypted names, or the 
 - No hiding of message sizes, timing, device count, or other traffic metadata.
 - No remote wipe guarantee, and temporary messages are the same cooperative mechanism rather than an exception to it.
 - At-rest protection is opt-in and has no automatic inactivity lock.
-- Local history and file caches currently have no automatic retention policy.
+- Local history is kept forever by default. Each device can choose to keep only the last month to year; that cleanup is local and never deletes anything on other devices.
 - Legacy devices without a published signing key can produce messages that are unverifiable rather than cryptographically authenticated.
 - The CLI keeps its keys in a file protected only by file-system permissions.

@@ -29,12 +29,13 @@ import { type Keyring, currentKey, loadKeyring } from "../crypto/keyring";
 import {
   META_SESSION,
   META_SIGNING_KEYPAIR,
-  allMessages,
   getFile,
   getMessage,
   metaGet,
   putMessage,
+  queuedMessages,
 } from "../db/store";
+import { isQueuedOutgoing } from "../db/queue";
 import type { LocalMessage, Session } from "../types";
 import { backOff, failureCounts, retryDue } from "./retry";
 
@@ -106,24 +107,14 @@ interface FlushContext {
 }
 
 /**
- * Still owed to the server. "uploading" counts, so an upload interrupted by a
- * crash or a kill is picked up again instead of being stuck forever.
- */
-function isQueued(message: LocalMessage): boolean {
-  return (
-    message.direction === "out" && (message.status === "queued" || message.status === "uploading")
-  );
-}
-
-/**
  * Queued *and* past its backoff: what this pass is allowed to touch.
  *
- * Deliberately narrower than `isQueued`, which still counts everything owed —
+ * Deliberately narrower than `isQueuedOutgoing`, which still counts everything owed —
  * `remaining` is what asks the browser for another background pass, and a
  * message serving a wait is exactly one that still needs a later attempt.
  */
 function isDue(message: LocalMessage, now: number): boolean {
-  return isQueued(message) && retryDue(message.retry, now);
+  return isQueuedOutgoing(message) && retryDue(message.retry, now);
 }
 
 /**
@@ -189,7 +180,7 @@ async function doFlush(
   };
 
   const now = Date.now();
-  const due = (await allMessages(spaceId))
+  const due = (await queuedMessages(spaceId))
     .filter((message) => isDue(message, now))
     .slice(0, options.maxMessages ?? Number.POSITIVE_INFINITY);
   for (const stale of due) {
@@ -248,7 +239,7 @@ async function doFlush(
   }
   // Count the persisted queue, including items outside this bounded pass and
   // files added while it was running. This drives reliable follow-up syncs.
-  result.remaining = (await allMessages(spaceId)).filter(isQueued).length;
+  result.remaining = (await queuedMessages(spaceId)).length;
   return result;
 }
 
