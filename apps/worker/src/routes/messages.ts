@@ -179,7 +179,10 @@ export async function sendMessage(c: RouteContext): Promise<Response> {
   // Wake the recipients now instead of leaving them to notice on their next
   // poll. Never awaited: a notification that fails costs one poll interval of
   // latency, while making the send wait on it would cost the user their message.
-  c.ctx.waitUntil(notifySpace(c.env, auth.groupId, auth.deviceId));
+  // A deletion is bookkeeping, not news, so it wakes no closed app.
+  c.ctx.waitUntil(
+    notifySpace(c.env, auth.groupId, auth.deviceId, deletesMessageId ? [] : recipients),
+  );
 
   return json({ ok: true } satisfies SendMessageResponse);
 }

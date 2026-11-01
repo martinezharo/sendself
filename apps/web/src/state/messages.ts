@@ -1,6 +1,13 @@
 import { computed, signal } from "@preact/signals";
 import { recordDeletion } from "../db/deletions";
-import { allMessages, deleteFile, deleteMessage, getMessage, putMessage } from "../db/store";
+import {
+  allMessages,
+  deleteFile,
+  deleteMessage,
+  getMessage,
+  putMessage,
+  trackQueued,
+} from "../db/store";
 import type { LocalMessage } from "../types";
 
 export const messages = signal<LocalMessage[]>([]);
@@ -27,6 +34,9 @@ export const failedSends = computed(() =>
 
 export async function loadMessages(): Promise<void> {
   const stored = await allMessages();
+  // The whole history is in hand anyway: make sure nothing queued is missing
+  // from the outbox index (see `trackQueued`).
+  await trackQueued(stored).catch(() => undefined);
   // A tombstone only exists to be delivered. Once the server has it, delivery
   // to every device is its job, so the local row is dead weight — dropped here
   // rather than at send time because the send also runs in the service worker,

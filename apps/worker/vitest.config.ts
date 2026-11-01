@@ -20,6 +20,14 @@ import { defineConfig } from "vitest/config";
 export default defineConfig(async () => {
   const migrationsPath = fileURLToPath(new URL("./migrations", import.meta.url));
   const migrations = await readD1Migrations(migrationsPath);
+  // A throwaway VAPID identity, so the push routes run as they do in production.
+  const vapid = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+  ])) as CryptoKeyPair;
+  const vapidPublicKey = Buffer.from(
+    await crypto.subtle.exportKey("raw", vapid.publicKey),
+  ).toString("base64url");
+  const vapidPrivateKey = (await crypto.subtle.exportKey("jwk", vapid.privateKey)).d!;
 
   return {
     plugins: [
@@ -37,7 +45,11 @@ export default defineConfig(async () => {
               new Response(`static asset ${new URL(request.url).pathname}`, { status: 200 }),
           },
           // Read by the setup file to build the schema before each test file.
-          bindings: { TEST_MIGRATIONS: migrations },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            VAPID_PUBLIC_KEY: vapidPublicKey,
+            VAPID_PRIVATE_KEY: vapidPrivateKey,
+          },
         },
       }),
     ],

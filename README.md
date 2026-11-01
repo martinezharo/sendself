@@ -8,6 +8,8 @@ SendSelf is an end-to-end encrypted PWA for sharing text and files between your 
 - Encrypted spaces that can be shared by multiple devices.
 - Device pairing, per-device authentication, device roles, and revocation.
 - Real-time delivery hints with polling as the reliable fallback.
+- Optional new-message notifications while the app is closed (Web Push, contentless).
+- An optional per-device history-retention period.
 - Optional at-rest protection for the local browser store.
 - A Cloudflare Worker serving the PWA and API from one origin.
 - An Android Trusted Web Activity wrapper for Google Play in [`apps/android`](apps/android) (package `com.fourli.sendself`).
@@ -48,4 +50,4 @@ decisions.
 
 ## Project status
 
-This repository is intentionally an early WIP. In particular, metadata privacy, replay/order protection, automatic local retention, closed-app notifications, and some lifecycle flows remain open design or roadmap items. Start with [TODO.md](TODO.md) and [AUDIT.md](AUDIT.md) before treating the current implementation as a finished product.
+This repository is intentionally an early WIP. In particular, metadata privacy, replay/order protection, chunked uploads, and some lifecycle flows remain open design or roadmap items. Start with [TODO.md](TODO.md) and [AUDIT.md](AUDIT.md) before treating the current implementation as a finished product.

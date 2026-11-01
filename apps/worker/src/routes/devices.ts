@@ -100,6 +100,11 @@ export async function revokeDevice(c: RouteContext): Promise<Response> {
       deviceId,
       auth.groupId,
     ),
+    // Nor should it be woken for a space it no longer belongs to.
+    c.env.DB.prepare("DELETE FROM push_subscriptions WHERE device_id = ? AND group_id = ?").bind(
+      deviceId,
+      auth.groupId,
+    ),
     c.env.DB.prepare("UPDATE groups SET rotation_pending = 1 WHERE id = ?").bind(auth.groupId),
   ]);
 

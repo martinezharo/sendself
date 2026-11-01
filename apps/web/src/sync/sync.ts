@@ -33,6 +33,7 @@ import {
   session,
   sessionRevoked,
 } from "../state/session";
+import { clearSpaceNotifications } from "../state/notifications";
 import { showToast } from "../state/ui";
 import { backOff, failureCounts, retryDue } from "./retry";
 import type { FileRef, LocalMessage, RetrySchedule } from "../types";
@@ -41,6 +42,7 @@ import { type OutboxUpdateBroadcast, flushQueuedOutbox } from "./outbox";
 import { ensureRealtime, realtimeConnected, startRealtime, stopRealtime } from "./realtime";
 import { DeviceKeyMismatchError, adoptPendingKeys, rotateGroupKey } from "./rekey";
 import { syncSpaceName } from "./spaceName";
+import { holdScreenAwake } from "./wakeLock";
 
 /**
  * The metadata envelope is decrypted for *any* message that carries one, not
@@ -147,6 +149,7 @@ export function stopSync(): void {
   window.removeEventListener("pagehide", onPageHide);
   outboxAbortController?.abort();
   outboxAbortController = null;
+  holdScreenAwake(false);
 }
 
 /**
@@ -235,6 +238,12 @@ export async function syncNow(): Promise<void> {
       }
     }
 
+    // What a notification announced is now on screen: dismiss it.
+    const openSpace = activeSpace();
+    if (registered.length > 0 && openSpace && document.visibilityState === "visible") {
+      void clearSpaceNotifications(openSpace);
+    }
+
     const adopted = ring;
     await runWithConcurrency(registered, MAX_PARALLEL_DOWNLOADS, async (local) => {
       try {
@@ -265,11 +274,22 @@ async function flushOutbox(): Promise<{ remaining: number }> {
   outboxAbortController = controller;
   let flushed = { sent: 0, failed: 0, remaining: 0 };
   try {
-    flushed = await flushQueuedOutbox(applyMessageUpdate, { signal: controller.signal });
+    flushed = await flushQueuedOutbox(
+      (message) => {
+        applyMessageUpdate(message);
+        // "uploading" is the one state that means a file is on its way right
+        // now, so it is what keeps the screen on (see sync/wakeLock.ts).
+        if (message.status === "uploading") holdScreenAwake(true);
+      },
+      { signal: controller.signal },
+    );
   } catch {
     // Retried on the next pass like any other transient failure.
   } finally {
     if (outboxAbortController === controller) outboxAbortController = null;
+    // A pass that ends has either sent everything or hit something that only
+    // a later pass can get past (offline, backoff): neither needs the screen.
+    holdScreenAwake(false);
   }
   if (flushed.remaining > 0) {
     // Couldn't send everything (offline/flaky network): let the browser

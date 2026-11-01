@@ -18,4 +18,13 @@ export interface Env {
   RL_WRITE: RateLimit;
   /** Rate limit for file uploads (keyed by device id). */
   RL_UPLOAD: RateLimit;
+  /**
+   * Web Push (VAPID) identity: an uncompressed P-256 public key and its private
+   * scalar, both base64url (`scripts/generate-vapid-keys.mts`). Secrets, so
+   * optional: without them the server sends no pushes and the app offers none.
+   */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  /** Contact the push services may use (mailto: or https:). Defaults to the site. */
+  VAPID_SUBJECT?: string;
 }

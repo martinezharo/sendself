@@ -22,7 +22,10 @@ vi.mock("../db/store", () => ({
   META_KEYRING: "keyring",
   META_SESSION: "session",
   META_SIGNING_KEYPAIR: "signingKeyPair",
-  allMessages: async () => [...state.messages.values()],
+  queuedMessages: async () =>
+    [...state.messages.values()]
+      .filter((m) => m.direction === "out" && (m.status === "queued" || m.status === "uploading"))
+      .sort((a, b) => a.createdAt - b.createdAt),
   getFile: async (key: string) => state.files.get(key),
   getMessage: async (id: string) => state.messages.get(id),
   metaGet: async (key: string) =>

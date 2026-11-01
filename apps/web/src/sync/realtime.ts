@@ -18,6 +18,8 @@ import {
   REALTIME_AUTH_PROTOCOL_PREFIX,
   REALTIME_PATH,
   REALTIME_PING_INTERVAL_MS,
+  REALTIME_PRESENCE_HIDDEN,
+  REALTIME_PRESENCE_VISIBLE,
   type RealtimeEvent,
 } from "@sendself/shared";
 import type { Auth } from "../api/client";
@@ -111,6 +113,18 @@ function heartbeat(): void {
   }, REALTIME_PING_INTERVAL_MS);
 }
 
+/**
+ * Tell the server whether the space is on screen. It decides who gets a Web
+ * Push from this: a backgrounded tab can keep its socket for a long time, and
+ * without saying so it would swallow the notification its user needs.
+ */
+function sendPresence(): void {
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  socket.send(
+    document.visibilityState === "visible" ? REALTIME_PRESENCE_VISIBLE : REALTIME_PRESENCE_HIDDEN,
+  );
+}
+
 function open(): void {
   if (!wanted || !currentAuth || socket) return;
   const url = new URL(REALTIME_PATH, window.location.href);
@@ -131,6 +145,7 @@ function open(): void {
     realtimeState.value = "open";
     attempt = 0;
     heartbeat();
+    sendPresence();
     // Anything that happened while this device was disconnected is waiting in
     // the same place a notification would have pointed it to.
     onEvent();
@@ -173,11 +188,13 @@ export function startRealtime(auth: Auth, listener: Listener): void {
   onEvent = listener;
   wanted = true;
   if (realtimeState.value !== "open") realtimeState.value = "connecting";
+  document.addEventListener("visibilitychange", sendPresence);
   if (!socket) open();
 }
 
 export function stopRealtime(): void {
   wanted = false;
+  document.removeEventListener("visibilitychange", sendPresence);
   currentAuth = null;
   attempt = 0;
   if (retryTimer) clearTimeout(retryTimer);

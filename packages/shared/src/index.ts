@@ -5,6 +5,8 @@
  * and hashes. All plaintext and symmetric keys stay on the clients.
  */
 
+export { base64UrlToBuf, bufToBase64Url } from "./base64url";
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -56,6 +58,16 @@ export const REALTIME_AUTH_PROTOCOL_PREFIX = "fs-auth.";
 export const REALTIME_PING_INTERVAL_MS = 30_000;
 
 /**
+ * What a client says over its socket when the space goes on or off screen.
+ * The server pushes (Web Push) to every recipient that does not have the space
+ * on screen, so a socket kept alive by a backgrounded tab still gets the
+ * notification. A socket that never says either — an older client — counts as
+ * on screen, which is exactly how it was treated before pushes existed.
+ */
+export const REALTIME_PRESENCE_VISIBLE = "visible";
+export const REALTIME_PRESENCE_HIDDEN = "hidden";
+
+/**
  * What the server pushes. Deliberately contentless: it says "there is something
  * for you", and the client then runs the same sync pass polling would have. No
  * ciphertext, no ids and no delivery bookkeeping travel over the socket, so the
@@ -63,6 +75,39 @@ export const REALTIME_PING_INTERVAL_MS = 30_000;
  */
 export interface RealtimeEvent {
   type: "sync";
+}
+
+/**
+ * What a Web Push carries to a device whose app is closed: the same "there is
+ * something for you" as `RealtimeEvent`, plus which space it is about, so the
+ * notification can name it and open it. Never content, ids or sizes. It is
+ * encrypted to the browser (RFC 8291), so the push service relaying it cannot
+ * read even that much.
+ */
+export interface PushPayload {
+  type: "message";
+  groupId: string;
+}
+
+/** `GET /api/push`: whether this server sends pushes, and where this device gets them. */
+export interface PushStatusResponse {
+  /** VAPID public key (base64url, uncompressed P-256 point); null when push is not set up. */
+  publicKey: string | null;
+  /** The endpoint this device is subscribed with, or null. */
+  endpoint: string | null;
+}
+
+/** `PUT /api/push`: the browser's `PushSubscription`, flattened. */
+export interface PushSubscribeRequest {
+  endpoint: string;
+  /** The browser's ECDH P-256 public key (base64url, uncompressed point). */
+  p256dh: string;
+  /** The 16-byte authentication secret (base64url). */
+  auth: string;
+}
+
+export interface PushSubscribeResponse {
+  ok: true;
 }
 
 /**

@@ -77,6 +77,10 @@ export const GLOBAL_VAULT = "vault";
 export const GLOBAL_LAST_SPACE = "lastSpace";
 /** In-flight device linking, which belongs to no space until it succeeds. */
 export const GLOBAL_PENDING_PAIRING = "pendingPairing";
+/** The user turned notifications on for this device (sync/push.ts). */
+export const GLOBAL_PUSH_ENABLED = "pushEnabled";
+/** How long this device keeps history (state/retention.ts). Absent means forever. */
+export const GLOBAL_HISTORY_RETENTION = "historyRetention";
 
 let registryPromise: Promise<IDBPDatabase<RegistryDB>> | null = null;
 

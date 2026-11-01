@@ -21,20 +21,14 @@
 
 import { signal } from "@preact/signals";
 
-/** The sections of an open space. Messages are what a space is, so they are its root. */
-export type SpaceSection = "chat" | "devices";
+import { APP_PATH, type SpaceSection, spacePath } from "./paths";
+
+export { APP_PATH, type SpaceSection, spacePath };
 
 export type Route =
   | { name: "landing" }
   | { name: "spaces" }
   | { name: "space"; spaceId: string; section: SpaceSection };
-
-export const APP_PATH = "/app";
-
-export function spacePath(spaceId: string, section: SpaceSection = "chat"): string {
-  const base = `${APP_PATH}/${encodeURIComponent(spaceId)}`;
-  return section === "chat" ? base : `${base}/${section}`;
-}
 
 /** Where a launch that names no space goes, and whether the list stays behind it. */
 export interface StartupTarget {

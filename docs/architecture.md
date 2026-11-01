@@ -62,7 +62,7 @@ A device can join as send-only, which is what the `sendself` CLI does: a script 
 
 1. The sender encrypts text, file contents, and the metadata envelope locally with the current `GroupKey`.
 2. An encrypted file is uploaded to R2 first. The message metadata and per-device pending delivery rows (one for every active device except the sender and send-only devices) are then written to D1.
-3. The Worker sends a best-effort notification to the space's Durable Object. The object broadcasts only `{ "type": "sync" }` to other connected devices.
+3. The Worker sends a best-effort notification to the space's Durable Object. The object broadcasts only `{ "type": "sync" }` to other connected devices and reports which of them have the space on screen; every other recipient with notifications on gets a contentless Web Push.
 4. Each recipient performs the normal authenticated pending-message sync, downloads and decrypts any file, stores the result locally, and acknowledges the message.
 5. When every active recipient has acknowledged, the Worker deletes the message row and its R2 object. An hourly cron job is the safety net for content older than 24 hours.
 
@@ -84,8 +84,9 @@ The client sends a signed tombstone through the same message and delivery pipeli
 | --- | --- | --- |
 | D1 | Space and device records, public keys, token hashes, encrypted message metadata, delivery state, pairing slots, and wrapped rotated keys. | Pairing slots expire after 10 minutes. Message records are removed after full delivery or by the 24-hour cleanup. |
 | R2 | Encrypted file blobs only. | Removed after the message is fully delivered, when its message is deleted, or by cleanup after 24 hours. The bucket should also have a one-day lifecycle rule. |
-| Durable Object | Connected WebSockets for one space. | No application state is stored. Hibernation allows idle spaces to cost nothing beyond their other resources. |
-| IndexedDB | Device sessions, private key material, GroupKey epochs, local message history, and cached file content. | Persists until the user removes it. There is currently no automatic local history-retention policy. |
+| D1 (push) | One browser push subscription per device that turned notifications on. | Removed when the device unsubscribes, is revoked, or the push service reports the subscription gone. |
+| Durable Object | Connected WebSockets for one space, each tagged with whether that space is on screen. | No application state is stored. Hibernation allows idle spaces to cost nothing beyond their other resources. |
+| IndexedDB | Device sessions, private key material, GroupKey epochs, local message history, cached file content, and an index of outgoing messages still to send. | Persists until the user removes it, or for the history-retention period chosen on that device (forever by default). Undelivered outgoing messages are never pruned. |
 | Cache Storage | A short-lived cleartext hand-off for browser share-target files before the app consumes them. | The namespace is bounded and cleared around consumption; see the open decision in [AUDIT.md](../AUDIT.md). |
 
 ## Documents served

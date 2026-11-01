@@ -63,10 +63,12 @@ plan. The upload endpoint therefore keeps its current known-length contract.
 
 ### 6. Local history retention and sync indexing
 
-IndexedDB history and stored file blobs do not have an automatic retention
-policy, and outbox loading still scans the message store. A useful fix needs a
-choice of retention defaults, user-visible deletion semantics, blob limits, and
-whether pending messages survive a local cleanup.
+Resolved for retention and outbox indexing: each device can choose to keep the
+last month to year of history (default: forever, so nothing changes unless the
+user asks); the cleanup is local only, removes cached files with their
+messages, and never removes an outgoing message that has not been delivered.
+The outbox reads an index of queued ids instead of scanning the history. The
+chat itself still loads the full history (see §7).
 
 Similarly, the existing `since` query parameter is not wired to a timestamp:
 pending delivery rows already identify undelivered messages. A safe incremental
@@ -82,10 +84,12 @@ search, and read position. Those behaviors should be specified together.
 
 ### 8. Notifications and ownership lifecycle
 
-Web Push for an app that is closed and explicit ownership transfer are roadmap
-features, not safe local patches. Both need decisions about subscription
-privacy, revocation, recovery, administrator authority, and failure when the
-original owner disappears.
+Web Push is implemented: opt-in per device, a contentless payload encrypted to
+the browser, subscriptions removed on revocation, on leaving a space and when
+the push service reports them gone, and no push to a device with the space on
+screen. Explicit ownership transfer remains a roadmap feature that needs
+decisions about administrator authority and failure when the original owner
+disappears.
 
 ## Verification of the implemented changes
 
