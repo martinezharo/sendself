@@ -188,3 +188,16 @@ describe("pruning history", () => {
     expect(ids(await store.queuedMessages())).toEqual(["queued"]);
   });
 });
+
+describe("the destination of a write", () => {
+  it("is fixed before the message is sealed, so switching spaces cannot redirect it", async () => {
+    atrest.setContentKey(await contentKey());
+    const pending = store.putMessage(message("a", 1));
+    // Sealing is async: the user leaves for another space before it finishes.
+    store.setActiveSpace("space-b");
+    await pending;
+
+    expect(ids(await store.allMessages("space-a"))).toEqual(["a"]);
+    expect(await store.allMessages("space-b")).toEqual([]);
+  });
+});

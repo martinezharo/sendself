@@ -283,8 +283,10 @@ async function untrackOutbox(
 }
 
 export async function putMessage(message: LocalMessage, spaceId?: string): Promise<void> {
-  const stored = await toStored(message);
+  // Resolved before sealing, which is async: leaving or switching spaces in the
+  // meantime must not change which database this write lands in.
   const database = await db(spaceId);
+  const stored = await toStored(message);
   // Incoming rows never enter the outbox, so they skip the index entirely:
   // they are the bulk of the writes on a receiving device.
   if (message.direction !== "out") {
@@ -309,6 +311,8 @@ export async function putOutgoingFileMessages(
   spaceId?: string,
 ): Promise<void> {
   if (entries.length === 0) return;
+  // The destination is fixed before the awaits below: see `putMessage`.
+  const database = await db(spaceId);
   // Sealing is async and IndexedDB transactions do not survive an await that
   // isn't a request, so everything is encrypted first and written after.
   const prepared = await Promise.all(
@@ -317,7 +321,6 @@ export async function putOutgoingFileMessages(
       file: await toStoredFile(message.file!.r2Key, blob),
     })),
   );
-  const database = await db(spaceId);
   const transaction = database.transaction(["messages", "files", "meta"], "readwrite");
   await Promise.all([
     ...prepared.map(({ stored }) => transaction.objectStore("messages").put(stored)),
