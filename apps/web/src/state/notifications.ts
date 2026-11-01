@@ -14,7 +14,7 @@
  */
 
 import { signal } from "@preact/signals";
-import { api } from "../api/client";
+import { api, isAuthFailure, quietApi } from "../api/client";
 import { GLOBAL_PUSH_ENABLED, globalMetaGet, globalMetaSet } from "../db/spaces";
 import {
   applicationServerKey,
@@ -135,7 +135,7 @@ export async function disableNotifications(): Promise<void> {
  * would keep being woken for a space it no longer has, and nothing left on the
  * device could stop it.
  *
- * False when notifications are on and the server could not be told. The caller
+ * False when notifications are on and the server could not be reached. The caller
  * must not wipe the space then: its credentials are the only way to try again,
  * and keeping them around after leaving would leave a live credential on disk
  * that the at-rest lock no longer covers.
@@ -143,9 +143,13 @@ export async function disableNotifications(): Promise<void> {
 export async function forgetPushForSpace(): Promise<boolean> {
   if (!session.value) return true;
   try {
-    await api.pushUnsubscribe(authHeaders());
+    await quietApi.pushUnsubscribe(authHeaders());
     return true;
-  } catch {
+  } catch (error) {
+    // Rejected for good: the device was revoked (which already removed its
+    // subscription) or the space is gone. There is nothing left to tell the
+    // server, and refusing here would trap the user behind the revoked notice.
+    if (isAuthFailure(error)) return true;
     return (await globalMetaGet<boolean>(GLOBAL_PUSH_ENABLED).catch(() => false)) !== true;
   }
 }

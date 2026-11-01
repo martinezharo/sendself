@@ -25,3 +25,11 @@ export const api = createApi({
   baseUrl: "/api",
   onAuthFailure: (error) => authFailureHandler?.(error),
 });
+
+/**
+ * The same client without the session-failure callback, for requests made with
+ * the credentials of a space other than the open one (or about to be left).
+ * A rejection there says nothing about the open space, so it must not mark it
+ * revoked and stop its sync.
+ */
+export const quietApi = createApi({ baseUrl: "/api" });

@@ -12,7 +12,7 @@
 
 import type { PushSubscribeRequest } from "@sendself/shared";
 import { base64UrlToBuf, bufToBase64Url } from "@sendself/client/crypto";
-import { api } from "../api/client";
+import { quietApi } from "../api/client";
 import { type SpaceRecord, listSpaces } from "../db/spaces";
 import { META_SESSION, metaGet } from "../db/store";
 import type { Session } from "../types";
@@ -49,7 +49,8 @@ function storedSession(spaceId: string): Promise<Session | undefined> {
 
 /**
  * Register `subscription` with every space whose credentials this context can
- * read. A space it cannot (locked, or a failed request) registers itself the
+ * read, through the client that does not treat a rejection as the open space
+ * being revoked. A space it cannot (locked, or a failed request) registers itself the
  * next time it is opened (`syncPushSubscription`), so nothing here is fatal.
  */
 export async function registerWithEverySpace(subscription: PushSubscription): Promise<void> {
@@ -59,7 +60,7 @@ export async function registerWithEverySpace(subscription: PushSubscription): Pr
     spaces.map(async (space) => {
       const session = await storedSession(space.id);
       if (!session) return;
-      await api.pushSubscribe(body, { token: session.deviceAuthToken }).catch(() => undefined);
+      await quietApi.pushSubscribe(body, { token: session.deviceAuthToken }).catch(() => undefined);
     }),
   );
 }
@@ -71,7 +72,7 @@ export async function unregisterFromEverySpace(): Promise<void> {
     spaces.map(async (space) => {
       const session = await storedSession(space.id);
       if (!session) return;
-      await api.pushUnsubscribe({ token: session.deviceAuthToken }).catch(() => undefined);
+      await quietApi.pushUnsubscribe({ token: session.deviceAuthToken }).catch(() => undefined);
     }),
   );
 }
