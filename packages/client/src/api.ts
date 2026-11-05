@@ -31,6 +31,13 @@ import {
   type SpaceChallengeResponse,
   type UpdateSpaceNameRequest,
   type UpdateSpaceNameResponse,
+  type CreateVaultItemRequest,
+  type DeleteVaultItemResponse,
+  type UpdateVaultItemRequest,
+  type VaultChangesResponse,
+  type VaultItemWriteResponse,
+  type VaultResealRequest,
+  type VaultResealResponse,
 } from "@sendself/shared";
 
 /** Auth material attached to authenticated requests. */
@@ -261,6 +268,40 @@ export function createApi(config: ApiOptions) {
 
     updateSpaceName(body: UpdateSpaceNameRequest, auth: Auth): Promise<UpdateSpaceNameResponse> {
       return jsonRequest("PUT", "/groups/self/name", { jsonBody: body, auth });
+    },
+
+    vaultChanges(auth: Auth, since = 0): Promise<VaultChangesResponse> {
+      return jsonRequest("GET", `/vault?since=${since}`, { auth, retries: 1 });
+    },
+
+    createVaultItem(body: CreateVaultItemRequest, auth: Auth): Promise<VaultItemWriteResponse> {
+      return jsonRequest("POST", "/vault/items", { jsonBody: body, auth });
+    },
+
+    updateVaultItem(
+      id: string,
+      body: UpdateVaultItemRequest,
+      auth: Auth,
+    ): Promise<VaultItemWriteResponse> {
+      // No retries: a write whose answer was lost would only come back `conflict`.
+      return jsonRequest("PATCH", `/vault/items/${id}`, { jsonBody: body, auth, retries: 0 });
+    },
+
+    deleteVaultItem(id: string, auth: Auth): Promise<DeleteVaultItemResponse> {
+      return jsonRequest("DELETE", `/vault/items/${id}`, { auth });
+    },
+
+    resealVault(body: VaultResealRequest, auth: Auth): Promise<VaultResealResponse> {
+      return jsonRequest("POST", "/vault/reseal", { jsonBody: body, auth });
+    },
+
+    async uploadVaultBlob(key: string, ciphertext: ArrayBuffer, auth: Auth): Promise<void> {
+      await rawRequest("PUT", `/vault/blobs/${key}`, { rawBody: ciphertext, auth });
+    },
+
+    async downloadVaultBlob(key: string, auth: Auth): Promise<ArrayBuffer> {
+      const response = await rawRequest("GET", `/vault/blobs/${key}`, { auth, retries: 1 });
+      return response.arrayBuffer();
     },
 
     listDevices(auth: Auth): Promise<DevicesListResponse> {

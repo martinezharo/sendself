@@ -18,6 +18,15 @@ import {
 } from "./routes/pairing";
 import { pushStatus, pushSubscribe, pushUnsubscribe } from "./routes/push";
 import { updateSpaceName } from "./routes/space";
+import {
+  createVaultItem,
+  deleteVaultItem,
+  downloadVaultBlob,
+  resealVaultItems,
+  updateVaultItem,
+  uploadVaultBlob,
+  vaultChanges,
+} from "./routes/vault";
 import { withSecurityHeaders } from "./security";
 
 const router = new Router();
@@ -46,6 +55,14 @@ router.post("/api/keys/rotate", rotateKey);
 router.post("/api/keys/:epoch/ack", ackKey);
 
 router.put("/api/groups/self/name", updateSpaceName);
+
+router.get("/api/vault", vaultChanges);
+router.post("/api/vault/items", createVaultItem);
+router.patch("/api/vault/items/:id", updateVaultItem);
+router.delete("/api/vault/items/:id", deleteVaultItem);
+router.post("/api/vault/reseal", resealVaultItems);
+router.put("/api/vault/blobs/:r2key", uploadVaultBlob);
+router.get("/api/vault/blobs/:r2key", downloadVaultBlob);
 
 router.get("/api/devices", listDevices);
 router.post("/api/devices/self/signing-key", publishSigningKey);

@@ -8,7 +8,8 @@
     "./crypto": "./src/crypto.ts",
     "./keyring": "./src/keyring.ts",
     "./message": "./src/message.ts",
-    "./pairing": "./src/pairing.ts"
+    "./pairing": "./src/pairing.ts",
+    "./vault": "./src/vault.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
