@@ -14,7 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { RESERVED_FOR_DELETION, VAULT_BLOBS, blobStorageKey } from "../blobs";
 import { runCleanup } from "../cron";
-import { purgeExpiredVaultItem } from "../vault";
+import { purgeExpiredVaultItem, purgeVaultItem } from "../vault";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedSpace, uid } from "../test/helpers";
 
@@ -305,6 +305,37 @@ describe("DELETE /api/vault/items/:id", () => {
     const next = await changes(owner, cursor);
     expect(next.removed.sort()).toEqual([outer, inner, deep.id].sort());
     expect(next.usage).toEqual({ bytes: kept.blobSize, items: 1 });
+  });
+});
+
+describe("purgeVaultItem", () => {
+  it("leaves alone a descendant moved out of the folder after the walk", async () => {
+    const { groupId, owner } = await seedSpace();
+    const doomed = await folder(owner);
+    const child = await note(owner, doomed);
+    // The walk would have seen it inside; it moves out before being purged.
+    const original = env.DB.batch.bind(env.DB);
+    let moved = false;
+    env.DB.batch = (async (statements: D1PreparedStatement[]) => {
+      if (!moved) {
+        moved = true;
+        await env.DB.prepare(
+          "UPDATE vault_items SET parent_id = NULL WHERE group_id = ? AND id = ?",
+        )
+          .bind(groupId, child.id)
+          .run();
+      }
+      return original(statements);
+    }) as typeof env.DB.batch;
+    try {
+      const removed = await purgeVaultItem(env, groupId, doomed);
+      expect(removed).toEqual([doomed]);
+    } finally {
+      env.DB.batch = original;
+    }
+
+    expect((await changes(owner)).items.map((item) => item.id)).toEqual([child.id]);
+    expect(await env.VAULT.head(blobStorageKey(groupId, child.blobKey ?? ""))).not.toBeNull();
   });
 });
 

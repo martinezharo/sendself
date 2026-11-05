@@ -55,6 +55,14 @@ export async function vaultItem(
  * stranded under a parent that no longer exists. Once the folder itself is a
  * tombstone nothing new can be created in it, so the loop ends.
  */
+/** SQL listing the ids of an item and everything under it; binds the item id, group id. */
+const SUBTREE = `WITH RECURSIVE tree(id) AS (
+  SELECT ?
+  UNION
+  SELECT v.id FROM vault_items v JOIN tree ON v.parent_id = tree.id WHERE v.group_id = ?
+)
+SELECT id FROM tree`;
+
 /** Statement turning one live item into a tombstone; `guard` adds conditions (and binds). */
 function tombstone(
   env: Env,
@@ -138,17 +146,24 @@ export async function purgeVaultItem(env: Env, groupId: string, id: string): Pro
     const now = Date.now();
     for (let offset = 0; offset < rows.results.length; offset += PURGE_BATCH_SIZE) {
       const batch = rows.results.slice(offset, offset + PURGE_BATCH_SIZE);
-      await env.DB.batch(
-        batch.flatMap((row) => [nextVaultSeq(env, groupId), tombstone(env, groupId, row.id, now)]),
+      const results = await env.DB.batch(
+        batch.flatMap((row) => [
+          nextVaultSeq(env, groupId),
+          // Still inside the item being purged at the moment it is purged: one
+          // moved out by another device since the walk above is left alone.
+          tombstone(env, groupId, row.id, now, `AND id IN (${SUBTREE})`, id, groupId),
+        ]),
       );
-      purged.push(...batch.map((row) => row.id));
+      const done = batch.filter((_, index) => results[index * 2 + 1]?.meta.changes === 1);
+      purged.push(...done.map((row) => row.id));
       // The items no longer claim their blobs. A failed delete is not the
       // purge's failure: the rows stay, unclaimed, and the orphan sweep retries
-      // (see `BlobStore.expires`).
+      // (see `BlobStore.expires`). Only blobs nothing claims are deleted, so the
+      // content of an item that was skipped is safe either way.
       await deleteUnclaimedBlobs(
         env,
         VAULT_BLOBS,
-        batch.flatMap((row) => (row.blobKey ? [{ groupId, key: row.blobKey }] : [])),
+        done.flatMap((row) => (row.blobKey ? [{ groupId, key: row.blobKey }] : [])),
       ).catch(() => {});
     }
   }
