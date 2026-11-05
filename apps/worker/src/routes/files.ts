@@ -1,6 +1,13 @@
 import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
 import { authenticate } from "../auth";
-import { deleteUpload, fileStorageKey, recordUpload, reserveUpload } from "../db";
+import {
+  type BlobStore,
+  MESSAGE_FILES,
+  blobStorageKey,
+  deleteBlob,
+  recordBlob,
+  reserveBlob,
+} from "../blobs";
 import { ApiError } from "../errors";
 import { requireId } from "../http";
 import type { RouteContext } from "../router";
@@ -37,22 +44,34 @@ export function boundedUploadBody(body: ReadableStream<Uint8Array>): {
 
 async function discardUpload(
   env: RouteContext["env"],
+  store: BlobStore,
   groupId: string,
   key: string,
 ): Promise<void> {
   try {
-    await deleteUpload(env, groupId, key);
+    await deleteBlob(env, store, groupId, key);
   } catch {
     // Preserve the original upload/body error; cleanup can be retried by TTL.
   }
 }
 
+/** What a store's quota is and what to tell a device that hit it. */
+export interface BlobQuota {
+  bytes: number;
+  message: string;
+}
+
 /**
- * Stream an already-encrypted file blob into R2. The body is opaque ciphertext;
- * the server never holds the key. The storage key is namespaced by the caller's
- * group so a device can never write into another group's namespace.
+ * Stream an already-encrypted blob into `store`. The body is opaque
+ * ciphertext; the server never holds the key. The storage key is namespaced by
+ * the caller's group so a device can never write into another group's
+ * namespace.
  */
-export async function uploadFile(c: RouteContext): Promise<Response> {
+export async function receiveBlob(
+  c: RouteContext,
+  store: BlobStore,
+  quota: BlobQuota,
+): Promise<Response> {
   const auth = await authenticate(c.request, c.env);
   await rateLimit(c.env, "RL_UPLOAD", auth.deviceId);
   const key = requireId(c.params.r2key, "r2key");
@@ -77,45 +96,46 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
 
   // Counted before a byte reaches R2, so a space at its cap costs nothing more.
   // The declared length is what FixedLengthStream below holds the body to.
-  const reserved = await reserveUpload(
+  const reserved = await reserveBlob(
     c.env,
+    store,
     auth.groupId,
     key,
     length,
-    SPACE_PENDING_BYTES_QUOTA,
+    quota.bytes,
     Date.now(),
   );
   if (!reserved) {
-    throw new ApiError(
-      "quota_exceeded",
-      "This space is holding too many undelivered files; it will send once your devices catch up",
-    );
+    throw new ApiError("quota_exceeded", quota.message);
   }
 
-  const storageKey = fileStorageKey(auth.groupId, key);
+  const storageKey = blobStorageKey(auth.groupId, key);
   const bounded = boundedUploadBody(c.request.body);
   const fixed = new FixedLengthStream(length);
   const copy = bounded.stream.pipeTo(fixed.writable).then(
     () => ({ ok: true as const }),
     (error: unknown) => ({ ok: false as const, error }),
   );
-  const put = c.env.FILES.put(storageKey, fixed.readable, {
-    httpMetadata: { contentType: "application/octet-stream" },
-  }).then(
-    (value) => ({ ok: true as const, value }),
-    (error: unknown) => ({ ok: false as const, error }),
-  );
+  const put = store
+    .bucket(c.env)
+    .put(storageKey, fixed.readable, {
+      httpMetadata: { contentType: "application/octet-stream" },
+    })
+    .then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
   const [copyResult, putResult] = await Promise.all([copy, put]);
 
   if (!copyResult.ok) {
-    await discardUpload(c.env, auth.groupId, key);
+    await discardUpload(c.env, store, auth.groupId, key);
     if (bounded.exceeded()) {
       throw new ApiError("payload_too_large", "File exceeds the 50 MB limit");
     }
     throw new ApiError("bad_request", "Request body does not match Content-Length");
   }
   if (!putResult.ok) {
-    await discardUpload(c.env, auth.groupId, key);
+    await discardUpload(c.env, store, auth.groupId, key);
     throw putResult.error;
   }
   const object = putResult.value;
@@ -123,23 +143,23 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
   // Defense-in-depth: enforce the cap on the real stored size too, in case a
   // storage implementation reports a size different from the stream counter.
   if (object.size > MAX_UPLOAD_SIZE) {
-    await deleteUpload(c.env, auth.groupId, key);
+    await deleteBlob(c.env, store, auth.groupId, key);
     throw new ApiError("payload_too_large", "File exceeds the 50 MB limit");
   }
 
   // A failed upload or a deletion of this same key may have dropped the row
   // while this write was in flight; the object exists now, so it is counted.
-  await recordUpload(c.env, auth.groupId, key, object.size, Date.now());
+  await recordBlob(c.env, store, auth.groupId, key, object.size, Date.now());
 
   return Response.json({ ok: true });
 }
 
-/** Stream an encrypted file blob back to an authenticated device. */
-export async function downloadFile(c: RouteContext): Promise<Response> {
+/** Stream an encrypted blob from `store` back to an authenticated device. */
+export async function sendBlob(c: RouteContext, store: BlobStore): Promise<Response> {
   const auth = await authenticate(c.request, c.env);
   const key = requireId(c.params.r2key, "r2key");
 
-  const object = await c.env.FILES.get(fileStorageKey(auth.groupId, key));
+  const object = await store.bucket(c.env).get(blobStorageKey(auth.groupId, key));
   if (!object) {
     throw new ApiError("not_found", "File not found or already deleted");
   }
@@ -151,4 +171,20 @@ export async function downloadFile(c: RouteContext): Promise<Response> {
   object.writeHttpMetadata(headers);
 
   return new Response(object.body, { headers });
+}
+
+const PENDING_QUOTA: BlobQuota = {
+  bytes: SPACE_PENDING_BYTES_QUOTA,
+  message:
+    "This space is holding too many undelivered files; it will send once your devices catch up",
+};
+
+/** `PUT /api/files/:r2key`: a message attachment. */
+export function uploadFile(c: RouteContext): Promise<Response> {
+  return receiveBlob(c, MESSAGE_FILES, PENDING_QUOTA);
+}
+
+/** `GET /api/files/:r2key`. */
+export function downloadFile(c: RouteContext): Promise<Response> {
+  return sendBlob(c, MESSAGE_FILES);
 }
