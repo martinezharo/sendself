@@ -631,8 +631,10 @@ export async function deleteFile(r2Key: string, spaceId?: string): Promise<void>
 // --- vault ---
 
 /** The local copy of the vault and the cursor it is current to. */
-export async function loadVaultRecords(): Promise<{ records: VaultItemRecord[]; cursor: number }> {
-  const database = await db();
+export async function loadVaultRecords(
+  spaceId?: string,
+): Promise<{ records: VaultItemRecord[]; cursor: number }> {
+  const database = await db(spaceId);
   const [records, cursor] = await Promise.all([
     database.getAll("vault"),
     database.get("meta", META_VAULT_CURSOR) as Promise<number | undefined>,

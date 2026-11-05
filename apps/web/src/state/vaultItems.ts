@@ -73,6 +73,24 @@ export const trashedVaultEntries = computed(() =>
 );
 
 let cursor = 0;
+/**
+ * Bumped whenever the vault in memory is replaced (a space loaded or closed).
+ * Every pass that awaits checks it before publishing anything, so a sync still
+ * running for the previous space cannot write its items, cursor or usage over
+ * the space that is open now.
+ */
+let generation = 0;
+
+function begin(): number {
+  generation += 1;
+  syncing = null;
+  return generation;
+}
+
+/** Whether a pass started at `run` for `spaceId` may still publish its results. */
+function stillCurrent(run: number, spaceId: string): boolean {
+  return run === generation && activeSpaceId() === spaceId;
+}
 /** Whether this session asked the server yet: the usage figures only come from there. */
 let fetched = false;
 let syncing: Promise<void> | null = null;
@@ -101,8 +119,8 @@ async function openRecords(
   records: ReadonlyMap<string, VaultItemRecord>,
   ring: Keyring,
   groupId: string,
+  previous: ReadonlyMap<string, VaultEntry> = vaultEntries.value,
 ): Promise<Map<string, VaultEntry>> {
-  const previous = vaultEntries.value;
   const opened = new Map<string, VaultEntry>();
   await Promise.all(
     [...records.values()].map(async (record) => {
@@ -126,11 +144,14 @@ export async function loadVault(): Promise<void> {
   const ring = keyring.value;
   const current = session.value;
   if (!spaceId || !ring || !current) return;
-  const stored = await loadVaultRecords();
-  if (activeSpaceId() !== spaceId) return;
-  vaultEntries.value = new Map();
+  const run = begin();
+  const stored = await loadVaultRecords(spaceId);
+  if (!stillCurrent(run, spaceId)) return;
   const records = new Map(stored.records.map((record) => [record.id, record]));
-  vaultEntries.value = await openRecords(records, ring, current.groupId);
+  // Nothing in memory is reused: it may be another space's.
+  const opened = await openRecords(records, ring, current.groupId, new Map());
+  if (!stillCurrent(run, spaceId)) return;
+  vaultEntries.value = opened;
   cursor = stored.cursor;
   fetched = false;
   vaultSpace.value = spaceId;
@@ -138,6 +159,7 @@ export async function loadVault(): Promise<void> {
 
 /** Forget the vault in memory (the space was closed). */
 export function clearVault(): void {
+  begin();
   vaultEntries.value = new Map();
   vaultUsage.value = { bytes: 0, items: 0 };
   vaultSpace.value = null;
@@ -153,23 +175,27 @@ export function clearVault(): void {
  */
 export function syncVault(ring: Keyring, vaultSeq?: number): Promise<void> {
   if (syncing) return syncing;
-  syncing = runSync(ring, vaultSeq).finally(() => {
-    syncing = null;
+  const pass = runSync(ring, vaultSeq).finally(() => {
+    // A newer space may already have started its own pass: leave that one be.
+    if (syncing === pass) syncing = null;
   });
-  return syncing;
+  syncing = pass;
+  return pass;
 }
 
 async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
   const spaceId = activeSpaceId();
   const current = session.value;
   if (!spaceId || !current || vaultSpace.value !== spaceId) return;
+  const run = generation;
 
   const stale = vaultSeq === undefined || vaultSeq !== cursor || !fetched;
   let records = recordsOf(vaultEntries.value);
   if (stale) {
     const changes = await pullVaultChanges(api, authHeaders(), cursor);
-    if (activeSpaceId() !== spaceId) return;
+    if (!stillCurrent(run, spaceId)) return;
     await storeVaultChanges(changes, spaceId);
+    if (!stillCurrent(run, spaceId)) return;
     records = applyVaultChanges(records, changes);
     cursor = changes.cursor;
     fetched = true;
@@ -181,7 +207,9 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
     (entry) => !entry.meta && ring.keys.has(entry.record.keyEpoch),
   );
   if (stale || keyChanged) {
-    vaultEntries.value = await openRecords(records, ring, current.groupId);
+    const opened = await openRecords(records, ring, current.groupId);
+    if (!stillCurrent(run, spaceId)) return;
+    vaultEntries.value = opened;
   }
 
   await resealStale(ring, current.groupId);

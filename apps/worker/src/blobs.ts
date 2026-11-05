@@ -53,6 +53,16 @@ export const VAULT_BLOBS: BlobStore = {
   )`,
 };
 
+/**
+ * The `created_at` of a row whose blob is being deleted from a bucket that does
+ * not expire. Set atomically, and only while nothing claims the blob, before
+ * the blob is touched; from then on nothing may claim it or upload over it, so
+ * a save racing the cleanup fails instead of claiming content about to vanish.
+ * No real upload has this timestamp, and the orphan sweep still sees it as old,
+ * so a reservation whose delete failed is retried.
+ */
+export const RESERVED_FOR_DELETION = 0;
+
 /** Keep D1 batches comfortably below statement/parameter limits. */
 const SWEEP_BATCH_SIZE = 100;
 
@@ -101,7 +111,8 @@ export async function reserveBlob(
               (SELECT size FROM ${store.table} WHERE group_id = ?1 AND r2_key = ?2), 0
             )) <= ?5
      ON CONFLICT (group_id, r2_key) DO UPDATE
-        SET size = MAX(size, excluded.size), created_at = excluded.created_at`,
+        SET size = MAX(size, excluded.size), created_at = excluded.created_at
+        WHERE created_at != ${RESERVED_FOR_DELETION}`,
   )
     .bind(groupId, key, size, now, quota)
     .run();
@@ -124,7 +135,8 @@ export async function recordBlob(
   await env.DB.prepare(
     `INSERT INTO ${store.table} (group_id, r2_key, size, created_at) VALUES (?, ?, ?, ?)
      ON CONFLICT (group_id, r2_key) DO UPDATE
-        SET size = MAX(size, excluded.size), created_at = excluded.created_at`,
+        SET size = MAX(size, excluded.size), created_at = excluded.created_at
+        WHERE created_at != ${RESERVED_FOR_DELETION}`,
   )
     .bind(groupId, key, size, now)
     .run();
@@ -201,12 +213,26 @@ export async function deleteUnclaimedBlobs(
 ): Promise<void> {
   for (let offset = 0; offset < blobs.length; offset += SWEEP_BATCH_SIZE) {
     const batch = blobs.slice(offset, offset + SWEEP_BATCH_SIZE);
-    await store.bucket(env).delete(batch.map((blob) => blobStorageKey(blob.groupId, blob.key)));
+    // Reserve first, atomically with the claim check; only what was reserved
+    // here (or by an earlier attempt whose delete failed) is deleted.
+    const reserved = (
+      await env.DB.batch(
+        batch.map((blob) =>
+          env.DB.prepare(
+            `UPDATE ${store.table} AS u SET created_at = ${RESERVED_FOR_DELETION}
+              WHERE u.group_id = ? AND u.r2_key = ? AND NOT ${store.claimed}
+             RETURNING group_id AS groupId, r2_key AS key`,
+          ).bind(blob.groupId, blob.key),
+        ),
+      )
+    ).flatMap((result) => (result.results ?? []) as { groupId: string; key: string }[]);
+    if (reserved.length === 0) continue;
+    await store.bucket(env).delete(reserved.map((blob) => blobStorageKey(blob.groupId, blob.key)));
     await env.DB.batch(
-      batch.map((blob) =>
+      reserved.map((blob) =>
         env.DB.prepare(
-          `DELETE FROM ${store.table} AS u
-            WHERE u.group_id = ? AND u.r2_key = ? AND NOT ${store.claimed}`,
+          `DELETE FROM ${store.table}
+            WHERE group_id = ? AND r2_key = ? AND created_at = ${RESERVED_FOR_DELETION}`,
         ).bind(blob.groupId, blob.key),
       ),
     );

@@ -15,7 +15,7 @@ import {
   type VaultResealResponse,
 } from "@sendself/shared";
 import { type AuthContext, authenticate } from "../auth";
-import { VAULT_BLOBS, blobSize, deleteBlob } from "../blobs";
+import { RESERVED_FOR_DELETION, VAULT_BLOBS, blobSize, deleteBlob } from "../blobs";
 import { ApiError, json } from "../errors";
 import { readJsonObject, requireId, requireInt, requireString } from "../http";
 import { notifySpace } from "../realtime";
@@ -88,9 +88,16 @@ async function requireFreeBlob(c: RouteContext, groupId: string, key: string): P
   return size;
 }
 
-/** SQL true while `?` (a blob key) is not claimed by a live item; binds group id, key. */
-const BLOB_UNCLAIMED = `NOT EXISTS (
+/**
+ * SQL true while `?` (a blob key) can still be claimed: no live item owns it,
+ * and the cleanup has not reserved it for deletion (see `RESERVED_FOR_DELETION`).
+ * Binds group id, key, group id, key.
+ */
+const BLOB_CLAIMABLE = `NOT EXISTS (
   SELECT 1 FROM vault_items WHERE group_id = ? AND blob_key = ? AND removed_at IS NULL
+) AND EXISTS (
+  SELECT 1 FROM vault_blobs
+   WHERE group_id = ? AND r2_key = ? AND created_at != ${RESERVED_FOR_DELETION}
 )`;
 
 /** SQL true while `?` (an item id) is a live folder; binds group id, id. */
@@ -202,7 +209,7 @@ export async function createVaultItem(c: RouteContext): Promise<Response> {
         WHERE (SELECT COUNT(*) FROM vault_items
                 WHERE group_id = ? AND removed_at IS NULL) < ?
           AND (? IS NULL OR ${LIVE_FOLDER})
-          AND (? IS NULL OR ${BLOB_UNCLAIMED})
+          AND (? IS NULL OR (${BLOB_CLAIMABLE}))
           AND NOT EXISTS (SELECT 1 FROM vault_items WHERE group_id = ? AND id = ?)`,
     ).bind(
       auth.groupId,
@@ -222,6 +229,8 @@ export async function createVaultItem(c: RouteContext): Promise<Response> {
       parentId,
       auth.groupId,
       parentId,
+      blobKey,
+      auth.groupId,
       blobKey,
       auth.groupId,
       blobKey,
@@ -320,8 +329,8 @@ export async function updateVaultItem(c: RouteContext): Promise<Response> {
       const size = await requireFreeBlob(c, auth.groupId, blobKey);
       sets.push("blob_key = ?", "blob_size = ?");
       binds.push(blobKey, size);
-      guards.push(BLOB_UNCLAIMED);
-      guardBinds.push(auth.groupId, blobKey);
+      guards.push(`(${BLOB_CLAIMABLE})`);
+      guardBinds.push(auth.groupId, blobKey, auth.groupId, blobKey);
       replacedBlob = item.blobKey;
     }
   }

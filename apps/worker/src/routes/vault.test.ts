@@ -12,7 +12,7 @@ import {
   type VaultResealRequest,
 } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
-import { VAULT_BLOBS, blobStorageKey } from "../blobs";
+import { RESERVED_FOR_DELETION, VAULT_BLOBS, blobStorageKey } from "../blobs";
 import { runCleanup } from "../cron";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedSpace, uid } from "../test/helpers";
@@ -398,6 +398,20 @@ describe("vault cleanup", () => {
     const continued = await call(owner, "?since=1&full=1");
 
     expect(((await continued.json()) as VaultChangesResponse).reset).toBe(false);
+  });
+
+  it("refuses to claim a blob the cleanup has reserved for deletion", async () => {
+    const { groupId, owner } = await seedSpace();
+    await uploadBlob(owner, "being-swept");
+    await env.DB.prepare(
+      `UPDATE ${VAULT_BLOBS.table} SET created_at = ${RESERVED_FOR_DELETION} WHERE group_id = ?`,
+    )
+      .bind(groupId)
+      .run();
+
+    const response = await create(owner, { id: uid("note"), kind: "note", blobKey: "being-swept" });
+
+    expect(await errorCode(response)).toBe("conflict");
   });
 
   it("discards an upload no item claimed within the hour, and keeps claimed ones", async () => {
