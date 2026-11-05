@@ -197,7 +197,14 @@ export async function createVaultItem(c: RouteContext): Promise<Response> {
 
   // Checked first for a precise error; every one of them is checked again in
   // the write itself, which is what actually holds against a concurrent one.
-  if (await vaultItem(c.env, auth.groupId, id)) {
+  const existing = await vaultItem(c.env, auth.groupId, id);
+  if (existing) {
+    // The id is the client's own and random: the same id with the same sealed
+    // metadata is this very request again, retried after its answer was lost.
+    // Answer it as it was answered then rather than fail a save that happened.
+    if (existing.meta === meta && existing.metaIv === metaIv && existing.kind === kind) {
+      return json({ ok: true, item: existing } satisfies VaultItemWriteResponse);
+    }
     throw new ApiError("conflict", "An item with this id already exists");
   }
   if (parentId) await requireFolder(c, auth.groupId, parentId);

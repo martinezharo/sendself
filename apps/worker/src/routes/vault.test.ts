@@ -101,6 +101,19 @@ describe("POST /api/vault/items", () => {
     expect((await changes(owner)).usage.bytes).toBe("ciphertext".length);
   });
 
+  it("answers a retried create with the item it already made", async () => {
+    const { owner } = await seedSpace();
+    const body = { id: uid("folder"), kind: "folder" as const, meta: "sealed", metaIv: "iv" };
+    const first = await created(owner, body);
+
+    const retried = await create(owner, body);
+
+    expect(retried.status).toBe(200);
+    expect(((await retried.json()) as VaultItemWriteResponse).item).toEqual(first);
+    expect(await errorCode(await create(owner, { ...body, meta: "other" }))).toBe("conflict");
+    expect((await changes(owner)).usage.items).toBe(1);
+  });
+
   it("refuses content that was never uploaded", async () => {
     const { owner } = await seedSpace();
 
