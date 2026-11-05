@@ -452,6 +452,8 @@ export function deleteForever(entry: VaultEntry): Promise<boolean> {
 
 export async function emptyTrash(): Promise<void> {
   for (const entry of trashedVaultEntries.value) {
+    // Purging a trashed folder takes everything inside it, trashed or not.
+    if (!vaultEntries.value.has(entry.record.id)) continue;
     if (!(await deleteForever(entry))) return;
   }
 }

@@ -708,15 +708,29 @@ function NoteEditor({
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  // A ref, not the state: the shortcut can fire twice before a re-render.
+  const savingRef = useRef(false);
+
+  /** Every way of saving (button, shortcut, the close prompt) goes through here. */
   async function save(): Promise<void> {
-    if (!text.trim() && !title.trim()) {
+    // Still loading: the editor holds an empty draft, not the note.
+    if (savingRef.current || original === null) return;
+    if (entry && !dirty) {
       onClose();
       return;
     }
+    // An empty new note is nothing to keep. An existing one emptied on purpose
+    // is saved like any other edit.
+    if (!entry && !text.trim() && !title.trim()) {
+      onClose();
+      return;
+    }
+    savingRef.current = true;
     setSaving(true);
     const saved = entry
       ? await saveNote(entry, title, text)
       : await createNote(folderId, title, text);
+    savingRef.current = false;
     setSaving(false);
     if (saved) onClose();
   }
