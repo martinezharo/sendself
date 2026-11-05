@@ -29,6 +29,24 @@ export const PAIRING_TTL_MS = 10 * 60 * 1000;
 /** Server-side messages/files are purged after this age regardless of delivery. */
 export const MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Most encrypted bytes one space may hold on the server at once: uploads not
+ * yet delivered to every recipient. A device that hits it keeps the message
+ * queued and retries as the other devices download, so the cap only ever
+ * delays a send. It bounds what one space costs; it is not a storage plan.
+ */
+export const SPACE_PENDING_BYTES_QUOTA = 2 * 1024 * 1024 * 1024;
+
+/**
+ * An upload that no message references after this long is discarded. Clients
+ * register the message right after the upload finishes, and re-upload before
+ * every retry, so only a send abandoned midway ever reaches it.
+ */
+export const ORPHAN_UPLOAD_TTL_MS = 60 * 60 * 1000;
+
+/** The Turnstile action a space-creation challenge is issued (and verified) for. */
+export const CREATE_SPACE_CHALLENGE_ACTION = "create-space";
+
 /** Default client polling interval for pending messages. */
 export const POLL_INTERVAL_MS = 8000;
 
@@ -383,10 +401,21 @@ export interface CreateGroupRequest {
    * device that created it rather than on whatever the server lists.
    */
   attestation?: DeviceAttestation;
+  /**
+   * A Turnstile token for `CREATE_SPACE_CHALLENGE_ACTION`. Required only when
+   * the deployment has a challenge configured (see `SpaceChallengeResponse`).
+   */
+  challengeToken?: string;
 }
 
 export interface CreateGroupResponse {
   ok: true;
+}
+
+/** `GET /api/groups/challenge`: what a client must solve before creating a space. */
+export interface SpaceChallengeResponse {
+  /** Turnstile site key; null when this deployment requires no challenge. */
+  siteKey: string | null;
 }
 
 /** Device 2 -> server: reserve a pairing slot and publish its public material. */
@@ -802,6 +831,13 @@ export type ApiErrorCode =
    */
   | "key_rotated"
   | "payload_too_large"
+  /**
+   * The space already holds as many undelivered bytes as it may. Transient:
+   * the caller should retry once its devices have downloaded what is pending.
+   */
+  | "quota_exceeded"
+  /** The anti-abuse challenge (Turnstile) was missing, expired or failed. */
+  | "challenge_failed"
   | "rate_limited"
   | "internal";
 

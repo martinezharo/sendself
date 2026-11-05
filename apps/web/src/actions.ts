@@ -132,12 +132,20 @@ let linkTimer: ReturnType<typeof setInterval> | null = null;
 // Onboarding: create a new space (this device becomes the first member)
 // ---------------------------------------------------------------------------
 
-export async function createSpace(deviceName: string, spaceName: string): Promise<SpaceRecord> {
+/**
+ * `challengeToken` is the solved anti-abuse challenge (see `solveSpaceChallenge`),
+ * when the server asks for one.
+ */
+export async function createSpace(
+  deviceName: string,
+  spaceName: string,
+  challengeToken?: string,
+): Promise<SpaceRecord> {
   // Registered (and made the active space) first, so everything below already
   // writes into its own storage rather than into whatever was open before.
   const space = await beginSpace(spaceName);
   try {
-    await setUpNewSpace(deviceName);
+    await setUpNewSpace(deviceName, challengeToken);
   } catch (error) {
     // Nothing reached the server, or nothing that this device can use: leaving
     // a half-created space in the list would only offer a door into nowhere.
@@ -147,7 +155,7 @@ export async function createSpace(deviceName: string, spaceName: string): Promis
   return space;
 }
 
-async function setUpNewSpace(deviceName: string): Promise<void> {
+async function setUpNewSpace(deviceName: string, challengeToken?: string): Promise<void> {
   const keyPair = await generateDeviceKeyPair();
   const signingPair = await generateSigningKeyPair();
   const newGroupKey = await generateGroupKey();
@@ -177,6 +185,7 @@ async function setUpNewSpace(deviceName: string): Promise<void> {
     encryptedName: name.ciphertext,
     nameIv: name.iv,
     attestation,
+    ...(challengeToken ? { challengeToken } : {}),
   });
 
   const newSession: Session = { groupId, deviceId, deviceName, deviceAuthToken: token };

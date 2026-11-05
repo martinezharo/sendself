@@ -449,6 +449,18 @@ describe("outbox backoff", () => {
     expect(second).toEqual({ sent: 0, failed: 0, remaining: 1 });
   });
 
+  it("keeps a file queued, with a wait, while the space is over its quota", async () => {
+    const [message] = addFiles(1);
+    const { ApiError } = await import("../api/client");
+    state.uploadFile.mockRejectedValue(new ApiError(413, "quota_exceeded", "Space is full"));
+
+    const result = await flushQueuedOutbox();
+
+    expect(result).toEqual({ sent: 0, failed: 0, remaining: 1 });
+    expect(state.messages.get(message!.id)?.status).toBe("queued");
+    expect(state.messages.get(message!.id)?.retry?.attempts).toBe(1);
+  });
+
   it("sends it once the wait is over, and clears the schedule on the way out", async () => {
     queueText("m2");
     state.messages.set("m2", {

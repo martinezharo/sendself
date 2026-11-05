@@ -55,6 +55,76 @@ export async function messageRecipients(
   return rows.results.map((row) => row.id);
 }
 
+/**
+ * Record an upload of `size` bytes against the space's quota, unless that
+ * would take it past `quota`. Returns false (and records nothing) if so.
+ *
+ * One statement, so the check and the write are atomic: concurrent uploads to
+ * the same space cannot all pass a check made before any of them was counted.
+ * Re-uploading a key replaces its own reservation instead of adding to it.
+ */
+export async function reserveUpload(
+  env: Env,
+  groupId: string,
+  key: string,
+  size: number,
+  quota: number,
+  now: number,
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `INSERT INTO uploads (group_id, r2_key, size, created_at)
+     SELECT ?1, ?2, ?3, ?4
+      WHERE COALESCE(
+              (SELECT SUM(size) FROM uploads WHERE group_id = ?1 AND r2_key != ?2), 0
+            ) + ?3 <= ?5
+     ON CONFLICT (group_id, r2_key) DO UPDATE
+        SET size = excluded.size, created_at = excluded.created_at`,
+  )
+    .bind(groupId, key, size, now, quota)
+    .run();
+  return result.meta.changes > 0;
+}
+
+/** Statement dropping the accounting row of one blob. */
+function forgetUpload(env: Env, groupId: string, key: string): D1PreparedStatement {
+  return env.DB.prepare("DELETE FROM uploads WHERE group_id = ? AND r2_key = ?").bind(groupId, key);
+}
+
+/**
+ * Delete one uploaded blob and its accounting row. The only way a blob that no
+ * message owns should leave R2, so the quota never counts bytes that are gone.
+ */
+export async function deleteUpload(env: Env, groupId: string, key: string): Promise<void> {
+  await env.FILES.delete(fileStorageKey(groupId, key));
+  await forgetUpload(env, groupId, key).run();
+}
+
+/**
+ * Delete uploads that no message references and that are older than
+ * `olderThan`: sends abandoned between the upload and the message. Without
+ * this they would count against the space's quota until the 24-hour cleanup.
+ */
+export async function purgeOrphanUploads(env: Env, olderThan: number): Promise<void> {
+  while (true) {
+    const rows = await env.DB.prepare(
+      `SELECT u.group_id AS groupId, u.r2_key AS key
+         FROM uploads u
+        WHERE u.created_at < ?
+          AND NOT EXISTS (
+            SELECT 1 FROM messages m
+             WHERE m.group_id = u.group_id AND m.file_r2_key = u.r2_key
+          )
+        ORDER BY u.created_at ASC
+        LIMIT ?`,
+    )
+      .bind(olderThan, DELETE_BATCH_SIZE)
+      .all<{ groupId: string; key: string }>();
+    if (rows.results.length === 0) break;
+    await env.FILES.delete(rows.results.map((row) => fileStorageKey(row.groupId, row.key)));
+    await env.DB.batch(rows.results.map((row) => forgetUpload(env, row.groupId, row.key)));
+  }
+}
+
 /** Delete a set of messages (and their R2 files + delivery rows) by id. */
 async function deleteMessages(
   env: Env,
@@ -72,6 +142,7 @@ async function deleteMessages(
     const stmts = batch.flatMap((m) => [
       env.DB.prepare("DELETE FROM delivery_status WHERE message_id = ?").bind(m.id),
       env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(m.id),
+      ...(m.fileKey ? [forgetUpload(env, m.groupId, m.fileKey)] : []),
     ]);
     await env.DB.batch(stmts);
   }

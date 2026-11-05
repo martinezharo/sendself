@@ -1,7 +1,7 @@
 import { SELF, env } from "cloudflare:test";
-import { MAX_UPLOAD_SIZE } from "@sendself/shared";
+import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
-import { fileStorageKey } from "../db";
+import { fileStorageKey, reserveUpload } from "../db";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedSpace } from "../test/helpers";
 import { boundedUploadBody } from "./files";
@@ -32,6 +32,28 @@ describe("PUT /api/files/:key", () => {
     expect(response.status).toBe(200);
     const object = await env.FILES.get(fileStorageKey(groupId, "blob1"));
     expect(await object?.text()).toBe("encrypted-bytes");
+  });
+
+  it("counts the upload against the space's quota", async () => {
+    const { groupId, owner } = await seedSpace();
+
+    await upload(owner, "counted", "encrypted-bytes");
+
+    const row = await env.DB.prepare("SELECT size FROM uploads WHERE group_id = ? AND r2_key = ?")
+      .bind(groupId, "counted")
+      .first<{ size: number }>();
+    expect(row).toEqual({ size: "encrypted-bytes".length });
+  });
+
+  it("refuses an upload that would take the space past its quota, before storing it", async () => {
+    const { groupId, owner } = await seedSpace();
+    await reserveUpload(env, groupId, "pending", SPACE_PENDING_BYTES_QUOTA - 4, Number.MAX_SAFE_INTEGER, Date.now());
+
+    const response = await upload(owner, "one-too-many", "12345");
+
+    expect(response.status).toBe(413);
+    expect(await errorCode(response)).toBe("quota_exceeded");
+    expect(await env.FILES.head(fileStorageKey(groupId, "one-too-many"))).toBeNull();
   });
 
   it("cannot write outside its own group, even with a key another group uses", async () => {

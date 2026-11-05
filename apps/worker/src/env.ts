@@ -27,4 +27,11 @@ export interface Env {
   VAPID_PRIVATE_KEY?: string;
   /** Contact the push services may use (mailto: or https:). Defaults to the site. */
   VAPID_SUBJECT?: string;
+  /**
+   * Turnstile widget keys guarding space creation (see `challenge.ts`). Both
+   * secrets, so optional: without them anyone can create a space unchallenged,
+   * which is what local development and the tests do.
+   */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
 }

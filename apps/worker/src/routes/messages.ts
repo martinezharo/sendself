@@ -6,7 +6,13 @@ import type {
   SendMessageResponse,
 } from "@sendself/shared";
 import { authenticate } from "../auth";
-import { deleteGroupMessage, deleteMessageById, fileStorageKey, messageRecipients } from "../db";
+import {
+  deleteGroupMessage,
+  deleteMessageById,
+  deleteUpload,
+  fileStorageKey,
+  messageRecipients,
+} from "../db";
 import { ApiError, json } from "../errors";
 import { optionalString, readJsonObject, requireId, requireInt } from "../http";
 import { notifySpace } from "../realtime";
@@ -126,7 +132,7 @@ export async function sendMessage(c: RouteContext): Promise<Response> {
   // No recipients: nothing to deliver. Drop any uploaded file and skip storage
   // so the server keeps nothing around.
   if (recipients.length === 0) {
-    if (fileR2Key) await c.env.FILES.delete(fileStorageKey(auth.groupId, fileR2Key));
+    if (fileR2Key) await deleteUpload(c.env, auth.groupId, fileR2Key);
     return json({ ok: true } satisfies SendMessageResponse);
   }
 

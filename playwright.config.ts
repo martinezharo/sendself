@@ -21,7 +21,7 @@ import { defineConfig, devices } from "@playwright/test";
  * turned page loads into the slowest thing in the suite, and what a user runs
  * is the bundle, service worker included.
  */
-const PORT = 8788;
+const PORT = Number(process.env.E2E_PORT ?? 8788);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -57,9 +57,12 @@ export default defineConfig({
    * dev server that is fragile, not the Worker: `wrangler deploy` runs the same
    * code without any of this. Restarting takes about a second, and `retries`
    * covers the test that was mid-request when it happened.
+   *
+   * `E2E_PORT` moves it off 8788 when something else on the machine holds it.
    */
   webServer: {
     command: "pnpm --filter @sendself/web build && pnpm --filter @sendself/worker run start:e2e",
+    env: { E2E_PORT: String(PORT) },
     url: `http://localhost:${PORT}/app`,
     // Never reused: a server left over from a previous run would be serving the
     // previous build, and a suite that quietly tests yesterday's code is worse

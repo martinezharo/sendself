@@ -69,7 +69,7 @@ This is intentional. Pairing guards, delivery cleanup, key-rotation compare-and-
 
 ## End-to-end tests
 
-`pnpm test:e2e` builds the PWA, serves it from the Worker on port 8788, and drives Chromium through Playwright. It uses `.e2e-state/` for isolated local D1/R2 persistence rather than the state used by `pnpm dev`.
+`pnpm test:e2e` builds the PWA, serves it from the Worker on port 8788 (set `E2E_PORT` to use another), and drives Chromium through Playwright. It uses `.e2e-state/` for isolated local D1/R2 persistence rather than the state used by `pnpm dev`.
 
 The suite focuses on behavior that unit tests cannot see reliably: browser storage surviving a page restart, closing and reopening a device, service-worker hand-off, and browser navigation. It runs against the built PWA, not Vite's on-demand development transform.
 

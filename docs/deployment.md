@@ -21,6 +21,7 @@ The names and bindings are declared in [`apps/worker/wrangler.jsonc`](../apps/wo
 | Durable Object | `SPACE_HUB` | One `SpaceHub` instance per space for sync notifications. |
 | Rate limiters | `RL_PUBLIC`, `RL_WRITE`, `RL_UPLOAD` | Edge abuse protection; absent in local dev and Worker tests. |
 | Secrets | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web Push identity. Optional: without them the Worker sends no pushes and the app does not offer notifications. `VAPID_SUBJECT` (a `mailto:` or `https:` contact) defaults to the site URL. |
+| Secrets | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Turnstile widget guarding space creation. Optional: without both, anyone can create a space unchallenged. |
 
 The deployed Worker also runs an hourly cleanup trigger. The R2 lifecycle rule is configured on the bucket, not in `wrangler.jsonc`.
 
@@ -61,6 +62,20 @@ pnpm --filter @sendself/worker exec wrangler secret put VAPID_PRIVATE_KEY
 ```
 
 Keep the pair. Every browser subscription is bound to the public key, so replacing it stops pushes to every subscribed device until that device's app is opened again (it then subscribes again on its own). For local development, put the same two values in `apps/worker/.dev.vars`; notifications additionally need the production build, because `pnpm dev` runs without the service worker.
+
+### Space-creation challenge
+
+Creating a space is the only write that needs no prior trust, so it is where a script would mint the spaces every other limit is keyed on. A Turnstile challenge stops that:
+
+1. In the Cloudflare dashboard, open **Turnstile → Add widget**, add the deployment's hostname (and `localhost` only if you want to test it locally), and choose **Managed** mode. The app renders it as interaction-only, so most people never see it.
+2. Store both keys as Worker secrets. Secrets rather than `vars`, so a deploy never overwrites them:
+
+   ```bash
+   pnpm --filter @sendself/worker exec wrangler secret put TURNSTILE_SITE_KEY
+   pnpm --filter @sendself/worker exec wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+
+The challenge takes effect as soon as both secrets exist; no deploy is needed. Existing spaces are unaffected. An app version from before this change cannot solve it, so it can no longer create spaces until its service worker updates. To turn it off, delete either secret.
 
 ## Release sequence
 

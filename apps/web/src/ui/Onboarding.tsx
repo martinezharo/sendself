@@ -2,6 +2,7 @@ import { Check, ChevronRight, Copy, LifeBuoy, Link2, Plus, ShieldCheck } from "l
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { cancelLinking, createSpace, linking, startLinking } from "../actions";
+import { solveSpaceChallenge } from "../challenge";
 import { restoreFromRecoveryFile } from "../recovery";
 import { navigate, spacePath } from "../state/route";
 import { showToast } from "../state/ui";
@@ -19,13 +20,17 @@ export function OnboardingCard(): JSX.Element {
   const [name, setName] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [busy, setBusy] = useState(false);
+  const challengeRef = useRef<HTMLDivElement>(null);
   const link = linking.value;
 
   async function onCreate(): Promise<void> {
-    if (!name.trim()) return;
+    if (!name.trim() || !challengeRef.current) return;
     setBusy(true);
     try {
-      const space = await createSpace(name.trim(), spaceName);
+      // Solved before anything is set up locally, so a failed challenge leaves
+      // nothing behind to clean up.
+      const challengeToken = await solveSpaceChallenge(challengeRef.current);
+      const space = await createSpace(name.trim(), spaceName, challengeToken);
       navigate(spacePath(space.id));
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Could not create space", "error");
@@ -117,6 +122,8 @@ export function OnboardingCard(): JSX.Element {
             onInput={setName}
             placeholder="e.g. My laptop"
           />
+          {/* Empty unless Turnstile needs an interaction to tell a person apart. */}
+          <div ref={challengeRef} class="empty:hidden" />
           <div class="mt-1 flex flex-col gap-2">
             <Button variant="primary" type="submit" disabled={busy || !name.trim()}>
               {busy ? <Spinner /> : "Create space"}

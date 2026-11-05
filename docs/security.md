@@ -104,6 +104,17 @@ Application-level encryption does not hide metadata. Depending on the request an
 
 The service cannot decrypt message text, file contents, encrypted names, or the `GroupKey` from the application data it stores. That statement does not cover a compromised browser/device, malicious JavaScript served to the browser, or a user who exports plaintext.
 
+## Abuse limits
+
+Creating a space needs no account, so the server bounds what one can cost rather than who may create one:
+
+- When the deployment configures Turnstile, creating a space requires a solved challenge, verified server-side for the `create-space` action.
+- Each space may hold at most 2 GiB of undelivered blobs. A device over the cap keeps its message queued and retries.
+- Uploads no message claims within an hour are deleted.
+- The edge rate limiters and any WAF rule run in front of all of this.
+
+The Turnstile script is the one script the app loads from another origin (`https://challenges.cloudflare.com`, allowed in `script-src` and `frame-src`). It is loaded only while a space is being created, and only when the server hands out a site key. It runs with the page's privileges, but its origin is Cloudflare, which already serves the app's own code and so is already inside the trust boundary described above.
+
 ## Known non-goals and limitations
 
 - No protection for plaintext already seen by a revoked or compromised device.
