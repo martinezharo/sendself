@@ -46,8 +46,6 @@ import { closeSearch, searchOpen } from "../state/search";
 import { session } from "../state/session";
 import { currentMatch, threadEntries } from "../state/thread";
 import type { FileRef, LocalEvent, LocalMessage, MessageStatus } from "../types";
-import { useActionFeedback } from "./feedback";
-import { useKeyboardDock, usePinnedScrollEnd } from "./keyboard";
 import type { MenuAnchor } from "./Menu";
 import { MessageMenu } from "./MessageMenu";
 import { Highlighted } from "./SearchBar";
@@ -61,6 +59,9 @@ import {
   formatBytes,
   formatTime,
 } from "./components";
+import { shouldSendOnEnter } from "./composerKeyboard";
+import { useActionFeedback } from "./feedback";
+import { useKeyboardDock, usePinnedScrollEnd } from "./keyboard";
 
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
 
@@ -1215,7 +1216,7 @@ function Composer(): JSX.Element {
               autosize();
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (shouldSendOnEnter(e)) {
                 e.preventDefault();
                 submit();
               }

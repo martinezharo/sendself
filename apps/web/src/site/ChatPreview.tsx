@@ -11,6 +11,7 @@ import {
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { FileTypeIcon, cx, formatBytes, formatTime } from "../ui/components";
+import { shouldSendOnEnter } from "../ui/composerKeyboard";
 
 /**
  * The chat, as the landing page shows it.
@@ -249,7 +250,7 @@ export function ChatPreview(): JSX.Element {
                 autosize();
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (shouldSendOnEnter(e)) {
                   e.preventDefault();
                   send();
                 }
