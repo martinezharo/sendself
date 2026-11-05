@@ -65,7 +65,13 @@ export async function messageRecipients(
  * Re-uploading a key never adds to its reservation, but never shrinks it
  * either: two overlapping writes to one key finish in no particular order, so
  * the object R2 keeps may be the larger one even when the smaller reserved
- * last. Keeping the maximum counts whichever wins; the row goes with the blob.
+ * last. Keeping the maximum counts whichever wins.
+ *
+ * Accounting invariant: an object is never left in R2 without its row. Every
+ * deletion removes the row *before* the blob, and a write that completes
+ * re-records its own row (`recordUpload`), so a deletion that raced a write in
+ * flight can at worst leave a row with no blob, which the space is charged for
+ * until the orphan sweep or its message's deletion releases it.
  */
 export async function reserveUpload(
   env: Env,
@@ -91,6 +97,27 @@ export async function reserveUpload(
   return result.meta.changes > 0;
 }
 
+/**
+ * Re-record a blob whose write just completed, without the quota check (its
+ * bytes were admitted when it reserved). Restores the row if a concurrent
+ * deletion of the same key removed it while this write was still in flight.
+ */
+export async function recordUpload(
+  env: Env,
+  groupId: string,
+  key: string,
+  size: number,
+  now: number,
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO uploads (group_id, r2_key, size, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (group_id, r2_key) DO UPDATE
+        SET size = MAX(size, excluded.size), created_at = excluded.created_at`,
+  )
+    .bind(groupId, key, size, now)
+    .run();
+}
+
 /** Statement dropping the accounting row of one blob. */
 function forgetUpload(env: Env, groupId: string, key: string): D1PreparedStatement {
   return env.DB.prepare("DELETE FROM uploads WHERE group_id = ? AND r2_key = ?").bind(groupId, key);
@@ -101,8 +128,9 @@ function forgetUpload(env: Env, groupId: string, key: string): D1PreparedStateme
  * message owns should leave R2, so the quota never counts bytes that are gone.
  */
 export async function deleteUpload(env: Env, groupId: string, key: string): Promise<void> {
-  await env.FILES.delete(fileStorageKey(groupId, key));
+  // Row first: see the accounting invariant on `reserveUpload`.
   await forgetUpload(env, groupId, key).run();
+  await env.FILES.delete(fileStorageKey(groupId, key));
 }
 
 /**
@@ -147,19 +175,21 @@ async function deleteMessages(
 ): Promise<void> {
   for (let offset = 0; offset < messages.length; offset += DELETE_BATCH_SIZE) {
     const batch = messages.slice(offset, offset + DELETE_BATCH_SIZE);
-    const fileKeys = batch
-      .filter((m) => m.fileKey)
-      .map((m) => fileStorageKey(m.groupId, m.fileKey as string));
-    if (fileKeys.length > 0) {
-      await env.FILES.delete(fileKeys);
-    }
-
     const stmts = batch.flatMap((m) => [
       env.DB.prepare("DELETE FROM delivery_status WHERE message_id = ?").bind(m.id),
       env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(m.id),
       ...(m.fileKey ? [forgetUpload(env, m.groupId, m.fileKey)] : []),
     ]);
     await env.DB.batch(stmts);
+
+    // Blobs after their rows: see the accounting invariant on `reserveUpload`.
+    // If this delete fails, the bucket's lifecycle rule still expires them.
+    const fileKeys = batch
+      .filter((m) => m.fileKey)
+      .map((m) => fileStorageKey(m.groupId, m.fileKey as string));
+    if (fileKeys.length > 0) {
+      await env.FILES.delete(fileKeys);
+    }
   }
 }
 

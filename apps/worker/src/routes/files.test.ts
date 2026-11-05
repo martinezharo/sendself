@@ -1,6 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fileStorageKey, reserveUpload } from "../db";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedSpace } from "../test/helpers";
@@ -43,6 +43,41 @@ describe("PUT /api/files/:key", () => {
       .bind(groupId, "counted")
       .first<{ size: number }>();
     expect(row).toEqual({ size: "encrypted-bytes".length });
+  });
+
+  it("re-records its row on completion, so a concurrent deletion cannot leave it uncounted", async () => {
+    const { groupId, owner } = await seedSpace();
+    const recorded = () =>
+      env.DB.prepare("SELECT size FROM uploads WHERE group_id = ? AND r2_key = ?")
+        .bind(groupId, "raced")
+        .first<{ size: number }>();
+    // Stand-in for another request on the same key failing mid-write: it
+    // drops the row while this upload's body is still streaming.
+    let release!: () => void;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        controller.enqueue(new TextEncoder().encode("12345"));
+        controller.close();
+      },
+    });
+    const pending = SELF.fetch("https://x.dev/api/files/raced", {
+      method: "PUT",
+      headers: { ...authHeader(owner), "Content-Length": "5" },
+      body,
+      // @ts-expect-error - required by undici/workerd for a streaming body
+      duplex: "half",
+    });
+    await vi.waitFor(async () => expect(await recorded()).not.toBeNull());
+    await env.DB.prepare("DELETE FROM uploads WHERE group_id = ? AND r2_key = ?")
+      .bind(groupId, "raced")
+      .run();
+    release();
+
+    expect((await pending).status).toBe(200);
+    expect(await recorded()).toEqual({ size: 5 });
   });
 
   it("refuses an upload that would take the space past its quota, before storing it", async () => {

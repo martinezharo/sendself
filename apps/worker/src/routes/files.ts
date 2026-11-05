@@ -1,6 +1,6 @@
 import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
 import { authenticate } from "../auth";
-import { deleteUpload, fileStorageKey, reserveUpload } from "../db";
+import { deleteUpload, fileStorageKey, recordUpload, reserveUpload } from "../db";
 import { ApiError } from "../errors";
 import { requireId } from "../http";
 import type { RouteContext } from "../router";
@@ -126,6 +126,10 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
     await deleteUpload(c.env, auth.groupId, key);
     throw new ApiError("payload_too_large", "File exceeds the 50 MB limit");
   }
+
+  // A failed upload or a deletion of this same key may have dropped the row
+  // while this write was in flight; the object exists now, so it is counted.
+  await recordUpload(c.env, auth.groupId, key, object.size, Date.now());
 
   return Response.json({ ok: true });
 }
