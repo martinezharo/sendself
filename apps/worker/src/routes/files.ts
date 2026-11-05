@@ -1,6 +1,6 @@
-import { MAX_UPLOAD_SIZE } from "@sendself/shared";
+import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
 import { authenticate } from "../auth";
-import { fileStorageKey } from "../db";
+import { deleteUpload, fileStorageKey, recordUpload, reserveUpload } from "../db";
 import { ApiError } from "../errors";
 import { requireId } from "../http";
 import type { RouteContext } from "../router";
@@ -35,9 +35,13 @@ export function boundedUploadBody(body: ReadableStream<Uint8Array>): {
   return { stream: body.pipeThrough(limiter), exceeded: () => exceeded };
 }
 
-async function discardUpload(env: RouteContext["env"], storageKey: string): Promise<void> {
+async function discardUpload(
+  env: RouteContext["env"],
+  groupId: string,
+  key: string,
+): Promise<void> {
   try {
-    await env.FILES.delete(storageKey);
+    await deleteUpload(env, groupId, key);
   } catch {
     // Preserve the original upload/body error; cleanup can be retried by TTL.
   }
@@ -71,6 +75,23 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
     throw new ApiError("bad_request", "Empty request body");
   }
 
+  // Counted before a byte reaches R2, so a space at its cap costs nothing more.
+  // The declared length is what FixedLengthStream below holds the body to.
+  const reserved = await reserveUpload(
+    c.env,
+    auth.groupId,
+    key,
+    length,
+    SPACE_PENDING_BYTES_QUOTA,
+    Date.now(),
+  );
+  if (!reserved) {
+    throw new ApiError(
+      "quota_exceeded",
+      "This space is holding too many undelivered files; it will send once your devices catch up",
+    );
+  }
+
   const storageKey = fileStorageKey(auth.groupId, key);
   const bounded = boundedUploadBody(c.request.body);
   const fixed = new FixedLengthStream(length);
@@ -87,14 +108,14 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
   const [copyResult, putResult] = await Promise.all([copy, put]);
 
   if (!copyResult.ok) {
-    await discardUpload(c.env, storageKey);
+    await discardUpload(c.env, auth.groupId, key);
     if (bounded.exceeded()) {
       throw new ApiError("payload_too_large", "File exceeds the 50 MB limit");
     }
     throw new ApiError("bad_request", "Request body does not match Content-Length");
   }
   if (!putResult.ok) {
-    await discardUpload(c.env, storageKey);
+    await discardUpload(c.env, auth.groupId, key);
     throw putResult.error;
   }
   const object = putResult.value;
@@ -102,9 +123,13 @@ export async function uploadFile(c: RouteContext): Promise<Response> {
   // Defense-in-depth: enforce the cap on the real stored size too, in case a
   // storage implementation reports a size different from the stream counter.
   if (object.size > MAX_UPLOAD_SIZE) {
-    await c.env.FILES.delete(storageKey);
+    await deleteUpload(c.env, auth.groupId, key);
     throw new ApiError("payload_too_large", "File exceeds the 50 MB limit");
   }
+
+  // A failed upload or a deletion of this same key may have dropped the row
+  // while this write was in flight; the object exists now, so it is counted.
+  await recordUpload(c.env, auth.groupId, key, object.size, Date.now());
 
   return Response.json({ ok: true });
 }

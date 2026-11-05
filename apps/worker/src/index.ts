@@ -6,7 +6,7 @@ import { SpaceHub, realtimeConnect } from "./realtime";
 import { Router } from "./router";
 import { listDevices, publishSigningKey, revokeDevice, updateDeviceRole } from "./routes/devices";
 import { downloadFile, uploadFile } from "./routes/files";
-import { createGroup } from "./routes/groups";
+import { createGroup, spaceChallenge } from "./routes/groups";
 import { ackKey, rotateKey } from "./routes/keys";
 import { ackMessage, pendingMessages, sendMessage } from "./routes/messages";
 import {
@@ -25,6 +25,7 @@ const router = new Router();
 const CANONICAL_HOST = "sendself.4oli.com";
 
 router.post("/api/groups", createGroup);
+router.get("/api/groups/challenge", spaceChallenge);
 
 router.post("/api/pairing/:pairingId/request", requestPairing);
 router.post("/api/pairing/:pairingId/complete", completePairing);

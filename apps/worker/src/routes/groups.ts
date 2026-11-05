@@ -1,5 +1,10 @@
-import type { CreateGroupRequest, CreateGroupResponse } from "@sendself/shared";
+import type {
+  CreateGroupRequest,
+  CreateGroupResponse,
+  SpaceChallengeResponse,
+} from "@sendself/shared";
 import { optionalAttestation } from "../attestation";
+import { spaceChallengeSiteKey, verifySpaceChallenge } from "../challenge";
 import { ApiError, json } from "../errors";
 import {
   optionalString,
@@ -11,14 +16,22 @@ import {
 import type { RouteContext } from "../router";
 import { clientIp, rateLimit } from "../security";
 
+/** `GET /api/groups/challenge`: the challenge a client must solve to create a space. */
+export function spaceChallenge(c: RouteContext): Response {
+  return json({ siteKey: spaceChallengeSiteKey(c.env) } satisfies SpaceChallengeResponse);
+}
+
 /**
  * Bootstrap a new group with its first device. Unauthenticated: the caller
  * proves nothing yet, but an attacker can only create empty groups (no
  * GroupKey is ever revealed). The first device stores the GroupKey + token
- * locally; the server keeps only the token hash.
+ * locally; the server keeps only the token hash. Where the deployment
+ * configures Turnstile, the caller must also have solved its challenge, since
+ * every per-device limit downstream starts from a space created here.
  */
 export async function createGroup(c: RouteContext): Promise<Response> {
-  await rateLimit(c.env, "RL_PUBLIC", clientIp(c.request));
+  const ip = clientIp(c.request);
+  await rateLimit(c.env, "RL_PUBLIC", ip);
   const body = await readJsonObject<CreateGroupRequest>(c.request);
   const groupId = requireId(body.groupId, "groupId");
   const deviceAuthTokenHash = requireSha256Hex(body.deviceAuthTokenHash, "deviceAuthTokenHash");
@@ -39,6 +52,10 @@ export async function createGroup(c: RouteContext): Promise<Response> {
     publicKey,
     ...(signingPublicKey === undefined ? {} : { signingPublicKey }),
   });
+
+  // After every cheap check, so a malformed request never spends a Siteverify
+  // round-trip, and before the first query, so an unverified one costs no D1.
+  await verifySpaceChallenge(c.env, body.challengeToken, ip === "unknown" ? null : ip);
 
   const existing = await c.env.DB.prepare("SELECT id FROM groups WHERE id = ?")
     .bind(groupId)

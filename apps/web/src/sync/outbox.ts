@@ -275,8 +275,15 @@ function isAlreadySent(error: unknown): boolean {
 function isRetriable(error: unknown): boolean {
   if (error instanceof Error && error.name === "AbortError") return true;
   if (error instanceof NetworkError) return true;
-  return error instanceof ApiError && (error.code === "rate_limited" || error.code === "internal");
+  return error instanceof ApiError && RETRIABLE_CODES.has(error.code);
 }
+
+/**
+ * `quota_exceeded` sits with the transient ones: the space is full of bytes its
+ * other devices have yet to download, and it frees up as they do. Failing the
+ * message would make the user resend what the outbox can simply wait out.
+ */
+const RETRIABLE_CODES = new Set(["rate_limited", "internal", "quota_exceeded"]);
 
 /** The server refused this ciphertext because the space key has rotated. */
 function isKeyRotated(error: unknown): boolean {

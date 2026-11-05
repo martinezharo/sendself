@@ -174,3 +174,12 @@ describe("POST /api/groups", () => {
     expect(group).toBeNull();
   });
 });
+
+describe("GET /api/groups/challenge", () => {
+  it("asks for no challenge when the deployment has no Turnstile keys", async () => {
+    const response = await SELF.fetch("https://x.dev/api/groups/challenge");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ siteKey: null });
+  });
+});

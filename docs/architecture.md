@@ -82,8 +82,8 @@ The client sends a signed tombstone through the same message and delivery pipeli
 
 | Store | Holds | Lifecycle |
 | --- | --- | --- |
-| D1 | Space and device records, public keys, token hashes, encrypted message metadata, delivery state, pairing slots, and wrapped rotated keys. | Pairing slots expire after 10 minutes. Message records are removed after full delivery or by the 24-hour cleanup. |
-| R2 | Encrypted file blobs only. | Removed after the message is fully delivered, when its message is deleted, or by cleanup after 24 hours. The bucket should also have a one-day lifecycle rule. |
+| D1 | Space and device records, public keys, token hashes, encrypted message metadata, delivery state, pairing slots, wrapped rotated keys, and the size of every stored blob (for the per-space quota). | Pairing slots expire after 10 minutes. Message records are removed after full delivery or by the 24-hour cleanup. A blob's size row is removed together with the blob. |
+| R2 | Encrypted file blobs only, at most 2 GiB per space at once. | Removed after the message is fully delivered, when its message is deleted, by cleanup after an hour if no message claimed it, or by cleanup after 24 hours. The bucket should also have a one-day lifecycle rule. |
 | D1 (push) | One browser push subscription per device that turned notifications on. | Removed when the device unsubscribes, is revoked, or the push service reports the subscription gone. |
 | Durable Object | Connected WebSockets for one space, each tagged with whether that space is on screen. | No application state is stored. Hibernation allows idle spaces to cost nothing beyond their other resources. |
 | IndexedDB | Device sessions, private key material, GroupKey epochs, local message history, cached file content, and an index of outgoing messages still to send. | Persists until the user removes it, or for the history-retention period chosen on that device (forever by default). Undelivered outgoing messages are never pruned. |

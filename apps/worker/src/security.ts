@@ -5,14 +5,19 @@ import { ApiError } from "./errors";
  * Content-Security-Policy and friends. Because this is an end-to-end-encrypted
  * app, an XSS would defeat the entire crypto model, so the policy is strict:
  *  - `script-src 'self'`: no inline JS (JSON-LD data blocks are not executed and
- *    are unaffected; the build is configured to emit no inline scripts).
+ *    are unaffected; the build is configured to emit no inline scripts). The
+ *    one other origin is Turnstile's, loaded only while creating a space when
+ *    the deployment asks for a challenge. It is Cloudflare, which already
+ *    serves every byte of this app, so it widens no trust (see security.md).
  *  - `style-src` allows inline styles (Tailwind + a couple of inline style attrs).
  *  - `img-src`/`media-src` allow blob:/data: for decrypted previews & QR canvas.
  *  - everything else is locked down to same-origin.
  */
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  `script-src 'self' ${TURNSTILE_ORIGIN}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
@@ -23,6 +28,8 @@ const CSP = [
   // an XSS still has nowhere to send anything.
   "connect-src 'self'",
   "worker-src 'self'",
+  // Turnstile renders its challenge in its own iframe.
+  `frame-src ${TURNSTILE_ORIGIN}`,
   "manifest-src 'self'",
   "base-uri 'none'",
   "form-action 'self'",

@@ -40,3 +40,21 @@ describe("upload cancellation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("error mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads an edge 429 with an HTML body as rate_limited, not as a server bug", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>Too many requests</html>", { status: 429 })),
+    );
+
+    await expect(api.ackMessage("m", { token: "t" })).rejects.toMatchObject({
+      status: 429,
+      code: "rate_limited",
+    });
+  });
+});

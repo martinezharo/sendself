@@ -22,7 +22,8 @@ The browser WebSocket API cannot set an `Authorization` header. For `GET /api/re
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/api/groups` | None | Create a space and its first device. The client sends public material, an encrypted device name, and a token hash. |
+| `GET` | `/api/groups/challenge` | None | `{ "siteKey": string \| null }`: the Turnstile site key a client must solve before creating a space, or `null` when the deployment asks for no challenge. |
+| `POST` | `/api/groups` | None; challenge if configured | Create a space and its first device. The client sends public material, an encrypted device name, a token hash and, when the deployment has a challenge, `challengeToken` (a Turnstile token for the `create-space` action). |
 | `POST` | `/api/pairing/:pairingId/request` | Pairing id | Reserve a slot and publish the joining device's public keys. |
 | `POST` | `/api/pairing/:pairingId/complete` | Bearer; admin required | Verify the scanned keys, register the joining device, and store the wrapped pairing package. |
 | `GET` | `/api/pairing/:pairingId` | Pairing id | Poll for the wrapped package. |
@@ -47,6 +48,8 @@ Pairing slots are reaped after 10 minutes. The joining device receives the raw t
 | `GET` | `/api/files/:r2key` | Bearer | Stream an encrypted file blob from R2. |
 
 The plaintext file limit is 50 MiB. The upload limit allows a small amount of overhead for the AES-GCM authentication tag. The server cannot interpret the file body.
+
+Each space may hold at most 2 GiB of uploaded blobs at once (`SPACE_PENDING_BYTES_QUOTA`), counted from the declared `Content-Length` before anything is written. Bytes are released when the blob is deleted: on full delivery, when its message is deleted, or by cleanup. An upload over the cap is refused with `quota_exceeded`, which clients treat as transient. An uploaded blob that no message references after an hour is discarded by the hourly cleanup.
 
 The `since` parameter is accepted as a timestamp cursor, but the current client uses `0` and relies on pending delivery rows as the durable source of truth. It is not currently a safe replay/order cursor; see [TODO.md](../TODO.md).
 
@@ -110,5 +113,7 @@ The main error codes are:
 | `conflict` | 409 | The resource or protocol state changed concurrently. |
 | `key_rotated` | 409 | The client must adopt the current key epoch before retrying. |
 | `payload_too_large` | 413 | A request or file exceeds the configured limit. |
-| `rate_limited` | 429 | A configured edge limiter rejected the request. |
+| `quota_exceeded` | 413 | The space already holds as many undelivered bytes as it may. Retry once other devices have downloaded them. |
+| `challenge_failed` | 403 | The space-creation challenge was missing, expired, or failed. |
+| `rate_limited` | 429 | A configured edge limiter rejected the request. Clients also read a bare 429 without a JSON body (from a Cloudflare WAF rule) as this code. |
 | `internal` | 500 | An unexpected Worker failure. |

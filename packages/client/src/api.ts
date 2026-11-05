@@ -28,6 +28,7 @@ import {
   type RotateKeyRequest,
   type RotateKeyResponse,
   type SendMessageRequest,
+  type SpaceChallengeResponse,
   type UpdateSpaceNameRequest,
   type UpdateSpaceNameResponse,
 } from "@sendself/shared";
@@ -143,8 +144,15 @@ async function request(
   throw new NetworkError(lastError instanceof Error ? lastError.message : "Network request failed");
 }
 
+/**
+ * Codes for statuses that also reach us from Cloudflare's edge rather than the
+ * Worker: a WAF rate-limiting rule answers 429 with an HTML page, which must
+ * still read as "back off" rather than as a server bug.
+ */
+const STATUS_CODES: Partial<Record<number, ApiErrorCode>> = { 429: "rate_limited" };
+
 async function toApiError(response: Response): Promise<ApiError> {
-  let code = "internal";
+  let code: string = STATUS_CODES[response.status] ?? "internal";
   let message = `Request failed (${response.status})`;
   try {
     const body = (await response.json()) as ApiErrorBody;
@@ -187,8 +195,14 @@ export function createApi(config: ApiOptions) {
     (await rawRequest(method, path, opts)).json() as Promise<T>;
 
   return {
+    spaceChallenge(): Promise<SpaceChallengeResponse> {
+      return jsonRequest("GET", "/groups/challenge", { retries: 1 });
+    },
+
     createGroup(body: CreateGroupRequest): Promise<CreateGroupResponse> {
-      return jsonRequest("POST", "/groups", { jsonBody: body });
+      // No retries: a Turnstile token is single-use, so a resend after a lost
+      // response would only fail the challenge.
+      return jsonRequest("POST", "/groups", { jsonBody: body, retries: 0 });
     },
 
     pairingRequest(pairingId: string, body: PairingRequestBody): Promise<void> {

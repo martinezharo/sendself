@@ -9,6 +9,10 @@ const STATUS: Record<ApiErrorCode, number> = {
   conflict: 409,
   key_rotated: 409,
   payload_too_large: 413,
+  // 413 rather than 507: a 5xx would make clients retry on the spot, while
+  // this one only clears once other devices download what the space holds.
+  quota_exceeded: 413,
+  challenge_failed: 403,
   rate_limited: 429,
   internal: 500,
 };
