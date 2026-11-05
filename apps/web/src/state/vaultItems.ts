@@ -196,11 +196,18 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
     if (!stillCurrent(run, spaceId)) return;
     await storeVaultChanges(changes, spaceId);
     if (!stillCurrent(run, spaceId)) return;
+    const previous = records;
     records = applyVaultChanges(records, changes);
+    // Content cached for a blob no record points at any more (purged, edited
+    // elsewhere, or dropped by a reset) is unreachable: let it go.
+    for (const [id, record] of previous) {
+      if (record.blobKey && records.get(id)?.blobKey !== record.blobKey) {
+        forgetCachedContent({ record, meta: null }, spaceId);
+      }
+    }
     cursor = changes.cursor;
     fetched = true;
     vaultUsage.value = changes.usage;
-    for (const id of changes.removed) forgetCachedContent(vaultEntries.value.get(id), spaceId);
   }
 
   const keyChanged = [...vaultEntries.value.values()].some(
@@ -260,11 +267,17 @@ function stillOpen(t: Target): boolean {
 
 /** Put a record the server just returned into the copy, without moving the cursor. */
 async function remember(t: Target, entry: VaultEntry): Promise<VaultEntry> {
+  // Never newer-for-older: a response that took its time can arrive after a
+  // sync already brought in a later change to the same item.
   await storeVaultChanges({ items: [entry.record], removed: [] }, t.spaceId);
   if (stillOpen(t)) {
-    const next = new Map(vaultEntries.value);
-    next.set(entry.record.id, entry);
-    vaultEntries.value = next;
+    const known = vaultEntries.value.get(entry.record.id);
+    if (!known || known.record.seq < entry.record.seq) {
+      if (known?.record.blobKey !== entry.record.blobKey) forgetCachedContent(known, t.spaceId);
+      const next = new Map(vaultEntries.value);
+      next.set(entry.record.id, entry);
+      vaultEntries.value = next;
+    }
     refreshAfterWrite();
   }
   return entry;

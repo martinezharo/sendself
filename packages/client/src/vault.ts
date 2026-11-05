@@ -415,7 +415,12 @@ export function applyVaultChanges(
 ): Map<string, VaultItemRecord> {
   const next = changes.reset ? new Map<string, VaultItemRecord>() : new Map(records);
   for (const id of changes.removed) next.delete(id);
-  for (const item of changes.items) next.set(item.id, item);
+  for (const item of changes.items) {
+    // Never older-over-newer: this device's own write may have landed a later
+    // version than the listing this answer was read from.
+    const known = next.get(item.id);
+    if (!known || known.seq <= item.seq) next.set(item.id, item);
+  }
   return next;
 }
 

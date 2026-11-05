@@ -925,10 +925,14 @@ export function canSaveToVault(message: LocalMessage): boolean {
 
 /** Keep a message in the vault's top level: a file as a file, text as a note. */
 export async function saveMessageToVault(message: LocalMessage): Promise<void> {
-  if (message.file) {
+  // The vault it goes to is the space the message is in. `uploadFiles` pins the
+  // open space when it starts, so the space must not have changed while the
+  // file was being read.
+  const spaceId = activeSpace.value?.id;
+  if (message.file && spaceId) {
     let blob: Blob | undefined;
     try {
-      blob = await getFile(message.file.r2Key);
+      blob = await getFile(message.file.r2Key, spaceId);
     } catch {
       blob = undefined;
     }
@@ -936,6 +940,7 @@ export async function saveMessageToVault(message: LocalMessage): Promise<void> {
       showToast("File is no longer available", "error");
       return;
     }
+    if (activeSpace.value?.id !== spaceId) return;
     const file = new File([blob], message.file.name, { type: message.file.mime });
     if ((await uploadFiles(null, [file])) > 0) showToast("Saved to the vault");
     return;

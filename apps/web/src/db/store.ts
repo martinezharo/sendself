@@ -662,7 +662,15 @@ export async function storeVaultChanges(
   const writes: Promise<unknown>[] = [];
   if (changes.reset) writes.push(store.clear());
   for (const id of changes.removed) writes.push(store.delete(id));
-  for (const item of changes.items) writes.push(store.put(item));
+  for (const item of changes.items) {
+    // Only ever newer: a slow write response must not replace a later change
+    // a sync already stored.
+    writes.push(
+      store.get(item.id).then((known) => {
+        if (!known || known.seq < item.seq) return store.put(item);
+      }),
+    );
+  }
   if (changes.cursor !== undefined) {
     writes.push(transaction.objectStore("meta").put(changes.cursor, META_VAULT_CURSOR));
   }

@@ -247,6 +247,19 @@ describe("vault tree", () => {
     ]).toEqual(["b"]);
   });
 
+  it("never replaces a newer version of an item with an older one", () => {
+    const newer = { id: "a", parentId: null, trashedAt: null, seq: 5 } as VaultItemRecord;
+    const older = { ...newer, seq: 3 };
+
+    const result = applyVaultChanges(new Map([["a", newer]]), {
+      items: [older],
+      removed: [],
+      reset: false,
+    });
+
+    expect(result.get("a")?.seq).toBe(5);
+  });
+
   it("names an untitled note after its first line", () => {
     expect(noteTitle("  ", "\n  Groceries  \nmilk")).toBe("Groceries");
     expect(noteTitle("", "")).toBe("Untitled note");
