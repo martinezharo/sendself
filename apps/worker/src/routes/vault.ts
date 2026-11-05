@@ -106,8 +106,13 @@ const LIVE_FOLDER = `EXISTS (
    WHERE group_id = ? AND id = ? AND kind = 'folder' AND removed_at IS NULL
 )`;
 
-async function writtenItem(c: RouteContext, groupId: string, id: string): Promise<Response> {
-  const item = await vaultItem(c.env, groupId, id);
+/**
+ * The row a write produced, as its own statement returned it. Read in the same
+ * statement rather than afterwards: by then another device's edit may have
+ * landed, and its revision would be handed back as if it were this one's.
+ */
+function writtenItem(result: D1Result | undefined): Response {
+  const item = result?.results?.[0] as VaultItemRecord | undefined;
   if (!item) throw new ApiError("conflict", "The item changed while saving; try again");
   return json({ ok: true, item } satisfies VaultItemWriteResponse);
 }
@@ -210,7 +215,8 @@ export async function createVaultItem(c: RouteContext): Promise<Response> {
                 WHERE group_id = ? AND removed_at IS NULL) < ?
           AND (? IS NULL OR ${LIVE_FOLDER})
           AND (? IS NULL OR (${BLOB_CLAIMABLE}))
-          AND NOT EXISTS (SELECT 1 FROM vault_items WHERE group_id = ? AND id = ?)`,
+          AND NOT EXISTS (SELECT 1 FROM vault_items WHERE group_id = ? AND id = ?)
+       RETURNING ${VAULT_ITEM_COLUMNS}`,
     ).bind(
       auth.groupId,
       id,
@@ -255,7 +261,7 @@ export async function createVaultItem(c: RouteContext): Promise<Response> {
   }
 
   announce(c, auth);
-  return writtenItem(c, auth.groupId, id);
+  return writtenItem(insert);
 }
 
 /**
@@ -352,7 +358,8 @@ export async function updateVaultItem(c: RouteContext): Promise<Response> {
       `UPDATE vault_items
           SET ${sets.join(", ")}, revision = revision + 1, updated_at = ?, seq = ${VAULT_SEQ}
         WHERE group_id = ? AND id = ? AND revision = ? AND removed_at IS NULL
-          ${guards.map((guard) => `AND ${guard}`).join("\n")}`,
+          ${guards.map((guard) => `AND ${guard}`).join("\n")}
+       RETURNING ${VAULT_ITEM_COLUMNS}`,
     ).bind(...binds, now, auth.groupId, auth.groupId, id, revision, ...guardBinds),
   ]);
   if (update?.meta.changes !== 1) {
@@ -362,11 +369,11 @@ export async function updateVaultItem(c: RouteContext): Promise<Response> {
   // The superseded content is nobody's any more. If this delete fails, the
   // orphan sweep finds it: no live item claims it.
   if (replacedBlob) {
-    c.ctx.waitUntil(deleteBlob(c.env, VAULT_BLOBS, auth.groupId, replacedBlob).catch(() => {}));
+    await deleteBlob(c.env, VAULT_BLOBS, auth.groupId, replacedBlob).catch(() => {});
   }
 
   announce(c, auth);
-  return writtenItem(c, auth.groupId, id);
+  return writtenItem(update);
 }
 
 /**
