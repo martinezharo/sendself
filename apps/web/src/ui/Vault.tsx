@@ -787,6 +787,9 @@ function NoteEditor({
               maxLength={200}
               placeholder="Title"
               aria-label="Title"
+              // Read-only while saving: what is on screen must be what was saved,
+              // or closing on success would drop whatever was typed meanwhile.
+              readOnly={saving}
               class="w-full flex-none bg-transparent font-display text-display font-semibold tracking-[-0.025em] text-ink outline-none placeholder:text-muted/60"
               onInput={(event) => setTitle((event.target as HTMLInputElement).value)}
             />
@@ -794,6 +797,7 @@ function NoteEditor({
               value={text}
               placeholder="Write something to keep…"
               aria-label="Note"
+              readOnly={saving}
               autoFocus={entry === null}
               class="mt-3 min-h-0 w-full flex-1 resize-none bg-transparent text-lead leading-7 text-ink outline-none placeholder:text-muted/60"
               onInput={(event) => setText((event.target as HTMLTextAreaElement).value)}

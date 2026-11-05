@@ -18,12 +18,23 @@ export interface BlobStore {
    * blob. An unclaimed row older than the orphan TTL is an abandoned upload.
    */
   readonly claimed: string;
+  /**
+   * The bucket has a lifecycle rule that expires every object on its own.
+   *
+   * That decides the order a deletion takes. With one, the row goes first
+   * (see the invariant on `reserveBlob`), and a blob whose R2 delete then
+   * fails still expires. Without one nothing would ever remove that blob, so
+   * the blob goes first and the row only after it: a failed delete leaves an
+   * unclaimed row, which the orphan sweep finds and retries.
+   */
+  readonly expires: boolean;
 }
 
 /** Message attachments, deleted once every recipient has them. */
 export const MESSAGE_FILES: BlobStore = {
   table: "uploads",
   bucket: (env) => env.FILES,
+  expires: true,
   claimed: `EXISTS (
     SELECT 1 FROM messages m WHERE m.group_id = u.group_id AND m.file_r2_key = u.r2_key
   )`,
@@ -33,6 +44,9 @@ export const MESSAGE_FILES: BlobStore = {
 export const VAULT_BLOBS: BlobStore = {
   table: "vault_blobs",
   bucket: (env) => env.VAULT,
+  // Vault blob keys are random per version and never uploaded twice once
+  // claimed, so deleting the blob before its row races no write.
+  expires: false,
   claimed: `EXISTS (
     SELECT 1 FROM vault_items v
      WHERE v.group_id = u.group_id AND v.blob_key = u.r2_key AND v.removed_at IS NULL
@@ -145,8 +159,9 @@ export function forgetBlob(
 }
 
 /**
- * Delete one blob and its accounting row. The only way a blob nothing owns
- * should leave R2, so the quota never counts bytes that are gone.
+ * Delete one blob and its accounting row, in the order `store.expires` calls
+ * for. The only way a blob nothing owns should leave R2, so the quota never
+ * counts bytes that are gone.
  */
 export async function deleteBlob(
   env: Env,
@@ -154,9 +169,12 @@ export async function deleteBlob(
   groupId: string,
   key: string,
 ): Promise<void> {
-  // Row first: see the accounting invariant on `reserveBlob`.
-  await forgetBlob(env, store, groupId, key).run();
-  await store.bucket(env).delete(blobStorageKey(groupId, key));
+  if (store.expires) {
+    await forgetBlob(env, store, groupId, key).run();
+    await store.bucket(env).delete(blobStorageKey(groupId, key));
+    return;
+  }
+  await deleteUnclaimedBlobs(env, store, [{ groupId, key }]);
 }
 
 /** Delete blobs whose rows were already dropped (`forgetBlob` in a caller's batch). */
@@ -172,32 +190,69 @@ export async function deleteForgottenBlobs(
 }
 
 /**
+ * For a bucket that does not expire: delete blobs nothing claims any more,
+ * then their rows. If the R2 delete fails, the rows stay, unclaimed, and the
+ * orphan sweep tries again. A row is only dropped while still unclaimed.
+ */
+export async function deleteUnclaimedBlobs(
+  env: Env,
+  store: BlobStore,
+  blobs: readonly { groupId: string; key: string }[],
+): Promise<void> {
+  for (let offset = 0; offset < blobs.length; offset += SWEEP_BATCH_SIZE) {
+    const batch = blobs.slice(offset, offset + SWEEP_BATCH_SIZE);
+    await store.bucket(env).delete(batch.map((blob) => blobStorageKey(blob.groupId, blob.key)));
+    await env.DB.batch(
+      batch.map((blob) =>
+        env.DB.prepare(
+          `DELETE FROM ${store.table} AS u
+            WHERE u.group_id = ? AND u.r2_key = ? AND NOT ${store.claimed}`,
+        ).bind(blob.groupId, blob.key),
+      ),
+    );
+  }
+}
+
+/**
  * Delete uploads that nothing claims and that are older than `olderThan`:
- * writes abandoned between the upload and the record that owns it. Without
+ * writes abandoned between the upload and the record that owns it, and (for a
+ * bucket that does not expire) blobs whose earlier deletion failed. Without
  * this they would count against the space's quota until something else
  * removed them (the 24-hour cleanup for messages; nothing at all for the vault).
  *
- * Candidates are claimed by deleting their rows in one statement, and only the
- * blobs of rows actually claimed are removed. A retry that re-uploads the key
- * refreshes its row first, and an owner that claims it is checked in the same
- * statement, so neither can be swept from under it by a decision made earlier.
+ * In an expiring bucket, candidates are claimed by deleting their rows in one
+ * statement, and only the blobs of rows actually claimed are removed. A retry
+ * that re-uploads the key refreshes its row first, and an owner that claims it
+ * is checked in the same statement, so neither can be swept from under it by
+ * a decision made earlier. In one that does not expire, the blob goes first
+ * (see `BlobStore.expires`).
  */
 export async function purgeOrphanBlobs(
   env: Env,
   store: BlobStore,
   olderThan: number,
 ): Promise<void> {
-  while (true) {
-    const rows = await env.DB.prepare(
-      `DELETE FROM ${store.table}
-        WHERE rowid IN (
-          SELECT u.rowid
+  const candidates = `SELECT u.rowid
             FROM ${store.table} u
            WHERE u.created_at < ?1
              AND NOT ${store.claimed}
            ORDER BY u.created_at ASC
-           LIMIT ?2
-        )
+           LIMIT ?2`;
+  while (true) {
+    if (!store.expires) {
+      const rows = await env.DB.prepare(
+        `SELECT group_id AS groupId, r2_key AS key FROM ${store.table}
+          WHERE rowid IN (${candidates})`,
+      )
+        .bind(olderThan, SWEEP_BATCH_SIZE)
+        .all<{ groupId: string; key: string }>();
+      if (rows.results.length === 0) break;
+      await deleteUnclaimedBlobs(env, store, rows.results);
+      continue;
+    }
+    const rows = await env.DB.prepare(
+      `DELETE FROM ${store.table}
+        WHERE rowid IN (${candidates})
        RETURNING group_id AS groupId, r2_key AS key`,
     )
       .bind(olderThan, SWEEP_BATCH_SIZE)

@@ -1,5 +1,5 @@
 import { VAULT_TOMBSTONE_TTL_MS, VAULT_TRASH_TTL_MS, type VaultItemRecord } from "@sendself/shared";
-import { VAULT_BLOBS, deleteForgottenBlobs, forgetBlob } from "./blobs";
+import { VAULT_BLOBS, deleteUnclaimedBlobs } from "./blobs";
 import type { Env } from "./env";
 
 /**
@@ -86,16 +86,17 @@ export async function purgeVaultItem(env: Env, groupId: string, id: string): Pro
                     seq = ${VAULT_SEQ}
               WHERE group_id = ? AND id = ? AND removed_at IS NULL`,
           ).bind(now, now, groupId, groupId, row.id),
-          // Row before blob: see the accounting invariant on `reserveBlob`.
-          ...(row.blobKey ? [forgetBlob(env, VAULT_BLOBS, groupId, row.blobKey)] : []),
         ]),
       );
       purged.push(...batch.map((row) => row.id));
-      await deleteForgottenBlobs(
+      // The items no longer claim their blobs. A failed delete is not the
+      // purge's failure: the rows stay, unclaimed, and the orphan sweep retries
+      // (see `BlobStore.expires`).
+      await deleteUnclaimedBlobs(
         env,
         VAULT_BLOBS,
         batch.flatMap((row) => (row.blobKey ? [{ groupId, key: row.blobKey }] : [])),
-      );
+      ).catch(() => {});
     }
   }
 }
