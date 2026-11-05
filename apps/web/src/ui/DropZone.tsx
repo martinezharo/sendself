@@ -116,6 +116,18 @@ async function acceptDrop(data: DataTransfer | null): Promise<void> {
     return;
   }
 
+  // Where the drop landed, decided before reading it: expanding a dropped
+  // folder takes a while, and the files belong where they were dropped, not
+  // wherever the user is by the time they are read.
+  const dropped = route.value;
+  const folder =
+    dropped.name === "space" &&
+    dropped.section === "vault" &&
+    dropped.vault &&
+    "folderId" in dropped.vault
+      ? dropped.vault.folderId
+      : undefined;
+
   const files = await getDroppedFiles(data);
   if (files.length === 0) {
     showToast("Nothing to send — that drop had no files", "error");
@@ -123,9 +135,14 @@ async function acceptDrop(data: DataTransfer | null): Promise<void> {
   }
 
   // In the vault a drop means "keep these here", in the folder on screen.
-  const current = route.value;
-  if (inVault() && current.name === "space" && current.vault && "folderId" in current.vault) {
-    const saved = await uploadFiles(current.vault.folderId, files);
+  if (folder !== undefined) {
+    // Uploading goes to the open space; if it is no longer the one the files
+    // were dropped on, they are not uploaded at all.
+    if (route.value !== dropped) {
+      showToast("You moved away before the drop was read, so nothing was saved", "error");
+      return;
+    }
+    const saved = await uploadFiles(folder, files);
     if (saved > 0) showToast(saved === 1 ? "Saved to the vault" : `${saved} files saved`);
     return;
   }

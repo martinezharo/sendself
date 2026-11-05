@@ -84,6 +84,7 @@ let generation = 0;
 function begin(): number {
   generation += 1;
   syncing = null;
+  again = false;
   return generation;
 }
 
@@ -94,6 +95,8 @@ function stillCurrent(run: number, spaceId: string): boolean {
 /** Whether this session asked the server yet: the usage figures only come from there. */
 let fetched = false;
 let syncing: Promise<void> | null = null;
+/** Another pass was asked for while one was running. */
+let again = false;
 let resealing = false;
 
 /**
@@ -174,10 +177,22 @@ export function clearVault(): void {
  * what an older key sealed, once this device holds the current one.
  */
 export function syncVault(ring: Keyring, vaultSeq?: number): Promise<void> {
-  if (syncing) return syncing;
+  if (syncing) {
+    // Asked while a pass is running (typically right after this device's own
+    // write): that pass may have read the server before the write, so run
+    // another one once it is done rather than settle for it.
+    again = true;
+    return syncing;
+  }
   const pass = runSync(ring, vaultSeq).finally(() => {
     // A newer space may already have started its own pass: leave that one be.
-    if (syncing === pass) syncing = null;
+    if (syncing !== pass) return;
+    syncing = null;
+    if (again) {
+      again = false;
+      const latest = keyring.value;
+      if (latest) void syncVault(latest).catch(() => {});
+    }
   });
   syncing = pass;
   return pass;
@@ -196,8 +211,10 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
     if (!stillCurrent(run, spaceId)) return;
     await storeVaultChanges(changes, spaceId);
     if (!stillCurrent(run, spaceId)) return;
-    const previous = records;
-    records = applyVaultChanges(records, changes);
+    // Applied to what is in memory now, not to what it was before the fetch:
+    // a write this device finished meanwhile is newer than the listing.
+    const previous = recordsOf(vaultEntries.value);
+    records = applyVaultChanges(previous, changes);
     // Content cached for a blob no record points at any more (purged, edited
     // elsewhere, or dropped by a reset) is unreachable: let it go.
     for (const [id, record] of previous) {
@@ -216,6 +233,11 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
   if (stale || keyChanged) {
     const opened = await openRecords(records, ring, current.groupId);
     if (!stillCurrent(run, spaceId)) return;
+    // Opening is asynchronous too: keep anything written while it ran.
+    for (const [id, entry] of vaultEntries.value) {
+      const mine = opened.get(id);
+      if (mine ? mine.record.seq < entry.record.seq : !records.has(id)) opened.set(id, entry);
+    }
     vaultEntries.value = opened;
   }
 
