@@ -32,7 +32,15 @@ import {
   setVaultItemTrashed,
   updateVaultNote,
 } from "@sendself/client/vault";
-import { ApiError, NetworkError, api } from "../api/client";
+import { ApiError, NetworkError, quietApi, reportAuthFailure } from "../api/client";
+
+/**
+ * Every vault request goes through the quiet client: a request made for a
+ * space the user has since left must not mark the space now open as revoked.
+ * A dead-session answer is reported only after checking it came from the
+ * open space's own credentials.
+ */
+const api = quietApi;
 import type { Keyring } from "../crypto/keyring";
 import {
   activeSpace as activeSpaceId,
@@ -207,7 +215,10 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
   const stale = vaultSeq === undefined || vaultSeq !== cursor || !fetched;
   let records = recordsOf(vaultEntries.value);
   if (stale) {
-    const changes = await pullVaultChanges(api, authHeaders(), cursor);
+    const changes = await pullVaultChanges(api, authHeaders(), cursor).catch((error: unknown) => {
+      if (stillCurrent(run, spaceId)) reportAuthFailure(error);
+      throw error;
+    });
     if (!stillCurrent(run, spaceId)) return;
     await storeVaultChanges(changes, spaceId);
     if (!stillCurrent(run, spaceId)) return;
@@ -345,12 +356,16 @@ async function write<T>(t: Target, operation: (ctx: VaultContext) => Promise<T>)
   try {
     return await operation(t.ctx);
   } catch (error) {
+    if (stillOpen(t)) reportAuthFailure(error);
     if (!(error instanceof ApiError) || error.code !== "key_rotated" || !stillOpen(t)) throw error;
     await refreshKeys();
     const fresh = target();
     if (fresh.spaceId !== t.spaceId) throw error;
     t.ctx = fresh.ctx;
-    return operation(t.ctx);
+    return operation(t.ctx).catch((retryError: unknown) => {
+      if (stillOpen(t)) reportAuthFailure(retryError);
+      throw retryError;
+    });
   }
 }
 
@@ -511,7 +526,7 @@ export function restoreItem(entry: VaultEntry): Promise<VaultEntry | undefined> 
 export function deleteForever(entry: VaultEntry): Promise<boolean> {
   return attempt(async () => {
     const t = target();
-    const { removed } = await api.deleteVaultItem(entry.record.id, t.ctx.auth);
+    const { removed } = await write(t, (ctx) => ctx.api.deleteVaultItem(entry.record.id, ctx.auth));
     await forget(t, removed);
     return true;
   }).then((done) => done === true);
@@ -537,7 +552,7 @@ export async function openContent(entry: VaultEntry): Promise<Blob> {
   const cacheKey = vaultFileKey(record.blobKey);
   const cached = await getFile(cacheKey, t.spaceId).catch(() => undefined);
   if (cached) return cached;
-  const data = await readVaultContent(t.ctx, entry);
+  const data = await write(t, (ctx) => readVaultContent(ctx, entry));
   const blob = new Blob([data], {
     type: meta.mime ?? (record.kind === "note" ? "text/plain" : ""),
   });

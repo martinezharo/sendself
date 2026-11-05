@@ -3,7 +3,7 @@
  * origin, and a dead session reported to whoever registered for it.
  */
 
-import { type ApiError, createApi } from "@sendself/client/api";
+import { type ApiError, createApi, isAuthFailure } from "@sendself/client/api";
 
 export { ApiError, type Auth, NetworkError, isAuthFailure } from "@sendself/client/api";
 
@@ -19,6 +19,15 @@ let authFailureHandler: AuthFailureHandler | null = null;
  */
 export function setAuthFailureHandler(handler: AuthFailureHandler | null): void {
   authFailureHandler = handler;
+}
+
+/**
+ * Report a failure from a request made with `quietApi` as the open space's
+ * own, once the caller has checked that the credentials it used are that
+ * space's. Anything but a dead-session error is ignored.
+ */
+export function reportAuthFailure(error: unknown): void {
+  if (isAuthFailure(error)) authFailureHandler?.(error as ApiError);
 }
 
 export const api = createApi({
