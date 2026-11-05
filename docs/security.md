@@ -60,6 +60,19 @@ The server never sees the new unwrapped key. Existing devices keep older epochs 
 
 Rotation is forward-only. A revoked device can still read content from epochs it already held, and it may have copied plaintext before revocation. If a device has been revoked before the rotation completes, the API denies its access, but the cryptographic boundary for future content is the new epoch.
 
+## The vault
+
+Each space has a vault of folders, notes and files that stay on the server until someone deletes them. It is sealed with two layers of keys:
+
+- Each item's metadata (`VaultItemMeta`: its name, a note's opening line, a file's type and size, and the content key) is AES-GCM ciphertext under the `GroupKey`, bound as additional data to the space, the item id and its kind, so the server cannot move metadata from one item to another.
+- A note's or file's content is sealed under a random key of its own, which only the metadata carries, and bound to its space and blob key. Every saved version of a note gets a new key.
+
+The server learns how many items a vault holds, their kind, how folders nest, blob sizes, and when items change. It cannot read names, notes or files.
+
+Key rotation does not re-encrypt content. After a rotation, any device that holds both the old and the current key seals each item's metadata again under the current key, so a device that joins later (and only receives the current key) can read the vault. Until some such device has run, a new device sees those items as locked. A revoked device loses API access to the vault at once; like any member, it may have kept what it already downloaded, and the content keys of items it could read do not change until those items are saved again.
+
+Vault items are not signed. Any device in the space can create or change them, exactly as it could forge a message's ciphertext if it skipped signing; the server can roll an item back to an older revision or withhold changes, but cannot read or forge content without a key.
+
 ## Delete for everyone
 
 Global deletion is a signed tombstone, not a privileged server-side erase request from the UI. The tombstone signs a deletion-specific statement so a normal message signature cannot be replayed as a destructive command. When it arrives, the Worker removes the target row and R2 object if they still exist; each recipient then validates the tombstone and deletes its local copy.
@@ -99,6 +112,7 @@ Application-level encryption does not hide metadata. Depending on the request an
 - Ciphertext lengths, file sizes, IVs, request timing, server timestamps, and delivery state.
 - That a message carries a metadata envelope and roughly how long it is — but not its contents, so not whether a message is temporary or which files were sent together.
 - Which devices are active or awaiting delivery, and when a file or message is removed.
+- For the vault: how many items each space keeps, their kind (folder, note or file), how folders nest, blob sizes, and when items are created, changed, trashed or purged.
 - Network and platform metadata such as source IP information and access timing, subject to the Cloudflare deployment and its logging configuration.
 - For a device with notifications on: its browser push endpoint, and whether the space is on screen while the app is connected. The push service relaying a notification (Google, Apple, Mozilla or Microsoft, depending on the browser) sees that a push was sent to that browser, its size and its time. The payload — which space it is about — is encrypted to the browser, and no content ever travels in it.
 
@@ -110,7 +124,8 @@ Creating a space needs no account, so the server bounds what one can cost rather
 
 - When the deployment configures Turnstile, creating a space requires a solved challenge, verified server-side for the `create-space` action.
 - Each space may hold at most 2 GiB of undelivered blobs. A device over the cap keeps its message queued and retries.
-- Uploads no message claims within an hour are deleted.
+- Uploads no message or vault item claims within an hour are deleted.
+- Each space's vault may hold at most 1 GiB and 10,000 items.
 - The edge rate limiters and any WAF rule run in front of all of this.
 
 The Turnstile script is the one script the app loads from another origin (`https://challenges.cloudflare.com`, allowed in `script-src` and `frame-src`). It is loaded only while a space is being created, and only when the server hands out a site key. It runs with the page's privileges, but its origin is Cloudflare, which already serves the app's own code and so is already inside the trust boundary described above.

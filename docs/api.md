@@ -61,6 +61,24 @@ The `since` parameter is accepted as a timestamp cursor, but the current client 
 | `POST` | `/api/keys/:epoch/ack` | Bearer | Adopt a pending wrapped key locally and remove its server-side delivery blob. |
 | `PUT` | `/api/groups/self/name` | Bearer | Set or clear the shared space name. The name is encrypted by the client with the current `GroupKey`. |
 
+### Vault
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/vault?since=<cursor>` | Bearer | Every vault change after `cursor`, oldest first: changed items, ids purged for good, the new `cursor`, `more` when another page follows, `reset` when the cursor is too old to be answered incrementally, and the vault's usage. |
+| `POST` | `/api/vault/items` | Bearer | Create a folder, note or file. A note or file names a blob already uploaded to `/api/vault/blobs`. |
+| `PATCH` | `/api/vault/items/:id` | Bearer | Rename (new `meta`), replace a note's content (new `blobKey` with its `meta`), move (`parentId`), trash or restore (`trashed`). Must name the item's current `revision`, otherwise `conflict`. |
+| `DELETE` | `/api/vault/items/:id` | Bearer | Purge an item for good, with everything nested in it and their blobs. |
+| `POST` | `/api/vault/reseal` | Bearer | Replace the `meta` of up to 100 items sealed under an older key epoch with `meta` sealed under the current one. An item edited since its `revision` is skipped. |
+| `PUT` | `/api/vault/blobs/:r2key` | Bearer | Store an encrypted vault blob in the `VAULT` bucket. Same limits as `/api/files`. |
+| `GET` | `/api/vault/blobs/:r2key` | Bearer | Stream an encrypted vault blob. |
+
+Every active device can use the vault, send-only ones included. The server never opens `meta`; it checks that metadata is sealed under the space's current key epoch (otherwise `key_rotated`), that a parent is a live folder of the same space, that a move does not put a folder inside itself, and that one blob belongs to at most one item.
+
+Each vault holds at most 1 GiB of blobs (`VAULT_BYTES_QUOTA`, pending uploads included) and 10,000 items (`VAULT_MAX_ITEMS`); either cap answers `quota_exceeded`, which unlike the pending quota does not clear by waiting. A blob no item claims within an hour is discarded. Trashed items are purged after 30 days; a purged item leaves a contentless tombstone for 90 days so devices that were offline learn to drop it.
+
+`GET /api/messages/pending` also returns `vaultSeq`, the vault's change counter, so a device only asks `/api/vault` when it moved. Vault writes notify the space's other devices over the realtime socket but never send a push.
+
 ### Device management
 
 | Method | Path | Auth | Purpose |
