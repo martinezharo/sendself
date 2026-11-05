@@ -232,6 +232,16 @@ describe("reserveUpload", () => {
     expect(await uploadRow(groupId, "a")).toEqual({ size: 95 });
   });
 
+  it("never shrinks a key's reservation, since an overlapping larger write may win", async () => {
+    const { groupId } = await seedSpace();
+    await reserveUpload(env, groupId, "a", 50, 100, Date.now());
+
+    expect(await reserveUpload(env, groupId, "a", 1, 100, Date.now())).toBe(true);
+    expect(await uploadRow(groupId, "a")).toEqual({ size: 50 });
+    // The space is still charged for the larger write.
+    expect(await reserveUpload(env, groupId, "b", 51, 100, Date.now())).toBe(false);
+  });
+
   it("charges each space only for its own uploads", async () => {
     const a = await seedSpace();
     const b = await seedSpace();

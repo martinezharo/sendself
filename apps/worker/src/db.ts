@@ -61,7 +61,11 @@ export async function messageRecipients(
  *
  * One statement, so the check and the write are atomic: concurrent uploads to
  * the same space cannot all pass a check made before any of them was counted.
- * Re-uploading a key replaces its own reservation instead of adding to it.
+ *
+ * Re-uploading a key never adds to its reservation, but never shrinks it
+ * either: two overlapping writes to one key finish in no particular order, so
+ * the object R2 keeps may be the larger one even when the smaller reserved
+ * last. Keeping the maximum counts whichever wins; the row goes with the blob.
  */
 export async function reserveUpload(
   env: Env,
@@ -76,9 +80,11 @@ export async function reserveUpload(
      SELECT ?1, ?2, ?3, ?4
       WHERE COALESCE(
               (SELECT SUM(size) FROM uploads WHERE group_id = ?1 AND r2_key != ?2), 0
-            ) + ?3 <= ?5
+            ) + MAX(?3, COALESCE(
+              (SELECT size FROM uploads WHERE group_id = ?1 AND r2_key = ?2), 0
+            )) <= ?5
      ON CONFLICT (group_id, r2_key) DO UPDATE
-        SET size = excluded.size, created_at = excluded.created_at`,
+        SET size = MAX(size, excluded.size), created_at = excluded.created_at`,
   )
     .bind(groupId, key, size, now, quota)
     .run();
@@ -103,25 +109,34 @@ export async function deleteUpload(env: Env, groupId: string, key: string): Prom
  * Delete uploads that no message references and that are older than
  * `olderThan`: sends abandoned between the upload and the message. Without
  * this they would count against the space's quota until the 24-hour cleanup.
+ *
+ * Candidates are claimed by deleting their rows in one statement, and only the
+ * blobs of rows actually claimed are removed. A retry that re-uploads the key
+ * refreshes its row first, and a message that claims it is checked in the same
+ * statement, so neither can be swept from under it by a decision made earlier.
+ * If the R2 delete then fails, the bucket's lifecycle rule still expires it.
  */
 export async function purgeOrphanUploads(env: Env, olderThan: number): Promise<void> {
   while (true) {
     const rows = await env.DB.prepare(
-      `SELECT u.group_id AS groupId, u.r2_key AS key
-         FROM uploads u
-        WHERE u.created_at < ?
-          AND NOT EXISTS (
-            SELECT 1 FROM messages m
-             WHERE m.group_id = u.group_id AND m.file_r2_key = u.r2_key
-          )
-        ORDER BY u.created_at ASC
-        LIMIT ?`,
+      `DELETE FROM uploads
+        WHERE rowid IN (
+          SELECT u.rowid
+            FROM uploads u
+           WHERE u.created_at < ?1
+             AND NOT EXISTS (
+               SELECT 1 FROM messages m
+                WHERE m.group_id = u.group_id AND m.file_r2_key = u.r2_key
+             )
+           ORDER BY u.created_at ASC
+           LIMIT ?2
+        )
+       RETURNING group_id AS groupId, r2_key AS key`,
     )
       .bind(olderThan, DELETE_BATCH_SIZE)
       .all<{ groupId: string; key: string }>();
     if (rows.results.length === 0) break;
     await env.FILES.delete(rows.results.map((row) => fileStorageKey(row.groupId, row.key)));
-    await env.DB.batch(rows.results.map((row) => forgetUpload(env, row.groupId, row.key)));
   }
 }
 
