@@ -55,6 +55,68 @@ export async function vaultItem(
  * stranded under a parent that no longer exists. Once the folder itself is a
  * tombstone nothing new can be created in it, so the loop ends.
  */
+/** Statement turning one live item into a tombstone; `guard` adds conditions (and binds). */
+function tombstone(
+  env: Env,
+  groupId: string,
+  id: string,
+  now: number,
+  guard = "",
+  ...guardBinds: unknown[]
+): D1PreparedStatement {
+  return env.DB.prepare(
+    `UPDATE vault_items
+        SET removed_at = ?, trashed_at = NULL, key_epoch = NULL, meta = NULL,
+            meta_iv = NULL, blob_key = NULL, blob_size = 0, updated_at = ?,
+            seq = ${VAULT_SEQ}
+      WHERE group_id = ? AND id = ? AND removed_at IS NULL ${guard}`,
+  ).bind(now, now, groupId, groupId, id, ...guardBinds);
+}
+
+/**
+ * Purge an item that has sat in the trash since before `expiredBefore`, and
+ * everything in it. Returns the ids purged; none when it no longer qualifies.
+ *
+ * The item itself is claimed by one statement that re-checks that it is still
+ * in the trash, still since then, and still holds the content that is about to
+ * be deleted. A restore that lands between choosing it and purging it
+ * therefore wins, instead of being destroyed by a decision made before it.
+ */
+export async function purgeExpiredVaultItem(
+  env: Env,
+  groupId: string,
+  id: string,
+  expiredBefore: number,
+): Promise<string[]> {
+  const root = await env.DB.prepare(
+    `SELECT blob_key AS blobKey FROM vault_items
+      WHERE group_id = ? AND id = ? AND removed_at IS NULL AND trashed_at < ?`,
+  )
+    .bind(groupId, id, expiredBefore)
+    .first<{ blobKey: string | null }>();
+  if (!root) return [];
+
+  const [, claim] = await env.DB.batch([
+    nextVaultSeq(env, groupId),
+    tombstone(
+      env,
+      groupId,
+      id,
+      Date.now(),
+      "AND trashed_at < ? AND blob_key IS ?",
+      expiredBefore,
+      root.blobKey,
+    ),
+  ]);
+  if (claim?.meta.changes !== 1) return [];
+  if (root.blobKey) {
+    await deleteUnclaimedBlobs(env, VAULT_BLOBS, [{ groupId, key: root.blobKey }]).catch(() => {});
+  }
+  // The item is a tombstone now, so nothing new can be put inside it: its
+  // contents are purged like any other folder's.
+  return [id, ...(await purgeVaultItem(env, groupId, id))];
+}
+
 export async function purgeVaultItem(env: Env, groupId: string, id: string): Promise<string[]> {
   const purged: string[] = [];
   while (true) {
@@ -77,16 +139,7 @@ export async function purgeVaultItem(env: Env, groupId: string, id: string): Pro
     for (let offset = 0; offset < rows.results.length; offset += PURGE_BATCH_SIZE) {
       const batch = rows.results.slice(offset, offset + PURGE_BATCH_SIZE);
       await env.DB.batch(
-        batch.flatMap((row) => [
-          nextVaultSeq(env, groupId),
-          env.DB.prepare(
-            `UPDATE vault_items
-                SET removed_at = ?, trashed_at = NULL, key_epoch = NULL, meta = NULL,
-                    meta_iv = NULL, blob_key = NULL, blob_size = 0, updated_at = ?,
-                    seq = ${VAULT_SEQ}
-              WHERE group_id = ? AND id = ? AND removed_at IS NULL`,
-          ).bind(now, now, groupId, groupId, row.id),
-        ]),
+        batch.flatMap((row) => [nextVaultSeq(env, groupId), tombstone(env, groupId, row.id, now)]),
       );
       purged.push(...batch.map((row) => row.id));
       // The items no longer claim their blobs. A failed delete is not the
@@ -110,16 +163,19 @@ export async function purgeVaultItem(env: Env, groupId: string, id: string): Pro
  * be told what it missed, and is told to resync instead.
  */
 export async function cleanUpVault(env: Env, now: number): Promise<void> {
+  const expiredBefore = now - VAULT_TRASH_TTL_MS;
   while (true) {
     const rows = await env.DB.prepare(
       `SELECT group_id AS groupId, id FROM vault_items
         WHERE trashed_at < ? AND removed_at IS NULL
         LIMIT 50`,
     )
-      .bind(now - VAULT_TRASH_TTL_MS)
+      .bind(expiredBefore)
       .all<{ groupId: string; id: string }>();
     if (rows.results.length === 0) break;
-    for (const row of rows.results) await purgeVaultItem(env, row.groupId, row.id);
+    for (const row of rows.results) {
+      await purgeExpiredVaultItem(env, row.groupId, row.id, expiredBefore);
+    }
   }
 
   const forgottenBefore = now - VAULT_TOMBSTONE_TTL_MS;

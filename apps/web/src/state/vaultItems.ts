@@ -231,12 +231,16 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
     (entry) => !entry.meta && ring.keys.has(entry.record.keyEpoch),
   );
   if (stale || keyChanged) {
+    const before = vaultEntries.value;
     const opened = await openRecords(records, ring, current.groupId);
     if (!stillCurrent(run, spaceId)) return;
-    // Opening is asynchronous too: keep anything written while it ran.
+    // Opening is asynchronous too: keep what this device wrote while it ran,
+    // and nothing else (an entry merely left over from before the sync may be
+    // one the server just reported purged).
     for (const [id, entry] of vaultEntries.value) {
+      if (before.get(id) === entry) continue;
       const mine = opened.get(id);
-      if (mine ? mine.record.seq < entry.record.seq : !records.has(id)) opened.set(id, entry);
+      if (!mine || mine.record.seq < entry.record.seq) opened.set(id, entry);
     }
     vaultEntries.value = opened;
   }

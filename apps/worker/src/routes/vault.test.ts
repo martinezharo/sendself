@@ -14,6 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { RESERVED_FOR_DELETION, VAULT_BLOBS, blobStorageKey } from "../blobs";
 import { runCleanup } from "../cron";
+import { purgeExpiredVaultItem } from "../vault";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedSpace, uid } from "../test/helpers";
 
@@ -368,6 +369,22 @@ describe("vault cleanup", () => {
     const listing = await changes(owner);
     expect(listing.items.map((item) => item.id)).toEqual([recent]);
     expect(await env.VAULT.head(blobStorageKey(groupId, old.blobKey ?? ""))).toBeNull();
+  });
+
+  it("does not purge an item restored after the cleanup picked it", async () => {
+    const { groupId, owner } = await seedSpace();
+    const item = await note(owner);
+    await update(owner, item.id, { revision: 1, trashed: true });
+    const expiredBefore = Date.now() - VAULT_TRASH_TTL_MS;
+    await env.DB.prepare("UPDATE vault_items SET trashed_at = ? WHERE group_id = ? AND id = ?")
+      .bind(expiredBefore - 1_000, groupId, item.id)
+      .run();
+    // Restored between being chosen and being purged.
+    await update(owner, item.id, { revision: 2, trashed: false });
+
+    expect(await purgeExpiredVaultItem(env, groupId, item.id, expiredBefore)).toEqual([]);
+    expect((await changes(owner)).items.map((i) => i.id)).toEqual([item.id]);
+    expect(await env.VAULT.head(blobStorageKey(groupId, item.blobKey ?? ""))).not.toBeNull();
   });
 
   it("forgets old tombstones and starts a cursor older than them over from the beginning", async () => {
