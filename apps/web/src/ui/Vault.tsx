@@ -740,6 +740,40 @@ function NoteEditor({
     else onClose();
   }
   requestCloseRef.current = requestClose;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  // The open editor is a step in the history of its own, so Back (the
+  // browser's, or Android's) closes it rather than leaving the folder under
+  // it, and asks first when there is something unsaved.
+  useEffect(() => {
+    const marker = { vaultNoteEditor: true };
+    history.pushState(marker, "");
+    let open = true;
+    const onPop = (): void => {
+      if (!open) return;
+      if (dirtyRef.current) {
+        history.pushState(marker, "");
+        setConfirmingClose(true);
+        return;
+      }
+      open = false;
+      closeRef.current();
+    };
+    // Closing the tab or reloading cannot be held back, only warned about.
+    const onUnload = (event: BeforeUnloadEvent): void => {
+      if (dirtyRef.current) event.preventDefault();
+    };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("beforeunload", onUnload);
+      // Closed from inside (Save, Discard, the close button): take back the
+      // step it added, so Back afterwards means what it meant before.
+      if (open && (history.state as typeof marker | null)?.vaultNoteEditor) history.back();
+    };
+  }, []);
 
   return (
     <div

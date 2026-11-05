@@ -49,7 +49,13 @@ test("keeps folders, notes and files across launches, with a trash to restore fr
   await page
     .getByRole("textbox", { name: "Note" })
     .fill("Call Marta before the 30th\nReceipts are in the blue folder");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  // Back with unsaved changes asks instead of dropping them.
+  await page.goBack();
+  await expect(page.getByText("Save your changes to this note?")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue(
+    "Call Marta before the 30th\nReceipts are in the blue folder",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).first().click();
   await expect(page.getByText("Receipts are in the blue folder")).toBeVisible();
 
   // Trash and restore.
