@@ -6,6 +6,7 @@ import {
   deleteDB,
   openDB,
 } from "idb";
+import type { VaultItemRecord } from "@sendself/shared";
 import type { LocalEvent, LocalMessage } from "../types";
 import { PRE_REBRAND_ID } from "../legacy";
 import { isQueuedOutgoing } from "./queue";
@@ -75,6 +76,13 @@ interface SendSelfDB extends DBSchema {
   directory: { key: string; value: StoredDeviceName };
   /** Decrypted file blobs cached locally for preview/offline access. */
   files: { key: string; value: StoredFile };
+  /**
+   * The space's vault as the server last described it (`VaultItemRecord`).
+   * Kept as the server's own ciphertext: names and contents are sealed under
+   * the GroupKey, which an at-rest lock already seals, so nothing here needs
+   * sealing twice.
+   */
+  vault: { key: string; value: VaultItemRecord };
 }
 
 /**
@@ -91,11 +99,12 @@ interface SendSelfDB extends DBSchema {
 // existing devices appear empty even though their keys and history still exist.
 const DB_NAME = PRE_REBRAND_ID;
 /**
- * 2 added `events` and `directory`. Bumping the version is what gets them
- * created on devices that already hold history; the upgrade adds only what is
- * missing, so it is the same code path for a fresh install and an existing one.
+ * 2 added `events` and `directory`, 3 added `vault`. Bumping the version is
+ * what gets them created on devices that already hold history; the upgrade
+ * adds only what is missing, so it is the same code path for a fresh install
+ * and an existing one.
  */
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function dbName(spaceId: string): string {
   return spaceId === LEGACY_SPACE_ID ? DB_NAME : `${DB_NAME}:${spaceId}`;
@@ -132,6 +141,8 @@ export const META_RECOVERY_EPOCH = "recoveryExportEpoch";
 export const META_DELETED_MESSAGES = "deletedMessages";
 /** Ids of outgoing messages still owed to the server (see `queuedMessages`). */
 export const META_OUTBOX = "outbox";
+/** The vault change the local copy is up to date with (`VaultChangesResponse.cursor`). */
+export const META_VAULT_CURSOR = "vaultCursor";
 
 /**
  * Which messages the outbox has to look at.
@@ -193,6 +204,17 @@ function db(spaceId?: string): Promise<IDBPDatabase<SendSelfDB>> {
         if (!database.objectStoreNames.contains("files")) {
           database.createObjectStore("files", { keyPath: "r2Key" });
         }
+        if (!database.objectStoreNames.contains("vault")) {
+          database.createObjectStore("vault", { keyPath: "id" });
+        }
+      },
+      // A newer build (another tab, or this one after an update) wants to
+      // upgrade the schema, and an open connection here would hold it up until
+      // this context closed. Step aside: the next access reopens at the new
+      // version.
+      blocking() {
+        handles.delete(id);
+        void handle?.then((database) => database.close());
       },
     });
     handles.set(id, handle);
@@ -604,6 +626,47 @@ export async function getFile(r2Key: string, spaceId?: string): Promise<Blob | u
 
 export async function deleteFile(r2Key: string, spaceId?: string): Promise<void> {
   await (await db(spaceId)).delete("files", r2Key);
+}
+
+// --- vault ---
+
+/** The local copy of the vault and the cursor it is current to. */
+export async function loadVaultRecords(): Promise<{ records: VaultItemRecord[]; cursor: number }> {
+  const database = await db();
+  const [records, cursor] = await Promise.all([
+    database.getAll("vault"),
+    database.get("meta", META_VAULT_CURSOR) as Promise<number | undefined>,
+  ]);
+  return { records, cursor: cursor ?? 0 };
+}
+
+/**
+ * Apply a batch of vault changes and move the cursor, in one transaction: a
+ * copy whose cursor moved past changes it never stored would never ask for
+ * them again. `reset` clears the copy first.
+ */
+export async function storeVaultChanges(changes: {
+  items: readonly VaultItemRecord[];
+  removed: readonly string[];
+  reset?: boolean;
+  cursor?: number;
+}): Promise<void> {
+  const database = await db();
+  const transaction = database.transaction(["vault", "meta"], "readwrite");
+  const store = transaction.objectStore("vault");
+  const writes: Promise<unknown>[] = [];
+  if (changes.reset) writes.push(store.clear());
+  for (const id of changes.removed) writes.push(store.delete(id));
+  for (const item of changes.items) writes.push(store.put(item));
+  if (changes.cursor !== undefined) {
+    writes.push(transaction.objectStore("meta").put(changes.cursor, META_VAULT_CURSOR));
+  }
+  await Promise.all([...writes, transaction.done]);
+}
+
+/** Where a vault blob's opened content is cached in `files`, apart from message attachments. */
+export function vaultFileKey(blobKey: string): string {
+  return `vault:${blobKey}`;
 }
 
 /**

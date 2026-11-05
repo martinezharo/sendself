@@ -1,4 +1,12 @@
-import { MAX_FILE_SIZE, MESSAGE_TTL_MS, PAIRING_TTL_MS, SERVICE_ORIGIN } from "@sendself/shared";
+import {
+  MAX_FILE_SIZE,
+  MESSAGE_TTL_MS,
+  PAIRING_TTL_MS,
+  SERVICE_ORIGIN,
+  VAULT_BYTES_QUOTA,
+  VAULT_TOMBSTONE_TTL_MS,
+  VAULT_TRASH_TTL_MS,
+} from "@sendself/shared";
 import { PBKDF2_ITERATIONS } from "../crypto/vault";
 
 /**
@@ -27,6 +35,12 @@ export const ISSUES_URL = `${REPO_URL}/issues`;
 export const MAX_FILE_LABEL = `${MAX_FILE_SIZE / 1024 / 1024} MiB`;
 /** "24 hours" */
 export const SERVER_RETENTION_LABEL = `${MESSAGE_TTL_MS / HOUR_MS} hours`;
+/** "30 days" */
+export const VAULT_TRASH_LABEL = `${VAULT_TRASH_TTL_MS / (24 * HOUR_MS)} days`;
+/** "90 days" */
+export const VAULT_TOMBSTONE_LABEL = `${VAULT_TOMBSTONE_TTL_MS / (24 * HOUR_MS)} days`;
+/** "1 GiB" */
+export const VAULT_QUOTA_LABEL = `${VAULT_BYTES_QUOTA / 1024 ** 3} GiB`;
 /** "10 minutes" */
 export const PAIRING_TTL_LABEL = `${PAIRING_TTL_MS / MINUTE_MS} minutes`;
 /** "600,000" */

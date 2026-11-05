@@ -8,6 +8,7 @@ import {
   MonitorSmartphone,
   MoreVertical,
   Pencil,
+  FolderLock as VaultIcon,
 } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
@@ -17,7 +18,9 @@ import { lockConfigured, lockNow, locked } from "../state/lock";
 import {
   APP_PATH,
   type SpaceSection,
+  type VaultLocation,
   followLink,
+  vaultPath,
   navigate,
   route,
   spacePath,
@@ -35,10 +38,13 @@ import { LockScreen } from "./LockScreen";
 import { SearchLayer, SearchToggle, coveredBySearch } from "./SearchBar";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { Spaces } from "./Spaces";
+import { Vault } from "./Vault";
+import { vaultEntries } from "../state/vaultItems";
 import { Button, IconButton, Loading, Modal, Toasts, cx } from "./components";
 
 const SECTIONS: Array<{ id: SpaceSection; label: string; icon: typeof MessagesSquare }> = [
   { id: "chat", label: "Messages", icon: MessagesSquare },
+  { id: "vault", label: "Vault", icon: VaultIcon },
   { id: "devices", label: "Devices", icon: MonitorSmartphone },
 ];
 
@@ -79,7 +85,7 @@ function CurrentView(): JSX.Element {
   // route change lands here first.
   if (!space || space.id !== current.spaceId || !session.value) return <Loading />;
 
-  return <SpaceView section={current.section} />;
+  return <SpaceView section={current.section} vault={current.vault ?? { folderId: null }} />;
 }
 
 function StartupError({ message }: { message: string }): JSX.Element {
@@ -108,7 +114,13 @@ function StartupError({ message }: { message: string }): JSX.Element {
   );
 }
 
-function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
+function SpaceView({
+  section,
+  vault,
+}: {
+  section: SpaceSection;
+  vault: VaultLocation;
+}): JSX.Element {
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const space = activeSpace.value;
@@ -169,6 +181,8 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
           <div class="flex min-w-0 items-center gap-0.5">
             {section === "chat" ? (
               <BackLink to={APP_PATH} label="All spaces" />
+            ) : section === "vault" && !("folderId" in vault && vault.folderId === null) ? (
+              <BackLink to={vaultParentPath(spaceId, vault)} label="Up one level" />
             ) : (
               <BackLink to={spacePath(spaceId)} label={`Back to ${spaceName}`} />
             )}
@@ -184,6 +198,17 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
           {section === "chat" && (
             <div class={cx("flex items-center", coveredBySearch())}>
               <SearchToggle />
+              <a
+                href={spacePath(spaceId, "vault")}
+                aria-label="Vault"
+                title="Vault"
+                onClick={(event) =>
+                  followLink(event as unknown as MouseEvent, spacePath(spaceId, "vault"))
+                }
+                class="inline-flex size-[38px] items-center justify-center rounded-[10px] text-subtle transition hover:bg-surface-3 hover:text-ink active:scale-90 [&_svg]:size-[19px]"
+              >
+                <VaultIcon />
+              </a>
               <SpaceMenuButton
                 spaceId={spaceId}
                 showDevices
@@ -220,7 +245,13 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
         </div>
 
         <main class="flex min-h-0 flex-1 flex-col">
-          {section === "chat" ? <Chat /> : <DeviceManager />}
+          {section === "chat" ? (
+            <Chat />
+          ) : section === "vault" ? (
+            <Vault location={vault} />
+          ) : (
+            <DeviceManager />
+          )}
         </main>
       </div>
 
@@ -258,6 +289,15 @@ function SpaceView({ section }: { section: SpaceSection }): JSX.Element {
       <Toasts />
     </div>
   );
+}
+
+/** Where "up" leads from a place in the vault: the folder holding it, or the top level. */
+function vaultParentPath(spaceId: string, location: VaultLocation): string {
+  if ("trash" in location || location.folderId === null) {
+    return vaultPath(spaceId, { folderId: null });
+  }
+  const parentId = vaultEntries.value.get(location.folderId)?.record.parentId ?? null;
+  return vaultPath(spaceId, { folderId: parentId });
 }
 
 /** One level up: out of a section into the space, or out of the space into the list. */

@@ -29,7 +29,7 @@ Messages, files, file metadata, and device and space names use AES-GCM encryptio
 
 End-to-end encryption does not hide all metadata. The service can observe identifiers, public keys, token hashes, signatures, ciphertext and file sizes, timing, delivery state, and network or platform metadata. It also cannot protect an unlocked or compromised device, malicious JavaScript served from the application origin, or content a recipient has already exported.
 
-Delivered server copies are removed after active recipients acknowledge them. A scheduled cleanup removes remaining message and file transport data after 24 hours. Local browser history persists until the user or browser removes it. The project is an early work in progress and has not been independently security-audited.
+Delivered server copies are removed after active recipients acknowledge them. A scheduled cleanup removes remaining message and file transport data after 24 hours. Notes and files saved in a space's vault are the exception: they stay on the server, encrypted, until the user deletes them (up to 1 GiB per space; deleted items wait in a trash for 30 days). Local browser history persists until the user or browser removes it. The project is an early work in progress and has not been independently security-audited.
 
 ## Good fit
 

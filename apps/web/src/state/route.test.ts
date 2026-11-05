@@ -6,6 +6,7 @@ import {
   showSpaceSection,
   spacePath,
   startupSpaceTarget,
+  vaultPath,
 } from "./route";
 
 /**
@@ -38,6 +39,22 @@ describe("navigate", () => {
     navigate(spacePath("abc-123", "devices"));
 
     expect(route.value).toEqual({ name: "space", spaceId: "abc-123", section: "devices" });
+  });
+
+  it("reads a place in the vault: the top level, a folder, or the trash", () => {
+    navigate("/app/abc-123/vault");
+    expect(route.value).toEqual({
+      name: "space",
+      spaceId: "abc-123",
+      section: "vault",
+      vault: { folderId: null },
+    });
+
+    navigate(vaultPath("abc-123", { folderId: "f/1" }));
+    expect(route.value).toMatchObject({ section: "vault", vault: { folderId: "f/1" } });
+
+    navigate(vaultPath("abc-123", { trash: true }));
+    expect(route.value).toMatchObject({ section: "vault", vault: { trash: true } });
   });
 
   it("falls back to the space's chat for a section it does not know", () => {

@@ -5,11 +5,11 @@ import {
   Copy,
   EyeOff,
   FileUp,
+  FolderLock,
   Link2,
   Lock,
   MonitorSmartphone,
   Plus,
-  QrCode,
   Send,
   ShieldCheck,
   WifiOff,
@@ -30,7 +30,12 @@ import {
   SiteFooter,
   SiteHeader,
 } from "./chrome";
-import { MAX_FILE_LABEL, SERVER_RETENTION_LABEL } from "./facts";
+import {
+  MAX_FILE_LABEL,
+  SERVER_RETENTION_LABEL,
+  VAULT_QUOTA_LABEL,
+  VAULT_TRASH_LABEL,
+} from "./facts";
 
 const FEATURES: Feature[] = [
   {
@@ -49,14 +54,14 @@ const FEATURES: Feature[] = [
     body: "Keep work, home, and one-off transfers apart: each space has its own devices, history, and encryption keys.",
   },
   {
-    icon: QrCode,
-    title: "Pair with a QR code",
-    body: "Link a new device through an out-of-band QR flow that securely transfers access to it.",
-  },
-  {
     icon: FileUp,
     title: `Files up to ${MAX_FILE_LABEL}`,
     body: `Send documents, images, or archives. The server copy is removed after all active recipients acknowledge delivery, or cleaned up within ${SERVER_RETENTION_LABEL}.`,
+  },
+  {
+    icon: FolderLock,
+    title: "A vault for what you keep",
+    body: `Notes and files that stay in a space until you delete them, in folders, on every device: ${VAULT_QUOTA_LABEL} per space, encrypted like everything else.`,
   },
   {
     icon: WifiOff,
@@ -104,6 +109,10 @@ export const FAQS: Faq[] = [
   {
     q: "What is the maximum file size?",
     a: `You can share files up to ${MAX_FILE_LABEL}. The server copy is purged when active recipients acknowledge delivery; anything left over is cleaned up within ${SERVER_RETENTION_LABEL}.`,
+  },
+  {
+    q: "Can I keep things instead of sending them?",
+    a: `Yes. Each space has a vault: folders, notes and files that stay on the server, encrypted, until you delete them, so every device in the space can open them later. It holds up to ${VAULT_QUOTA_LABEL} per space, and deleted items wait in the trash for ${VAULT_TRASH_LABEL}.`,
   },
   {
     q: "Does it work offline?",

@@ -21,14 +21,14 @@
 
 import { signal } from "@preact/signals";
 
-import { APP_PATH, type SpaceSection, spacePath } from "./paths";
+import { APP_PATH, type SpaceSection, type VaultLocation, spacePath, vaultPath } from "./paths";
 
-export { APP_PATH, type SpaceSection, spacePath };
+export { APP_PATH, type SpaceSection, type VaultLocation, spacePath, vaultPath };
 
 export type Route =
   | { name: "landing" }
   | { name: "spaces" }
-  | { name: "space"; spaceId: string; section: SpaceSection };
+  | { name: "space"; spaceId: string; section: SpaceSection; vault?: VaultLocation };
 
 /** Where a launch that names no space goes, and whether the list stays behind it. */
 export interface StartupTarget {
@@ -76,11 +76,23 @@ function parse(pathname: string): Route {
   if (pathname !== APP_PATH && !pathname.startsWith(`${APP_PATH}/`)) return { name: "landing" };
   const rest = pathname.slice(APP_PATH.length).replace(/^\/+|\/+$/g, "");
   if (!rest) return { name: "spaces" };
-  // The id is encoded, so the only separator left in the path is the section's.
-  const [id = "", section = ""] = rest.split("/");
+  // Ids are encoded, so the only separators left in the path are the route's.
+  const [id = "", section = "", place = ""] = rest.split("/");
+  const spaceId = decodeURIComponent(id);
+  if (section === "vault") {
+    return {
+      name: "space",
+      spaceId,
+      section: "vault",
+      vault:
+        place === "trash"
+          ? { trash: true }
+          : { folderId: place ? decodeURIComponent(place) : null },
+    };
+  }
   return {
     name: "space",
-    spaceId: decodeURIComponent(id),
+    spaceId,
     // An unknown section is a mistyped or outdated URL; the space's root is the
     // honest place to land rather than a dead end.
     section: section === "devices" ? "devices" : "chat",

@@ -3,7 +3,8 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { getDroppedFiles, hasTransferFiles } from "../share/transfer";
 import { stageFiles } from "../state/composer";
-import { showSpaceSection } from "../state/route";
+import { route, showSpaceSection } from "../state/route";
+import { uploadFiles } from "../state/vaultItems";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
 
@@ -89,10 +90,21 @@ export function DropZone(): JSX.Element | null {
         <div class="grid size-14 place-items-center rounded-xl2 bg-accent-soft text-accent [&_svg]:size-[26px]">
           <Upload />
         </div>
-        <h3 class="text-title">Drop to attach</h3>
-        <p class="max-w-[280px] text-body leading-relaxed text-muted">
-          They go to the composer first, so you can add a comment before sending.
-        </p>
+        {inVault() ? (
+          <>
+            <h3 class="text-title">Drop to save</h3>
+            <p class="max-w-[280px] text-body leading-relaxed text-muted">
+              They're encrypted and kept in this folder of the vault.
+            </p>
+          </>
+        ) : (
+          <>
+            <h3 class="text-title">Drop to attach</h3>
+            <p class="max-w-[280px] text-body leading-relaxed text-muted">
+              They go to the composer first, so you can add a comment before sending.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -110,7 +122,26 @@ async function acceptDrop(data: DataTransfer | null): Promise<void> {
     return;
   }
 
+  // In the vault a drop means "keep these here", in the folder on screen.
+  const current = route.value;
+  if (inVault() && current.name === "space" && current.vault && "folderId" in current.vault) {
+    const saved = await uploadFiles(current.vault.folderId, files);
+    if (saved > 0) showToast(saved === 1 ? "Saved to the vault" : `${saved} files saved`);
+    return;
+  }
+
   // Land on the chat, which is where the queue they just joined is shown.
   showSpaceSection("chat");
   stageFiles(files);
+}
+
+/** Whether a drop right now would land in a vault folder (the trash takes none). */
+function inVault(): boolean {
+  const current = route.value;
+  return (
+    current.name === "space" &&
+    current.section === "vault" &&
+    !!current.vault &&
+    "folderId" in current.vault
+  );
 }

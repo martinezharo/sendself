@@ -245,14 +245,18 @@ const SECTIONS: DocSection[] = [
               "That a space exists, and which devices are in it, with their public keys and roles",
               "When messages are sent, roughly how large they are, and which devices still need them",
               "When a device is added, revoked, or deletes a message",
+              "How many items a vault holds, how its folders nest, their sizes, and when they change",
               "IP addresses and request timing, as any web service does",
             ],
           }}
         />
         <p>
           Encrypted messages and files are kept only until your devices have them, and never longer
-          than {SERVER_RETENTION_LABEL}. The <a href="/privacy/">privacy policy</a> lists everything
-          the service stores and for how long.
+          than {SERVER_RETENTION_LABEL}. What you save in a space's vault is the exception: it
+          stays, encrypted, until you delete it, and the server sees how many items there are, how
+          they nest and how large they are, but not their names or contents. The{" "}
+          <a href="/privacy/">privacy policy</a> lists everything the service stores and for how
+          long.
         </p>
       </>
     ),
