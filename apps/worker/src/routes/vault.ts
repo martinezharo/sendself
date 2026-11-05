@@ -114,17 +114,27 @@ async function writtenItem(c: RouteContext, groupId: string, id: string): Promis
  */
 export async function vaultChanges(c: RouteContext): Promise<Response> {
   const auth = await vaultAuth(c, false);
-  const since = Number(c.url.searchParams.get("since") ?? "0");
-  if (!Number.isSafeInteger(since) || since < 0) {
+  const requested = Number(c.url.searchParams.get("since") ?? "0");
+  if (!Number.isSafeInteger(requested) || requested < 0) {
     throw new ApiError("bad_request", "Invalid 'since' cursor");
   }
+  // A later page of a listing that started from 0 is complete whatever the
+  // floor says: anything purged while it is being read leaves a fresh
+  // tombstone, newer than every forgotten one.
+  const continuing = c.url.searchParams.get("full") === "1";
+
+  const floor = await c.env.DB.prepare("SELECT vault_floor AS floor FROM groups WHERE id = ?")
+    .bind(auth.groupId)
+    .first<{ floor: number }>();
+  // A cursor older than the newest forgotten tombstone may hold items purged
+  // since, and nobody can say which: start the listing over from the beginning.
+  const reset = !continuing && requested > 0 && requested < (floor?.floor ?? 0);
+  const since = reset ? 0 : requested;
 
   // One transaction, so the counter, the rows and the usage describe the same
   // moment and the cursor can never skip a change committed in between.
   const [group, rows, items, bytes] = await c.env.DB.batch([
-    c.env.DB.prepare("SELECT vault_seq AS seq, vault_floor AS floor FROM groups WHERE id = ?").bind(
-      auth.groupId,
-    ),
+    c.env.DB.prepare("SELECT vault_seq AS seq FROM groups WHERE id = ?").bind(auth.groupId),
     c.env.DB.prepare(
       `SELECT ${VAULT_ITEM_COLUMNS}, removed_at AS removedAt
          FROM vault_items
@@ -140,10 +150,7 @@ export async function vaultChanges(c: RouteContext): Promise<Response> {
     ).bind(auth.groupId),
   ]);
 
-  const counter = (group?.results[0] as { seq: number; floor: number } | undefined) ?? {
-    seq: 0,
-    floor: 0,
-  };
+  const counter = (group?.results[0] as { seq: number } | undefined) ?? { seq: 0 };
   const changed = (rows?.results ?? []) as Array<VaultItemRecord & { removedAt: number | null }>;
   const itemCount = (items?.results[0] as { count: number } | undefined)?.count ?? 0;
   const byteCount = (bytes?.results[0] as { bytes: number } | undefined)?.bytes ?? 0;
@@ -155,9 +162,7 @@ export async function vaultChanges(c: RouteContext): Promise<Response> {
     removed: page.filter((row) => row.removedAt !== null).map((row) => row.id),
     cursor: more ? (page[page.length - 1]?.seq ?? since) : Math.max(counter.seq, since),
     more,
-    // A cursor of 0 has nothing to reset; one older than the newest forgotten
-    // tombstone may hold items that were purged since, and nobody can say which.
-    reset: since > 0 && since < counter.floor,
+    reset,
     usage: { bytes: byteCount, items: itemCount },
   } satisfies VaultChangesResponse);
 }

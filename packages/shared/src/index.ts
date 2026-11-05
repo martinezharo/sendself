@@ -903,7 +903,10 @@ export interface VaultItemRecord {
   seq: number;
 }
 
-/** `GET /api/vault?since=<cursor>`: what changed after `since`. */
+/**
+ * `GET /api/vault?since=<cursor>[&full=1]`: what changed after `since`. `full`
+ * marks a later page of a listing that started from 0 (or was reset).
+ */
 export interface VaultChangesResponse {
   /** Items created or changed, oldest change first. */
   items: VaultItemRecord[];
@@ -914,8 +917,10 @@ export interface VaultChangesResponse {
   /** More changes remain past `cursor`: ask again at once. */
   more: boolean;
   /**
-   * `since` is older than what the server still remembers about purges: drop
-   * the local copy and rebuild it from this answer (and its `more` pages).
+   * `since` is older than what the server still remembers about purges, so
+   * this answer starts over from the beginning: drop the local copy and
+   * rebuild it from this page and the ones after it, which are fetched with
+   * `full=1` so they are not reset again.
    */
   reset: boolean;
   /** What the vault holds, against `VAULT_BYTES_QUOTA` and `VAULT_MAX_ITEMS`. */

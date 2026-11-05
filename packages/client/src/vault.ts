@@ -358,27 +358,51 @@ export async function resealVault(
 // Syncing
 // ---------------------------------------------------------------------------
 
-/** Every change after `since`, across as many pages as the server splits it into. */
+/**
+ * Every change after `since`, across as many pages as the server splits it
+ * into, folded into one answer.
+ *
+ * Pages are folded in order: an item purged after an earlier page listed it
+ * comes back in a later page's `removed`, and must leave the result rather
+ * than be resurrected by it. `reset` is true when the answer is a whole
+ * listing that replaces the local copy.
+ */
 export async function pullVaultChanges(
   api: Api,
   auth: Auth,
   since: number,
 ): Promise<VaultChangesResponse> {
-  let page = await api.vaultChanges(auth, since);
-  const result: VaultChangesResponse = {
-    ...page,
-    items: [...page.items],
-    removed: [...page.removed],
-  };
-  while (page.more) {
-    page = await api.vaultChanges(auth, page.cursor);
-    result.items.push(...page.items);
-    result.removed.push(...page.removed);
-    result.cursor = page.cursor;
-    result.usage = page.usage;
-    result.more = page.more;
+  const items = new Map<string, VaultItemRecord>();
+  const removed = new Set<string>();
+  let rebuilding = since === 0;
+  let cursor = since;
+  for (;;) {
+    const page = await api.vaultChanges(auth, cursor, rebuilding && cursor > 0);
+    if (page.reset) {
+      rebuilding = true;
+      items.clear();
+      removed.clear();
+    }
+    for (const id of page.removed) {
+      items.delete(id);
+      removed.add(id);
+    }
+    for (const item of page.items) {
+      removed.delete(item.id);
+      items.set(item.id, item);
+    }
+    cursor = page.cursor;
+    if (!page.more) {
+      return {
+        items: [...items.values()],
+        removed: [...removed],
+        cursor,
+        more: false,
+        reset: rebuilding,
+        usage: page.usage,
+      };
+    }
   }
-  return result;
 }
 
 /**

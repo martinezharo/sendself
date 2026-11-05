@@ -270,8 +270,11 @@ export function createApi(config: ApiOptions) {
       return jsonRequest("PUT", "/groups/self/name", { jsonBody: body, auth });
     },
 
-    vaultChanges(auth: Auth, since = 0): Promise<VaultChangesResponse> {
-      return jsonRequest("GET", `/vault?since=${since}`, { auth, retries: 1 });
+    vaultChanges(auth: Auth, since = 0, full = false): Promise<VaultChangesResponse> {
+      return jsonRequest("GET", `/vault?since=${since}${full ? "&full=1" : ""}`, {
+        auth,
+        retries: 1,
+      });
     },
 
     createVaultItem(body: CreateVaultItemRequest, auth: Auth): Promise<VaultItemWriteResponse> {

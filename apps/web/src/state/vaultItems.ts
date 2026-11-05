@@ -169,12 +169,12 @@ async function runSync(ring: Keyring, vaultSeq?: number): Promise<void> {
   if (stale) {
     const changes = await pullVaultChanges(api, authHeaders(), cursor);
     if (activeSpaceId() !== spaceId) return;
-    await storeVaultChanges(changes);
+    await storeVaultChanges(changes, spaceId);
     records = applyVaultChanges(records, changes);
     cursor = changes.cursor;
     fetched = true;
     vaultUsage.value = changes.usage;
-    for (const id of changes.removed) forgetCachedContent(vaultEntries.value.get(id));
+    for (const id of changes.removed) forgetCachedContent(vaultEntries.value.get(id), spaceId);
   }
 
   const keyChanged = [...vaultEntries.value.values()].some(
@@ -206,20 +206,39 @@ async function resealStale(ring: Keyring, groupId: string): Promise<void> {
 // Writes
 // ---------------------------------------------------------------------------
 
-function context(): VaultContext {
+/**
+ * The space a write was started in, and the credentials and keys it seals and
+ * authenticates with. Captured once, when the write starts: switching spaces
+ * while an upload is still going must neither send the rest of it to the space
+ * now on screen nor file its results in that space's copy.
+ */
+interface Target {
+  spaceId: string;
+  ctx: VaultContext;
+}
+
+function target(): Target {
+  const spaceId = activeSpaceId();
   const current = session.value;
   const ring = keyring.value;
-  if (!current || !ring) throw new Error("No space is open");
-  return { api, auth: authHeaders(), groupId: current.groupId, keyring: ring };
+  if (!spaceId || !current || !ring) throw new Error("No space is open");
+  return { spaceId, ctx: { api, auth: authHeaders(), groupId: current.groupId, keyring: ring } };
+}
+
+/** Whether the space a write started in is still the one loaded on screen. */
+function stillOpen(t: Target): boolean {
+  return activeSpaceId() === t.spaceId && vaultSpace.value === t.spaceId;
 }
 
 /** Put a record the server just returned into the copy, without moving the cursor. */
-async function remember(entry: VaultEntry): Promise<VaultEntry> {
-  const next = new Map(vaultEntries.value);
-  next.set(entry.record.id, entry);
-  vaultEntries.value = next;
-  await storeVaultChanges({ items: [entry.record], removed: [] });
-  refreshAfterWrite();
+async function remember(t: Target, entry: VaultEntry): Promise<VaultEntry> {
+  await storeVaultChanges({ items: [entry.record], removed: [] }, t.spaceId);
+  if (stillOpen(t)) {
+    const next = new Map(vaultEntries.value);
+    next.set(entry.record.id, entry);
+    vaultEntries.value = next;
+    refreshAfterWrite();
+  }
   return entry;
 }
 
@@ -229,32 +248,42 @@ function refreshAfterWrite(): void {
   if (ring) void syncVault(ring).catch(() => {});
 }
 
-async function forget(ids: readonly string[]): Promise<void> {
-  const next = new Map(vaultEntries.value);
-  for (const id of ids) {
-    forgetCachedContent(next.get(id));
-    next.delete(id);
+async function forget(t: Target, ids: readonly string[]): Promise<void> {
+  const known = vaultEntries.value;
+  if (stillOpen(t)) {
+    for (const id of ids) forgetCachedContent(known.get(id), t.spaceId);
   }
-  vaultEntries.value = next;
-  await storeVaultChanges({ items: [], removed: ids });
-  refreshAfterWrite();
+  await storeVaultChanges({ items: [], removed: ids }, t.spaceId);
+  if (stillOpen(t)) {
+    const next = new Map(vaultEntries.value);
+    for (const id of ids) next.delete(id);
+    vaultEntries.value = next;
+    refreshAfterWrite();
+  }
 }
 
-function forgetCachedContent(entry: VaultEntry | undefined): void {
-  if (entry?.record.blobKey) void deleteFile(vaultFileKey(entry.record.blobKey)).catch(() => {});
+function forgetCachedContent(entry: VaultEntry | undefined, spaceId?: string): void {
+  if (entry?.record.blobKey) {
+    void deleteFile(vaultFileKey(entry.record.blobKey), spaceId).catch(() => {});
+  }
 }
 
 /**
  * Run a write, catching up with a key rotation once if the server says the
- * space's key moved on while this device was sealing.
+ * space's key moved on while this device was sealing. The new key arrives
+ * through the open space's sync, so a write for a space that is no longer open
+ * fails instead of being retried with another space's keys.
  */
-async function write<T>(operation: (ctx: VaultContext) => Promise<T>): Promise<T> {
+async function write<T>(t: Target, operation: (ctx: VaultContext) => Promise<T>): Promise<T> {
   try {
-    return await operation(context());
+    return await operation(t.ctx);
   } catch (error) {
-    if (!(error instanceof ApiError) || error.code !== "key_rotated") throw error;
+    if (!(error instanceof ApiError) || error.code !== "key_rotated" || !stillOpen(t)) throw error;
     await refreshKeys();
-    return operation(context());
+    const fresh = target();
+    if (fresh.spaceId !== t.spaceId) throw error;
+    t.ctx = fresh.ctx;
+    return operation(t.ctx);
   }
 }
 
@@ -283,9 +312,10 @@ export function createFolder(
   parentId: string | null,
   name: string,
 ): Promise<VaultEntry | undefined> {
-  return attempt(async () =>
-    remember(await write((ctx) => createVaultFolder(ctx, parentId, name))),
-  );
+  return attempt(async () => {
+    const t = target();
+    return remember(t, await write(t, (ctx) => createVaultFolder(ctx, parentId, name)));
+  });
 }
 
 export function createNote(
@@ -293,9 +323,10 @@ export function createNote(
   title: string,
   text: string,
 ): Promise<VaultEntry | undefined> {
-  return attempt(async () =>
-    remember(await write((ctx) => createVaultNote(ctx, parentId, title, text))),
-  );
+  return attempt(async () => {
+    const t = target();
+    return remember(t, await write(t, (ctx) => createVaultNote(ctx, parentId, title, text)));
+  });
 }
 
 /**
@@ -308,14 +339,19 @@ export function saveNote(
   text: string,
 ): Promise<VaultEntry | undefined> {
   return attempt(async () => {
+    const t = target();
     try {
-      const saved = await remember(await write((ctx) => updateVaultNote(ctx, entry, title, text)));
-      if (entry.record.blobKey) void deleteFile(vaultFileKey(entry.record.blobKey)).catch(() => {});
+      const saved = await remember(
+        t,
+        await write(t, (ctx) => updateVaultNote(ctx, entry, title, text)),
+      );
+      forgetCachedContent(entry, t.spaceId);
       return saved;
     } catch (error) {
       if (!(error instanceof ApiError) || error.code !== "conflict") throw error;
       const copy = await remember(
-        await write((ctx) =>
+        t,
+        await write(t, (ctx) =>
           createVaultNote(ctx, entry.record.parentId, `${title.trim() || "Note"} (copy)`, text),
         ),
       );
@@ -330,6 +366,13 @@ export async function uploadFiles(
   parentId: string | null,
   files: readonly File[],
 ): Promise<number> {
+  let t: Target;
+  try {
+    t = target();
+  } catch (error) {
+    showToast(vaultErrorText(error), "error");
+    return 0;
+  }
   let saved = 0;
   let remaining = files.length;
   vaultUploads.value += remaining;
@@ -337,7 +380,8 @@ export async function uploadFiles(
     for (const file of files) {
       const entry = await attempt(async () =>
         remember(
-          await write(async (ctx) =>
+          t,
+          await write(t, async (ctx) =>
             createVaultFile(ctx, parentId, {
               name: file.name,
               mime: file.type || "application/octet-stream",
@@ -359,18 +403,27 @@ export async function uploadFiles(
 }
 
 export function renameItem(entry: VaultEntry, name: string): Promise<VaultEntry | undefined> {
-  return attempt(async () => remember(await write((ctx) => renameVaultItem(ctx, entry, name))));
+  return attempt(async () => {
+    const t = target();
+    return remember(t, await write(t, (ctx) => renameVaultItem(ctx, entry, name)));
+  });
 }
 
 export function moveItem(
   entry: VaultEntry,
   parentId: string | null,
 ): Promise<VaultEntry | undefined> {
-  return attempt(async () => remember(await write((ctx) => moveVaultItem(ctx, entry, parentId))));
+  return attempt(async () => {
+    const t = target();
+    return remember(t, await write(t, (ctx) => moveVaultItem(ctx, entry, parentId)));
+  });
 }
 
 export function trashItem(entry: VaultEntry): Promise<VaultEntry | undefined> {
-  return attempt(async () => remember(await write((ctx) => setVaultItemTrashed(ctx, entry, true))));
+  return attempt(async () => {
+    const t = target();
+    return remember(t, await write(t, (ctx) => setVaultItemTrashed(ctx, entry, true)));
+  });
 }
 
 /** Restore from the trash, to the top level when its folder is not there to return to. */
@@ -379,15 +432,20 @@ export function restoreItem(entry: VaultEntry): Promise<VaultEntry | undefined> 
   const parent = entry.record.parentId ? records.get(entry.record.parentId) : undefined;
   const parentVisible =
     entry.record.parentId === null || (!!parent && isVaultItemVisible(records, parent));
-  return attempt(async () =>
-    remember(await write((ctx) => setVaultItemTrashed(ctx, entry, false, parentVisible))),
-  );
+  return attempt(async () => {
+    const t = target();
+    return remember(
+      t,
+      await write(t, (ctx) => setVaultItemTrashed(ctx, entry, false, parentVisible)),
+    );
+  });
 }
 
 export function deleteForever(entry: VaultEntry): Promise<boolean> {
   return attempt(async () => {
-    const { removed } = await api.deleteVaultItem(entry.record.id, authHeaders());
-    await forget(removed);
+    const t = target();
+    const { removed } = await api.deleteVaultItem(entry.record.id, t.ctx.auth);
+    await forget(t, removed);
     return true;
   }).then((done) => done === true);
 }
@@ -406,19 +464,15 @@ export async function emptyTrash(): Promise<void> {
 export async function openContent(entry: VaultEntry): Promise<Blob> {
   const { record, meta } = entry;
   if (!record.blobKey || !meta) throw new Error("This item can't be opened on this device yet");
+  const t = target();
   const cacheKey = vaultFileKey(record.blobKey);
-  const cached = await getFile(cacheKey).catch(() => undefined);
+  const cached = await getFile(cacheKey, t.spaceId).catch(() => undefined);
   if (cached) return cached;
-  const current = session.value;
-  if (!current) throw new Error("No space is open");
-  const data = await readVaultContent(
-    { api, auth: authHeaders(), groupId: current.groupId },
-    entry,
-  );
+  const data = await readVaultContent(t.ctx, entry);
   const blob = new Blob([data], {
     type: meta.mime ?? (record.kind === "note" ? "text/plain" : ""),
   });
-  await putFile(cacheKey, blob).catch(() => {});
+  await putFile(cacheKey, blob, t.spaceId).catch(() => {});
   return blob;
 }
 

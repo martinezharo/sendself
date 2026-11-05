@@ -645,13 +645,16 @@ export async function loadVaultRecords(): Promise<{ records: VaultItemRecord[]; 
  * copy whose cursor moved past changes it never stored would never ask for
  * them again. `reset` clears the copy first.
  */
-export async function storeVaultChanges(changes: {
-  items: readonly VaultItemRecord[];
-  removed: readonly string[];
-  reset?: boolean;
-  cursor?: number;
-}): Promise<void> {
-  const database = await db();
+export async function storeVaultChanges(
+  changes: {
+    items: readonly VaultItemRecord[];
+    removed: readonly string[];
+    reset?: boolean;
+    cursor?: number;
+  },
+  spaceId?: string,
+): Promise<void> {
+  const database = await db(spaceId);
   const transaction = database.transaction(["vault", "meta"], "readwrite");
   const store = transaction.objectStore("vault");
   const writes: Promise<unknown>[] = [];

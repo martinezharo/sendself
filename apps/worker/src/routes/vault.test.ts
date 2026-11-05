@@ -370,21 +370,34 @@ describe("vault cleanup", () => {
     expect(await env.VAULT.head(blobStorageKey(groupId, old.blobKey ?? ""))).toBeNull();
   });
 
-  it("forgets old tombstones and makes a cursor older than them resync", async () => {
+  it("forgets old tombstones and starts a cursor older than them over from the beginning", async () => {
     const { groupId, owner } = await seedSpace();
+    const kept = await folder(owner);
     const doomed = await folder(owner);
     const { cursor } = await changes(owner);
     await call(owner, `/items/${doomed}`, { method: "DELETE" });
-    await env.DB.prepare("UPDATE vault_items SET removed_at = ? WHERE group_id = ?")
-      .bind(Date.now() - VAULT_TOMBSTONE_TTL_MS - 1_000, groupId)
+    await env.DB.prepare("UPDATE vault_items SET removed_at = ? WHERE group_id = ? AND id = ?")
+      .bind(Date.now() - VAULT_TOMBSTONE_TTL_MS - 1_000, groupId, doomed)
       .run();
 
     await runCleanup(env);
 
+    // The whole vault, including what last changed before the stale cursor.
     const stale = await changes(owner, cursor);
     expect(stale.reset).toBe(true);
+    expect(stale.items.map((item) => item.id)).toEqual([kept]);
     expect(stale.removed).toEqual([]);
     expect((await changes(owner, stale.cursor)).reset).toBe(false);
+  });
+
+  it("does not reset the later pages of a listing that started over", async () => {
+    const { groupId, owner } = await seedSpace();
+    await folder(owner);
+    await env.DB.prepare("UPDATE groups SET vault_floor = 1000 WHERE id = ?").bind(groupId).run();
+
+    const continued = await call(owner, "?since=1&full=1");
+
+    expect(((await continued.json()) as VaultChangesResponse).reset).toBe(false);
   });
 
   it("discards an upload no item claimed within the hour, and keeps claimed ones", async () => {

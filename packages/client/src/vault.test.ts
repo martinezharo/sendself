@@ -1,6 +1,7 @@
 import type {
   CreateVaultItemRequest,
   UpdateVaultItemRequest,
+  VaultChangesResponse,
   VaultItemRecord,
   VaultResealRequest,
 } from "@sendself/shared";
@@ -16,6 +17,7 @@ import {
   createVaultNote,
   isVaultItemVisible,
   noteTitle,
+  pullVaultChanges,
   openVaultMeta,
   readVaultNote,
   readVaultContent,
@@ -149,6 +151,60 @@ describe("vault sealing", () => {
     const latecomer = createKeyring(newKey, 2);
     const record = server.records.get(folder.record.id)!;
     expect(await openVaultMeta(latecomer, ctx.groupId, record)).toEqual({ name: "Taxes" });
+  });
+});
+
+describe("pullVaultChanges", () => {
+  const item = (id: string, seq: number) =>
+    ({ id, parentId: null, trashedAt: null, seq }) as VaultItemRecord;
+  const page = (over: Partial<VaultChangesResponse>): VaultChangesResponse => ({
+    items: [],
+    removed: [],
+    cursor: 0,
+    more: false,
+    reset: false,
+    usage: { bytes: 0, items: 0 },
+    ...over,
+  });
+
+  function pager(pages: VaultChangesResponse[]) {
+    const calls: Array<[number, boolean]> = [];
+    const api = {
+      async vaultChanges(_auth: unknown, since: number, full: boolean) {
+        calls.push([since, full]);
+        return pages.shift()!;
+      },
+    } as unknown as Api;
+    return { api, calls };
+  }
+
+  it("drops an item a later page reports purged, instead of resurrecting it", async () => {
+    const { api } = pager([
+      page({ items: [item("a", 1), item("b", 2)], cursor: 2, more: true }),
+      page({ removed: ["a"], cursor: 3 }),
+    ]);
+
+    const result = await pullVaultChanges(api, { token: "t" }, 0);
+
+    expect(result.items.map((i) => i.id)).toEqual(["b"]);
+    expect(result.removed).toEqual(["a"]);
+    expect(applyVaultChanges(new Map(), result).has("a")).toBe(false);
+  });
+
+  it("rebuilds from a reset and fetches the rest of that listing as a continuation", async () => {
+    const { api, calls } = pager([
+      page({ items: [item("x", 1)], cursor: 1, more: true, reset: true }),
+      page({ items: [item("y", 2)], cursor: 2 }),
+    ]);
+
+    const result = await pullVaultChanges(api, { token: "t" }, 40);
+
+    expect(result.reset).toBe(true);
+    expect(result.items.map((i) => i.id)).toEqual(["x", "y"]);
+    expect(calls).toEqual([
+      [40, false],
+      [1, true],
+    ]);
   });
 });
 

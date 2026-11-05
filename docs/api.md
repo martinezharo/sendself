@@ -65,7 +65,7 @@ The `since` parameter is accepted as a timestamp cursor, but the current client 
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/vault?since=<cursor>` | Bearer | Every vault change after `cursor`, oldest first: changed items, ids purged for good, the new `cursor`, `more` when another page follows, `reset` when the cursor is too old to be answered incrementally, and the vault's usage. |
+| `GET` | `/api/vault?since=<cursor>` | Bearer | Every vault change after `cursor`, oldest first: changed items, ids purged for good, the new `cursor`, `more` when another page follows (fetch it with the new cursor and `full=1` when the listing started from 0), `reset` when the cursor was too old to answer incrementally and the answer starts over from the beginning, and the vault's usage. |
 | `POST` | `/api/vault/items` | Bearer | Create a folder, note or file. A note or file names a blob already uploaded to `/api/vault/blobs`. |
 | `PATCH` | `/api/vault/items/:id` | Bearer | Rename (new `meta`), replace a note's content (new `blobKey` with its `meta`), move (`parentId`), trash or restore (`trashed`). Must name the item's current `revision`, otherwise `conflict`. |
 | `DELETE` | `/api/vault/items/:id` | Bearer | Purge an item for good, with everything nested in it and their blobs. |
