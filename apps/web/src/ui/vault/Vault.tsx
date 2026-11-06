@@ -146,6 +146,15 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
   );
   const folder = folderId ? visible.find((entry) => entry.record.id === folderId) : undefined;
 
+  // Bumped whenever a dialog opens or closes. A file being fetched to be
+  // shown only shows if none did meanwhile: the listing stays usable while it
+  // downloads, and a late image must not replace (and so silently discard) a
+  // note the user opened in the meantime.
+  const dialogTurn = useRef(0);
+  useEffect(() => {
+    dialogTurn.current += 1;
+  }, [dialog]);
+
   // Object URLs for previews are released with the dialog that showed them.
   useEffect(
     () => () => {
@@ -178,9 +187,11 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
       setDialog({ kind: "note", entry, parentId: entry.record.parentId });
       return;
     }
+    const turn = ++dialogTurn.current;
     try {
       const blob = await openContent(entry);
       if (entry.meta.mime?.startsWith("image/")) {
+        if (turn !== dialogTurn.current) return;
         setDialog({ kind: "image", entry, url: URL.createObjectURL(blob) });
       } else {
         downloadBlob(blob, entry.meta.name);
