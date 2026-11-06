@@ -157,7 +157,9 @@ test("moves items by touch, and offers adding and copying from a right-click", a
   await page.getByRole("textbox", { name: "Title" }).fill("Wifi");
   await page.getByRole("textbox", { name: "Note" }).fill("casa-5G / hunter2");
   // Inside an open note a right-click is the browser's, not the vault's.
-  await page.getByRole("textbox", { name: "Note" }).click({ button: "right" });
+  // (On the header's path, which nothing else claims: a field would be
+  // skipped by the background menu anyway.)
+  await page.getByRole("list", { name: "Saved in" }).click({ button: "right" });
   await expect(page.getByRole("menu", { name: "Add to the vault" })).toHaveCount(0);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("treeitem", { name: "Wifi" })).toBeVisible();
