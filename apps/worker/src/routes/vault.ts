@@ -135,32 +135,42 @@ export async function vaultChanges(c: RouteContext): Promise<Response> {
   // tombstone, newer than every forgotten one.
   const continuing = c.url.searchParams.get("full") === "1";
 
-  const floor = await c.env.DB.prepare("SELECT vault_floor AS floor FROM groups WHERE id = ?")
-    .bind(auth.groupId)
-    .first<{ floor: number }>();
-  // A cursor older than the newest forgotten tombstone may hold items purged
-  // since, and nobody can say which: start the listing over from the beginning.
-  const reset = !continuing && requested > 0 && requested < (floor?.floor ?? 0);
-  const since = reset ? 0 : requested;
+  // One transaction, so the counter, the floor, the rows and the usage all
+  // describe the same moment: the cursor can never skip a change committed in
+  // between, and no tombstone can be forgotten between deciding the cursor is
+  // still good and reading what came after it.
+  const read = (since: number) =>
+    c.env.DB.batch([
+      c.env.DB.prepare(
+        "SELECT vault_seq AS seq, vault_floor AS floor FROM groups WHERE id = ?",
+      ).bind(auth.groupId),
+      c.env.DB.prepare(
+        `SELECT ${VAULT_ITEM_COLUMNS}, removed_at AS removedAt
+           FROM vault_items
+          WHERE group_id = ? AND seq > ?
+          ORDER BY seq ASC
+          LIMIT ?`,
+      ).bind(auth.groupId, since, VAULT_PAGE_SIZE + 1),
+      c.env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM vault_items WHERE group_id = ? AND removed_at IS NULL",
+      ).bind(auth.groupId),
+      c.env.DB.prepare(
+        "SELECT COALESCE(SUM(size), 0) AS bytes FROM vault_blobs WHERE group_id = ?",
+      ).bind(auth.groupId),
+    ]);
 
-  // One transaction, so the counter, the rows and the usage describe the same
-  // moment and the cursor can never skip a change committed in between.
-  const [group, rows, items, bytes] = await c.env.DB.batch([
-    c.env.DB.prepare("SELECT vault_seq AS seq FROM groups WHERE id = ?").bind(auth.groupId),
-    c.env.DB.prepare(
-      `SELECT ${VAULT_ITEM_COLUMNS}, removed_at AS removedAt
-         FROM vault_items
-        WHERE group_id = ? AND seq > ?
-        ORDER BY seq ASC
-        LIMIT ?`,
-    ).bind(auth.groupId, since, VAULT_PAGE_SIZE + 1),
-    c.env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM vault_items WHERE group_id = ? AND removed_at IS NULL",
-    ).bind(auth.groupId),
-    c.env.DB.prepare(
-      "SELECT COALESCE(SUM(size), 0) AS bytes FROM vault_blobs WHERE group_id = ?",
-    ).bind(auth.groupId),
-  ]);
+  let since = requested;
+  let [group, rows, items, bytes] = await read(since);
+  const floor = (group?.results[0] as { floor: number } | undefined)?.floor ?? 0;
+  // A cursor older than the newest forgotten tombstone may hold items purged
+  // since, and nobody can say which: start the listing over from the
+  // beginning. That second read needs no floor of its own: a listing from 0
+  // is complete whatever was forgotten meanwhile.
+  const reset = !continuing && requested > 0 && requested < floor;
+  if (reset) {
+    since = 0;
+    [group, rows, items, bytes] = await read(since);
+  }
 
   const counter = (group?.results[0] as { seq: number } | undefined) ?? { seq: 0 };
   const changed = (rows?.results ?? []) as Array<VaultItemRecord & { removedAt: number | null }>;
