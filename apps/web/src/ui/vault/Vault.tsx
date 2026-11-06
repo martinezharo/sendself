@@ -172,6 +172,17 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
   }
 
   const missingFolder = folderId !== null && !folder;
+
+  /**
+   * Close `which`, if it is still the dialog on screen. Every dialog closes
+   * itself through this rather than clearing whatever is open: an operation
+   * can finish after its dialog was dismissed and another opened (a slow
+   * folder creation, then a note), and must not close that one, losing a
+   * draft without asking.
+   */
+  function dismiss(which: Dialog): void {
+    setDialog((current) => (current === which ? null : current));
+  }
   const rows = flattenTree(children, folderId, expandedFolders.value);
 
   async function open(entry: VaultEntry): Promise<void> {
@@ -404,7 +415,7 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
         <NoteEditor
           entry={dialog.entry}
           folderId={dialog.parentId}
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
         />
       )}
       {dialog?.kind === "folder" && (
@@ -413,10 +424,10 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
           label="Folder name"
           action="Create folder"
           initial=""
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
           onSubmit={async (name) => {
             const created = await createFolder(into(dialog.parentId), name);
-            if (created) setDialog(null);
+            if (created) dismiss(dialog);
           }}
         />
       )}
@@ -426,21 +437,21 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
           label="Name"
           action="Rename"
           initial={entryName(dialog.entry)}
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
           onSubmit={async (name) => {
-            if (await renameItem(dialog.entry, name)) setDialog(null);
+            if (await renameItem(dialog.entry, name)) dismiss(dialog);
           }}
         />
       )}
       {dialog?.kind === "move" && (
-        <MoveDialog entry={dialog.entry} onClose={() => setDialog(null)} />
+        <MoveDialog entry={dialog.entry} onClose={() => dismiss(dialog)} />
       )}
       {dialog?.kind === "image" && (
         <ImageViewer
           name={entryName(dialog.entry)}
           url={dialog.url}
           onDownload={() => void download(dialog.entry)}
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
         />
       )}
       {dialog?.kind === "delete" && (
@@ -448,10 +459,10 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
           title="Delete for good?"
           text={`${entryName(dialog.entry)}${dialog.entry.record.kind === "folder" ? " and everything in it" : ""} will be removed from every device in this space. This can't be undone.`}
           action="Delete for good"
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
           onConfirm={async () => {
             await deleteForever(dialog.entry);
-            setDialog(null);
+            dismiss(dialog);
           }}
         />
       )}
@@ -460,10 +471,10 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
           title="Empty the trash?"
           text="Everything in the trash will be removed from every device in this space. This can't be undone."
           action="Empty trash"
-          onClose={() => setDialog(null)}
+          onClose={() => dismiss(dialog)}
           onConfirm={async () => {
             await emptyTrash();
-            setDialog(null);
+            dismiss(dialog);
           }}
         />
       )}
