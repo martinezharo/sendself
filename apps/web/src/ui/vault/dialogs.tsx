@@ -1,6 +1,6 @@
 import { Check, Download, Folder, FolderLock, X } from "lucide-preact";
 import type { JSX } from "preact";
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   type VaultEntry,
   entryName,
@@ -9,7 +9,7 @@ import {
   visibleVaultEntries,
 } from "../../state/vaultItems";
 import { showToast } from "../../state/ui";
-import { Button, IconButton, Modal, cx } from "../components";
+import { Button, IconButton, Modal, cx, useDialogFocus } from "../components";
 import { folderOptions, groupChildren } from "./tree";
 
 export function NameDialog({
@@ -209,6 +209,8 @@ export function ImageViewer({
   onDownload: () => void;
   onClose: () => void;
 }): JSX.Element {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(panelRef);
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape") onClose();
@@ -219,10 +221,12 @@ export function ImageViewer({
 
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-label={name}
-      class="animate-fade-in fixed inset-0 z-50 flex flex-col bg-[color-mix(in_srgb,#050506_88%,transparent)] pt-[env(safe-area-inset-top)] text-white backdrop-blur-md"
+      tabIndex={-1}
+      class="outline-none focus-visible:!shadow-none animate-fade-in fixed inset-0 z-50 flex flex-col bg-[color-mix(in_srgb,#050506_88%,transparent)] pt-[env(safe-area-inset-top)] text-white backdrop-blur-md"
       onClick={onClose}
     >
       <header

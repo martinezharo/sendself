@@ -59,7 +59,14 @@ test("keeps folders, notes and files across launches, with a trash to restore fr
   page = await device.launch(`/app/${spaceId}`);
   await page.getByRole("link", { name: "Vault" }).first().click();
   await page.getByRole("treeitem", { name: "Taxes" }).click();
-  await page.getByRole("treeitem", { name: "Accountant" }).click();
+  // Opened from the keyboard, the note takes the focus: Tab and Delete act in
+  // it, not on the row behind (which Delete would send to the trash).
+  await page.getByRole("treeitem", { name: "Accountant" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Note: Accountant" })).toBeFocused();
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Close" })).toBeFocused();
   await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue(
     "Call Marta before the 30th\nShe has the 2025 receipts",
   );

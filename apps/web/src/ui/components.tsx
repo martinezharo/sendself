@@ -1,4 +1,4 @@
-import type { ComponentChildren, JSX } from "preact";
+import type { ComponentChildren, JSX, RefObject } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import {
   AlertCircle,
@@ -289,6 +289,72 @@ export function Toasts(): JSX.Element {
       ))}
     </div>
   );
+}
+
+/* --------------------------------------------------------------------------
+   Dialog focus
+   ------------------------------------------------------------------------ */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keep the keyboard inside a full-screen dialog for as long as it is open, and
+ * hand focus back to whatever had it when it closes.
+ *
+ * Without this, a dialog opened from the keyboard leaves focus on the control
+ * that opened it, behind the backdrop: Tab walks the page underneath, and that
+ * control's own shortcuts still fire (Delete on a vault row trashes the very
+ * note being read). Focus starts on `initial` when given, otherwise on the
+ * panel itself (which needs `tabIndex={-1}`), so reading a note doesn't pop a
+ * phone's keyboard open.
+ */
+export function useDialogFocus(
+  panelRef: RefObject<HTMLElement>,
+  initial?: () => HTMLElement | null | undefined,
+): void {
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const previous = document.activeElement;
+    if (!panel.contains(document.activeElement)) (initial?.() ?? panel).focus();
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Tab") return;
+      const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (element) => element.getClientRects().length > 0,
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!first || !last) {
+        event.preventDefault();
+        panel.focus();
+      } else if (
+        event.shiftKey &&
+        (active === first || !focusable.includes(active as HTMLElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (active === last || !focusable.includes(active as HTMLElement))
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    // A click on the page behind (or a script) must not leave focus out there either.
+    const onFocusIn = (event: FocusEvent): void => {
+      if (!panel.contains(event.target as Node)) panel.focus();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusin", onFocusIn);
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
+  }, []);
 }
 
 /* --------------------------------------------------------------------------

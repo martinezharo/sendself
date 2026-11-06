@@ -11,7 +11,7 @@ import {
   vaultEntries,
 } from "../../state/vaultItems";
 import { showToast } from "../../state/ui";
-import { Button, IconButton, Spinner, cx } from "../components";
+import { Button, IconButton, Spinner, cx, useDialogFocus } from "../components";
 import { formatDate } from "./format";
 
 /** How the save shortcut is spelled on this platform. */
@@ -44,6 +44,10 @@ export function NoteEditor({
   const [saving, setSaving] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // A new note starts at its title; an existing one is opened to be read first.
+  useDialogFocus(panelRef, () => (entry ? null : titleRef.current));
   // Read through a ref: the parent hands a new closure on every render, and
   // re-running the load for it would throw away what is being typed.
   const closeRef = useRef(onClose);
@@ -177,10 +181,12 @@ export function NoteEditor({
       onClick={requestClose}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={entry ? `Note: ${title || "Untitled"}` : "New note"}
-        class="animate-modal-in flex h-full w-full flex-col overflow-hidden bg-elevated pt-[env(safe-area-inset-top)] md:h-[min(860px,calc(100dvh-3rem))] md:max-w-[780px] md:rounded-xl3 md:border md:border-line md:pt-0 md:shadow-float"
+        tabIndex={-1}
+        class="animate-modal-in flex h-full outline-none focus-visible:!shadow-none w-full flex-col overflow-hidden bg-elevated pt-[env(safe-area-inset-top)] md:h-[min(860px,calc(100dvh-3rem))] md:max-w-[780px] md:rounded-xl3 md:border md:border-line md:pt-0 md:shadow-float"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === "s" && (event.metaKey || event.ctrlKey)) {
@@ -264,6 +270,7 @@ export function NoteEditor({
           >
             <div class="mx-auto flex w-full max-w-[66ch] flex-col px-5 pb-24 pt-7 md:px-10 md:pt-10">
               <input
+                ref={titleRef}
                 type="text"
                 value={title}
                 maxLength={200}
@@ -272,7 +279,6 @@ export function NoteEditor({
                 // Read-only while saving: what is on screen must be what was saved,
                 // or closing on success would drop whatever was typed meanwhile.
                 readOnly={saving}
-                autoFocus={entry === null}
                 class="vault-page-field w-full bg-transparent font-display text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-ink placeholder:text-muted/50 md:text-[2rem]"
                 onInput={(event) => setTitle((event.target as HTMLInputElement).value)}
                 onKeyDown={(event) => {
