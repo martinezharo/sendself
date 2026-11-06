@@ -4,9 +4,10 @@ import { useEffect, useState } from "preact/hooks";
 import { getDroppedFiles, hasTransferFiles } from "../share/transfer";
 import { stageFiles } from "../state/composer";
 import { route, showSpaceSection } from "../state/route";
-import { uploadFiles } from "../state/vaultItems";
+import { entryName, uploadFiles, vaultEntries } from "../state/vaultItems";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
+import { folderAt, vaultDropTarget } from "./vault/drop";
 
 /**
  * Whole-window drag & drop: files dropped anywhere in the app land in the
@@ -28,6 +29,7 @@ export function DropZone(): JSX.Element | null {
     const reset = (): void => {
       depth = 0;
       setActive(false);
+      vaultDropTarget.value = undefined;
     };
 
     const onDragEnter = (event: DragEvent): void => {
@@ -43,19 +45,23 @@ export function DropZone(): JSX.Element | null {
       // to be accepted, and must be reapplied on every dragover.
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      // In the vault the drop goes to the folder under the pointer, and the
+      // tree lights that folder up.
+      vaultDropTarget.value = vaultFolderFor(event.target);
     };
 
     const onDragLeave = (event: DragEvent): void => {
       if (!hasTransferFiles(event.dataTransfer)) return;
       depth = Math.max(0, depth - 1);
-      if (depth === 0) setActive(false);
+      if (depth === 0) reset();
     };
 
     const onDrop = (event: DragEvent): void => {
       if (!hasTransferFiles(event.dataTransfer)) return;
       event.preventDefault();
+      const folder = vaultFolderFor(event.target);
       reset();
-      void acceptDrop(event.dataTransfer);
+      void acceptDrop(event.dataTransfer, folder);
     };
 
     window.addEventListener("dragenter", onDragEnter, true);
@@ -81,6 +87,24 @@ export function DropZone(): JSX.Element | null {
   // (see `acceptDrop`), but promising "drop to send" would be a lie.
   if (!active || !session.value) return null;
 
+  // Over the vault, the tree itself shows where the files will land; the
+  // page stays in view, with a note of the folder at the bottom.
+  if (inVault()) {
+    const target = vaultDropTarget.value;
+    const folder = target ? vaultEntries.value.get(target) : undefined;
+    return (
+      <div
+        class="animate-toast-in pointer-events-none fixed inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-[60] flex justify-center px-4"
+        aria-hidden="true"
+      >
+        <div class="flex max-w-full items-center gap-2.5 rounded-full border border-line-strong bg-elevated py-2 pl-3 pr-4 text-note font-medium text-ink shadow-float [&_svg]:size-4 [&_svg]:flex-none [&_svg]:text-accent">
+          <Upload />
+          <span class="truncate">Drop to save in {folder ? entryName(folder) : "the vault"}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       class="animate-fade-in pointer-events-none fixed inset-0 z-[60] grid place-items-center bg-[color-mix(in_srgb,#0a0a0c_45%,transparent)] p-6 backdrop-blur-[3px]"
@@ -90,27 +114,23 @@ export function DropZone(): JSX.Element | null {
         <div class="grid size-14 place-items-center rounded-xl2 bg-accent-soft text-accent [&_svg]:size-[26px]">
           <Upload />
         </div>
-        {inVault() ? (
-          <>
-            <h3 class="text-title">Drop to save</h3>
-            <p class="max-w-[280px] text-body leading-relaxed text-muted">
-              They're encrypted and kept in this folder of the vault.
-            </p>
-          </>
-        ) : (
-          <>
-            <h3 class="text-title">Drop to attach</h3>
-            <p class="max-w-[280px] text-body leading-relaxed text-muted">
-              They go to the composer first, so you can add a comment before sending.
-            </p>
-          </>
-        )}
+        <h3 class="text-title">Drop to attach</h3>
+        <p class="max-w-[280px] text-body leading-relaxed text-muted">
+          They go to the composer first, so you can add a comment before sending.
+        </p>
       </div>
     </div>
   );
 }
 
-async function acceptDrop(data: DataTransfer | null): Promise<void> {
+/**
+ * @param target The vault folder the files were dropped on, when they were
+ *   dropped on one (`undefined` otherwise, or outside the vault).
+ */
+async function acceptDrop(
+  data: DataTransfer | null,
+  target: string | null | undefined,
+): Promise<void> {
   if (!session.value) {
     showToast("Set up this space first, then drop your files.", "error");
     return;
@@ -125,7 +145,9 @@ async function acceptDrop(data: DataTransfer | null): Promise<void> {
     dropped.section === "vault" &&
     dropped.vault &&
     "folderId" in dropped.vault
-      ? dropped.vault.folderId
+      ? target !== undefined
+        ? target
+        : dropped.vault.folderId
       : undefined;
 
   const files = await getDroppedFiles(data);
@@ -150,6 +172,19 @@ async function acceptDrop(data: DataTransfer | null): Promise<void> {
   // Land on the chat, which is where the queue they just joined is shown.
   showSpaceSection("chat");
   stageFiles(files);
+}
+
+/**
+ * The vault folder a drop on `node` would go to: the folder it stands for, or
+ * the one on screen. `undefined` outside the vault.
+ */
+function vaultFolderFor(node: EventTarget | null): string | null | undefined {
+  const current = route.value;
+  if (!inVault() || current.name !== "space" || !current.vault || !("folderId" in current.vault)) {
+    return undefined;
+  }
+  const folder = folderAt(node);
+  return folder !== undefined ? folder : current.vault.folderId;
 }
 
 /** Whether a drop right now would land in a vault folder (the trash takes none). */

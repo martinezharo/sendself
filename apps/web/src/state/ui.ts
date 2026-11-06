@@ -38,10 +38,26 @@ export function showToast(message: string, kind: Toast["kind"] = "info"): void {
   }, 4000);
 }
 
-/** Copy `text`, saying so either way. Resolves whether it worked. */
-export async function copyText(text: string, done = "Copied to clipboard"): Promise<boolean> {
+/**
+ * Copy `text`, saying so either way. Resolves whether it worked.
+ *
+ * The text may still be on its way (a note being read from the vault): it is
+ * then handed to the clipboard as a promise, inside the user's gesture, which
+ * is the only way Safari accepts a copy that finishes later.
+ */
+export async function copyText(
+  text: string | Promise<string>,
+  done = "Copied to clipboard",
+): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
+    if (typeof text === "string") {
+      await navigator.clipboard.writeText(text);
+    } else if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+      const blob = text.then((value) => new Blob([value], { type: "text/plain" }));
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+    } else {
+      await navigator.clipboard.writeText(await text);
+    }
     showToast(done);
     return true;
   } catch {

@@ -1002,6 +1002,18 @@
     box-shadow: var(--ring);
   }
 
+  /* The title and text of a vault note. They are the page itself, not fields
+     on it, so they take no ring or box when focused: the caret is enough. */
+  .vault-page-field {
+    caret-color: var(--c-accent);
+  }
+  .vault-page-field:focus,
+  .vault-page-field:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
   /* A search hit inside a bubble. A fixed yellow with dark ink rather than a
      theme token: the bubbles it lands on range from the light surface to the
      accent, and this is the one pairing that stays legible on all of them in

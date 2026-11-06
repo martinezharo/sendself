@@ -18,7 +18,8 @@ export function canCopyImages(): boolean {
 }
 
 /** Re-encode any image the browser can decode as PNG. */
-async function toPng(blob: Blob): Promise<Blob> {
+async function toPng(source: Blob | Promise<Blob>): Promise<Blob> {
+  const blob = await source;
   if (blob.type === CLIPBOARD_IMAGE_TYPE) return blob;
 
   // An <img> rather than createImageBitmap: it is the one decoder that also
@@ -52,8 +53,9 @@ async function toPng(blob: Blob): Promise<Blob> {
  *
  * The clipboard item is handed a *promise* for the PNG instead of the finished
  * blob: Safari only honours a write made inside the user gesture, and the
- * conversion above is asynchronous.
+ * conversion above is asynchronous. For the same reason the image itself may
+ * be a promise, for one still being read or downloaded when the user asks.
  */
-export async function copyImageBlob(blob: Blob): Promise<void> {
+export async function copyImageBlob(blob: Blob | Promise<Blob>): Promise<void> {
   await navigator.clipboard.write([new ClipboardItem({ [CLIPBOARD_IMAGE_TYPE]: toPng(blob) })]);
 }

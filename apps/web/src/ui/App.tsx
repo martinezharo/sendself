@@ -38,7 +38,7 @@ import { LockScreen } from "./LockScreen";
 import { SearchLayer, SearchToggle, coveredBySearch } from "./SearchBar";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { Spaces } from "./Spaces";
-import { Vault } from "./Vault";
+import { Vault } from "./vault/Vault";
 import { vaultEntries } from "../state/vaultItems";
 import { Button, IconButton, Loading, Modal, Toasts, cx } from "./components";
 
