@@ -18,6 +18,8 @@ export interface AuthContext {
    * will expect a signature from, instead of letting it land as unverifiable.
    */
   hasSigningKey: boolean;
+  /** The space's vault change counter (see `PendingMessagesResponse.vaultSeq`). */
+  vaultSeq: number;
 }
 
 /** SHA-256 of a UTF-8 string as lowercase hex. */
@@ -46,7 +48,8 @@ export async function authenticate(request: Request, env: Env): Promise<AuthCont
     `SELECT d.group_id AS groupId, d.id AS deviceId, d.role AS role,
             d.revoked_at AS revokedAt, d.key_epoch AS keyEpoch,
             d.signing_public_key AS signingPublicKey,
-            g.key_epoch AS groupKeyEpoch, g.rotation_pending AS rotationPending
+            g.key_epoch AS groupKeyEpoch, g.rotation_pending AS rotationPending,
+            g.vault_seq AS vaultSeq
        FROM devices d
        JOIN groups g ON g.id = d.group_id
       WHERE d.auth_token_hash = ?`,
@@ -61,6 +64,7 @@ export async function authenticate(request: Request, env: Env): Promise<AuthCont
       signingPublicKey: string | null;
       groupKeyEpoch: number;
       rotationPending: number;
+      vaultSeq: number;
     }>();
   if (!row) {
     throw new ApiError("unauthorized", "Invalid token");
@@ -80,6 +84,7 @@ export async function authenticate(request: Request, env: Env): Promise<AuthCont
     groupKeyEpoch: row.groupKeyEpoch,
     rotationPending: row.rotationPending === 1,
     hasSigningKey: row.signingPublicKey !== null,
+    vaultSeq: row.vaultSeq,
   };
 }
 

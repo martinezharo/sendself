@@ -39,6 +39,18 @@ Files go up to 50 MiB each. Results go to stdout, errors to stderr, and the exit
 
 `sendself status` shows the space, the device and the key epoch, and checks that the link still works. `sendself unlink` forgets the link on this machine; revoke the device in the app as well so the space stops trusting it.
 
+## Keep it in the vault
+
+`send` delivers and is gone from the server once your devices have it. `save` keeps a file or a note in the space's vault instead, where every device in the space can open it until someone deletes it:
+
+```bash
+npx -y sendself save -f "Work/Invoices" invoice.pdf                 # a file, into a folder
+echo "Router admin: 192.168.1.1" | npx -y sendself save -t "Home"   # a note from stdin
+npx -y sendself save -n "Renew the domain in March"                 # a note
+```
+
+`--folder` takes a `/`-separated path and creates whatever part of it is missing; without it, things land at the vault's top level. A note's title defaults to its first line. Like `send`, everything is encrypted on this machine first.
+
 ## Where the link lives
 
 The link is one file, `device.json`, in `$SENDSELF_HOME` (default `~/.config/sendself`). It holds the device's private keys, its bearer token and every space key it has been given, so it is as sensitive as an unlocked phone in the space. It is written with owner-only permissions (`0600` in a `0700` directory) and has no passphrase, because the CLI is meant to run unattended.

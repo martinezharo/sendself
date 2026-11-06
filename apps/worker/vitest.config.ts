@@ -36,7 +36,7 @@ export default defineConfig(async () => {
         miniflare: {
           compatibilityDate: "2026-06-24",
           d1Databases: ["DB"],
-          r2Buckets: ["FILES"],
+          r2Buckets: ["FILES", "VAULT"],
           durableObjects: { SPACE_HUB: "SpaceHub" },
           serviceBindings: {
             // Echoes the asset it was asked for, so the tests can tell which

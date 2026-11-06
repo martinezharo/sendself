@@ -8,6 +8,12 @@ export interface Env {
   DB: D1Database;
   /** R2 bucket holding encrypted file blobs. */
   FILES: R2Bucket;
+  /**
+   * R2 bucket holding the vault's encrypted notes and files. A bucket of its
+   * own because FILES carries a lifecycle rule that expires everything after a
+   * day, which is exactly what vault content must never be subject to.
+   */
+  VAULT: R2Bucket;
   /** Static assets binding serving the built PWA. */
   ASSETS: Fetcher;
   /** One Durable Object per space, fanning delivery notifications out to its devices. */

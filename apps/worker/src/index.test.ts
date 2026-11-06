@@ -1,6 +1,6 @@
 import { SELF, createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { fileStorageKey } from "./db";
+import { blobStorageKey } from "./blobs";
 import worker from "./index";
 import { errorCode, seedMessage, seedSpace } from "./test/helpers";
 
@@ -121,7 +121,7 @@ describe("scheduled", () => {
       createdAt: Date.now() - 48 * 60 * 60 * 1000,
       fileR2Key: "stale",
     });
-    await env.FILES.put(fileStorageKey(groupId, "stale"), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, "stale"), "ciphertext");
     const ctx = createExecutionContext();
 
     await worker.scheduled({} as ScheduledController, env, ctx);
@@ -129,6 +129,6 @@ describe("scheduled", () => {
 
     const row = await env.DB.prepare("SELECT id FROM messages WHERE id = ?").bind(stale).first();
     expect(row).toBeNull();
-    expect(await env.FILES.head(fileStorageKey(groupId, "stale"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "stale"))).toBeNull();
   });
 });

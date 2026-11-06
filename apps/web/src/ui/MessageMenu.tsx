@@ -1,11 +1,13 @@
-import { Copy, ImageIcon, Share2, Trash2, Users } from "lucide-preact";
+import { Copy, FolderLock, ImageIcon, Share2, Trash2, Users } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import {
   canCopyImage,
   canDeleteEverywhere,
+  canSaveToVault,
   canShareMessage,
   copyMessageImage,
+  saveMessageToVault,
   copyMessageText,
   deleteMessageEverywhere,
   deleteMessageLocally,
@@ -48,7 +50,8 @@ export function MessageMenu({
 
   const targets = album ?? [message];
   const copyableImage = targets.length === 1 && canCopyImage(message);
-  const hasActions = !!message.text || copyableImage || canShareMessage(message);
+  const savable = targets.length === 1 && canSaveToVault(message);
+  const hasActions = !!message.text || copyableImage || canShareMessage(message) || savable;
 
   function run(action: (message: LocalMessage) => Promise<void>): void {
     onClose();
@@ -107,6 +110,11 @@ export function MessageMenu({
       {canShareMessage(message) && (
         <MenuItem icon={<Share2 />} onClick={() => run(shareMessage)}>
           Share…
+        </MenuItem>
+      )}
+      {savable && (
+        <MenuItem icon={<FolderLock />} onClick={() => run(saveMessageToVault)}>
+          Save to vault
         </MenuItem>
       )}
       {hasActions && <MenuSeparator />}

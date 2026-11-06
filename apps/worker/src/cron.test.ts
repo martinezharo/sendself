@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { MESSAGE_TTL_MS, PAIRING_TTL_MS } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
 import { runCleanup } from "./cron";
-import { fileStorageKey } from "./db";
+import { blobStorageKey } from "./blobs";
 import { seedMessage, seedSpace } from "./test/helpers";
 
 async function seedPairingSlot(pairingId: string, createdAt: number): Promise<void> {
@@ -43,13 +43,13 @@ describe("runCleanup", () => {
       fileR2Key: "stale-blob",
     });
     const recent = await seedMessage(groupId, owner.id, { createdAt: now - 1_000 });
-    await env.FILES.put(fileStorageKey(groupId, "stale-blob"), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, "stale-blob"), "ciphertext");
 
     await runCleanup(env);
 
     expect(await messageExists(stale)).toBe(false);
     expect(await messageExists(recent)).toBe(true);
-    expect(await env.FILES.head(fileStorageKey(groupId, "stale-blob"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "stale-blob"))).toBeNull();
   });
 
   it("deletes an undelivered message's delivery rows too, leaving nothing orphaned", async () => {

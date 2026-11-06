@@ -74,6 +74,12 @@ A message can carry text and a file at once, which is what a caption is. A selec
 
 A message can be marked `viewOnce` inside the same encrypted envelope. The first device to open one queues a global-delete tombstone before showing the content, so the other devices lose it from the moment it is opened, and drops its own copy when the reader closes it. This is cooperative, exactly like deleting for everyone: it is a UI affordance, not a guarantee against a screenshot or a modified client.
 
+### The vault
+
+Messages are delivered and forgotten; the vault is what a space keeps. Its folders, notes and files are rows in D1 (`vault_items`) and blobs in a separate R2 bucket (`VAULT`, which has no lifecycle rule). Every write takes the space's next change number (`groups.vault_seq`), and the poll reports that counter, so a device fetches `/api/vault?since=<cursor>` only when something changed and then gets exactly what did.
+
+The server is the source of truth for the vault: writes go to it first, and an edit names the revision it was made against so two devices never silently overwrite each other (the app keeps the losing note as a copy). Each device keeps the server's records (still ciphertext) in IndexedDB so the vault opens instantly and offline, and caches opened content like any downloaded file. The shared logic, including sealing and the re-seal after a key rotation, lives in `packages/client/src/vault.ts` so the PWA and the CLI (`sendself save`) cannot diverge.
+
 ### Deleting for everyone
 
 The client sends a signed tombstone through the same message and delivery pipeline. The Worker immediately removes the server-side target and its file, then recipients validate the tombstone and remove their local copy. This is cooperative deletion, not a remote wipe; a recipient that is modified, offline forever, or has already copied a file elsewhere can retain it.
@@ -82,11 +88,12 @@ The client sends a signed tombstone through the same message and delivery pipeli
 
 | Store | Holds | Lifecycle |
 | --- | --- | --- |
-| D1 | Space and device records, public keys, token hashes, encrypted message metadata, delivery state, pairing slots, wrapped rotated keys, and the size of every stored blob (for the per-space quota). | Pairing slots expire after 10 minutes. Message records are removed after full delivery or by the 24-hour cleanup. A blob's size row is removed together with the blob. |
+| D1 | Space and device records, public keys, token hashes, encrypted message metadata, delivery state, pairing slots, wrapped rotated keys, vault items (sealed metadata, nesting and revisions), and the size of every stored blob (for the per-space quotas). | Pairing slots expire after 10 minutes. Message records are removed after full delivery or by the 24-hour cleanup. Vault items live until purged; their tombstones for 90 days. A blob's size row is removed together with the blob. |
 | R2 | Encrypted file blobs only, at most 2 GiB per space at once. | Removed after the message is fully delivered, when its message is deleted, by cleanup after an hour if no message claimed it, or by cleanup after 24 hours. The bucket should also have a one-day lifecycle rule. |
+| R2 (`VAULT`) | Encrypted vault notes and files, at most 1 GiB per space. | Kept until the item is purged: deleted for good, or 30 days after it went to the trash. A blob no item claims within an hour is removed. No lifecycle rule. |
 | D1 (push) | One browser push subscription per device that turned notifications on. | Removed when the device unsubscribes, is revoked, or the push service reports the subscription gone. |
 | Durable Object | Connected WebSockets for one space, each tagged with whether that space is on screen. | No application state is stored. Hibernation allows idle spaces to cost nothing beyond their other resources. |
-| IndexedDB | Device sessions, private key material, GroupKey epochs, local message history, cached file content, and an index of outgoing messages still to send. | Persists until the user removes it, or for the history-retention period chosen on that device (forever by default). Undelivered outgoing messages are never pruned. |
+| IndexedDB | Device sessions, private key material, GroupKey epochs, local message history, cached file content, a copy of the vault's records (server ciphertext), and an index of outgoing messages still to send. | Persists until the user removes it, or for the history-retention period chosen on that device (forever by default). Undelivered outgoing messages and the vault copy are never pruned. |
 | Cache Storage | A short-lived cleartext hand-off for browser share-target files before the app consumes them. | The namespace is bounded and cleared around consumption; see the open decision in [AUDIT.md](../AUDIT.md). |
 
 ## Documents served

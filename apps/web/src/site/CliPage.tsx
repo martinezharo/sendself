@@ -97,6 +97,17 @@ const SECTIONS: DocSection[] = [
           them opens it. The command exits with 0 when everything is on its way, 1 when something
           failed and 2 when it was used wrongly, so scripts and agents can rely on it.
         </p>
+        <p>
+          To keep something instead of delivering it, <code>save</code> puts it in the space&apos;s
+          vault, where it stays until someone deletes it. <code>--folder</code> takes a path and
+          creates any folder that is missing:
+        </p>
+        <pre>
+          {[
+            'npx -y sendself save -f "Work/Invoices" invoice.pdf',
+            'echo "Router admin: 192.168.1.1" | npx -y sendself save -t "Home"',
+          ].join("\n")}
+        </pre>
         <p>To teach an agent that is already linked, add this to its instructions:</p>
         <pre>{AGENT_INSTRUCTIONS}</pre>
       </>

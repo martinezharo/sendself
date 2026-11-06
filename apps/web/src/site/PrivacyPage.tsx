@@ -1,7 +1,15 @@
 import { CircleSlash, Clock, EyeOff, UserX } from "lucide-preact";
 import type { JSX } from "preact";
 import { Callout, DataTable, DocPage, type DocSection } from "./DocPage";
-import { ISSUES_URL, OPERATOR, PAIRING_TTL_LABEL, REPO_URL, SERVER_RETENTION_LABEL } from "./facts";
+import {
+  ISSUES_URL,
+  OPERATOR,
+  PAIRING_TTL_LABEL,
+  REPO_URL,
+  SERVER_RETENTION_LABEL,
+  VAULT_TOMBSTONE_LABEL,
+  VAULT_TRASH_LABEL,
+} from "./facts";
 
 /**
  * `/privacy/`: the privacy policy.
@@ -54,9 +62,9 @@ const SECTIONS: DocSection[] = [
     body: (
       <>
         <p>
-          To pass content between your devices, the service keeps the following. None of it includes
-          your name, email address, phone number or any other account details, because SendSelf
-          never asks for them.
+          To pass content between your devices, and to keep what you save in a space's vault, the
+          service keeps the following. None of it includes your name, email address, phone number or
+          any other account details, because SendSelf never asks for them.
         </p>
         <DataTable
           caption="Data the service stores, why, and for how long"
@@ -66,6 +74,11 @@ const SECTIONS: DocSection[] = [
               "Encrypted messages and files",
               "To hold them until each of your devices has downloaded them.",
               `Deleted once every active device in the space has them, and after ${SERVER_RETENTION_LABEL} at the latest.`,
+            ],
+            [
+              "Encrypted vault notes and files",
+              "What you chose to keep in a space's vault, so every device in the space can open it later. The server also sees how many items there are, how they are nested in folders, their sizes and when they changed — not their names or contents.",
+              `Until you delete them. Deleted items wait in the trash for ${VAULT_TRASH_LABEL} and are then removed for good; a record that an item was removed (with no content) is kept for ${VAULT_TOMBSTONE_LABEL} so devices that were offline remove it too.`,
             ],
             [
               "Delivery status",
@@ -270,8 +283,8 @@ export function PrivacyPage(): JSX.Element {
         },
         {
           icon: Clock,
-          title: `Gone within ${SERVER_RETENTION_LABEL}`,
-          body: "Encrypted copies are deleted from the server as soon as your devices have them, and after a day at most.",
+          title: `Messages gone within ${SERVER_RETENTION_LABEL}`,
+          body: "Encrypted messages are deleted from the server as soon as your devices have them, and after a day at most. Only what you choose to keep in the vault stays.",
         },
       ]}
       sections={SECTIONS}

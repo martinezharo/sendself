@@ -1,7 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import { MAX_UPLOAD_SIZE, SPACE_PENDING_BYTES_QUOTA } from "@sendself/shared";
 import { describe, expect, it, vi } from "vitest";
-import { fileStorageKey, reserveUpload } from "../db";
+import { MESSAGE_FILES, blobStorageKey, reserveBlob } from "../blobs";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedSpace } from "../test/helpers";
 import { boundedUploadBody } from "./files";
@@ -30,7 +30,7 @@ describe("PUT /api/files/:key", () => {
     const response = await upload(owner, "blob1", "encrypted-bytes");
 
     expect(response.status).toBe(200);
-    const object = await env.FILES.get(fileStorageKey(groupId, "blob1"));
+    const object = await env.FILES.get(blobStorageKey(groupId, "blob1"));
     expect(await object?.text()).toBe("encrypted-bytes");
   });
 
@@ -82,13 +82,21 @@ describe("PUT /api/files/:key", () => {
 
   it("refuses an upload that would take the space past its quota, before storing it", async () => {
     const { groupId, owner } = await seedSpace();
-    await reserveUpload(env, groupId, "pending", SPACE_PENDING_BYTES_QUOTA - 4, Number.MAX_SAFE_INTEGER, Date.now());
+    await reserveBlob(
+      env,
+      MESSAGE_FILES,
+      groupId,
+      "pending",
+      SPACE_PENDING_BYTES_QUOTA - 4,
+      Number.MAX_SAFE_INTEGER,
+      Date.now(),
+    );
 
     const response = await upload(owner, "one-too-many", "12345");
 
     expect(response.status).toBe(413);
     expect(await errorCode(response)).toBe("quota_exceeded");
-    expect(await env.FILES.head(fileStorageKey(groupId, "one-too-many"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "one-too-many"))).toBeNull();
   });
 
   it("cannot write outside its own group, even with a key another group uses", async () => {
@@ -98,8 +106,8 @@ describe("PUT /api/files/:key", () => {
 
     await upload(b.owner, "shared", "from-b");
 
-    expect(await (await env.FILES.get(fileStorageKey(a.groupId, "shared")))?.text()).toBe("from-a");
-    expect(await (await env.FILES.get(fileStorageKey(b.groupId, "shared")))?.text()).toBe("from-b");
+    expect(await (await env.FILES.get(blobStorageKey(a.groupId, "shared")))?.text()).toBe("from-a");
+    expect(await (await env.FILES.get(blobStorageKey(b.groupId, "shared")))?.text()).toBe("from-b");
   });
 
   it("requires Content-Length so R2 can stream a fixed-length body", async () => {
@@ -148,7 +156,7 @@ describe("PUT /api/files/:key", () => {
 
     expect(response.status).toBe(413);
     expect(await errorCode(response)).toBe("payload_too_large");
-    expect(await env.FILES.head(fileStorageKey(groupId, "toobig"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "toobig"))).toBeNull();
   });
 
   it.each([
@@ -207,7 +215,7 @@ describe("GET /api/files/:key", () => {
   it("404s once the blob has been deleted", async () => {
     const { groupId, owner } = await seedSpace();
     await upload(owner, "gone", "bytes");
-    await env.FILES.delete(fileStorageKey(groupId, "gone"));
+    await env.FILES.delete(blobStorageKey(groupId, "gone"));
 
     const response = await download(owner, "gone");
 

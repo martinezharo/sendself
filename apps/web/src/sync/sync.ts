@@ -42,6 +42,7 @@ import { type OutboxUpdateBroadcast, flushQueuedOutbox } from "./outbox";
 import { ensureRealtime, realtimeConnected, startRealtime, stopRealtime } from "./realtime";
 import { DeviceKeyMismatchError, adoptPendingKeys, rotateGroupKey } from "./rekey";
 import { syncSpaceName } from "./spaceName";
+import { setVaultKeyRefresher, syncVault } from "../state/vaultItems";
 import { holdScreenAwake } from "./wakeLock";
 
 /**
@@ -119,6 +120,8 @@ function handOffOutboxToServiceWorker(): void {
   void requestBackgroundSync();
 }
 
+setVaultKeyRefresher(() => syncNow());
+
 export function startSync(): void {
   stopSync();
   void syncNow();
@@ -185,7 +188,13 @@ export async function syncNow(): Promise<void> {
     // persists every state change itself, so only the signal needs updating.
     const flushed = await flushOutbox();
 
-    const { messages: pending, keys, rotationPending, spaceName } = await api.pendingMessages(auth);
+    const {
+      messages: pending,
+      keys,
+      rotationPending,
+      spaceName,
+      vaultSeq,
+    } = await api.pendingMessages(auth);
 
     // Adopt any rotated key before touching messages: content sent after a
     // rotation is encrypted with an epoch this device may be seeing for the
@@ -207,6 +216,10 @@ export async function syncNow(): Promise<void> {
     // The space's name is reconciled after the keys, since reading (or
     // re-sealing) it can depend on an epoch this pass has just adopted.
     await syncSpaceName(spaceName, ring);
+
+    // Not awaited: the vault has nothing to do with delivering messages, and a
+    // slow or failing vault read must not hold up the ones waiting below.
+    void syncVault(ring, vaultSeq).catch(() => {});
 
     // First register every incoming message (decrypt just the metadata) so
     // all bubbles appear at once, then fetch the attachments concurrently

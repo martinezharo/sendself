@@ -16,6 +16,7 @@ import { parseInviteCode } from "@sendself/client/pairing";
 import { DEFAULT_SERVER, devicePath, isLinked, loadDevice, removeDevice } from "./config";
 import { link } from "./link";
 import { mimeFor } from "./mime";
+import { saveAll } from "./save";
 import { type OutgoingFile, sendAll } from "./send";
 import { apiFor, syncKeys } from "./session";
 
@@ -26,6 +27,7 @@ const HELP = `sendself — send files and text to your SendSelf devices
 
 Usage:
   sendself send [options] [FILE...]   Send files, text, or both
+  sendself save [options] [FILE...]   Keep files or a note in the space's vault
   sendself link CODE [options]        Link this machine to a space (once)
   sendself status                     Show which space this machine sends to
   sendself unlink                     Forget the link on this machine
@@ -34,6 +36,13 @@ send:
   -m, --message TEXT   Text to send; with files, their caption. "-" reads stdin.
       --view-once      Delete it from every device once one of them opens it
   With no FILE and no --message, text is read from stdin when it is piped.
+
+save:
+  -f, --folder PATH    Vault folder to save into, e.g. "Work/Invoices"; created
+                       if missing (default: the vault's top level)
+  -n, --note TEXT      Save TEXT as a note. "-" reads stdin.
+  -t, --title TITLE    The note's title (default: its first line)
+  With no FILE and no --note, piped stdin is saved as a note.
 
 link:
   CODE                 The invitation from the app: Devices → Add device →
@@ -49,6 +58,8 @@ Examples:
   sendself send report.pdf
   sendself send -m "Build finished" screenshot.png logs.txt
   echo "Deploy done" | sendself send
+  sendself save -f "Work/Invoices" invoice-2026-11.pdf
+  echo "Router admin is at 192.168.1.1" | sendself save -t "Home network"
 `;
 
 class UsageError extends Error {}
@@ -58,6 +69,8 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case "send":
       return runSend(rest);
+    case "save":
+      return runSave(rest);
     case "link":
       return runLink(rest);
     case "status":
@@ -112,6 +125,47 @@ async function runSend(args: string[]): Promise<number> {
     },
   );
   if (sent === 0) process.stdout.write("Nothing sent\n");
+  return 0;
+}
+
+async function runSave(args: string[]): Promise<number> {
+  const { values, positionals } = parse(args, {
+    folder: { type: "string", short: "f" },
+    note: { type: "string", short: "n" },
+    title: { type: "string", short: "t" },
+  });
+
+  let text = values.note;
+  if (text === "-" || (text === undefined && positionals.length === 0 && !process.stdin.isTTY)) {
+    text = await readStdin();
+  }
+  if (!text && positionals.length === 0) {
+    throw new UsageError("Nothing to save: give a file, --note, or pipe text in.");
+  }
+
+  const files = await Promise.all(positionals.map(describeFile));
+  const device = await loadDevice();
+  await saveAll(
+    device,
+    apiFor(device.server),
+    {
+      ...(values.folder ? { folder: values.folder } : {}),
+      files,
+      ...(text ? { note: { title: values.title ?? "", text } } : {}),
+    },
+    {
+      onSaved: ({ record, meta }) => {
+        const name = meta?.name ?? record.id;
+        process.stdout.write(
+          record.kind === "folder"
+            ? `Created folder ${name}\n`
+            : record.kind === "note"
+              ? `Saved note ${name}\n`
+              : `Saved ${name} (${formatSize(meta?.size ?? 0)})\n`,
+        );
+      },
+    },
+  );
   return 0;
 }
 

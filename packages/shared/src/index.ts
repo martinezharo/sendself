@@ -44,6 +44,32 @@ export const SPACE_PENDING_BYTES_QUOTA = 2 * 1024 * 1024 * 1024;
  */
 export const ORPHAN_UPLOAD_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Most encrypted bytes one space's vault may keep: every blob its notes and
+ * files point at, plus uploads on their way to becoming one. Unlike the
+ * pending quota above, this one is a storage plan: hitting it means deleting
+ * something (or emptying the trash), not waiting.
+ */
+export const VAULT_BYTES_QUOTA = 1024 * 1024 * 1024;
+
+/** Most items (folders, notes and files, trash included) one space's vault may hold. */
+export const VAULT_MAX_ITEMS = 10_000;
+
+/** How long a trashed vault item can still be restored before it is purged. */
+export const VAULT_TRASH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * How long the server remembers that an item was purged, so a device that was
+ * offline can drop its copy. A device away for longer resyncs from scratch.
+ */
+export const VAULT_TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Most vault changes one `GET /api/vault` answers with; `more` says to ask again. */
+export const VAULT_PAGE_SIZE = 500;
+
+/** Most items one re-seal request carries. */
+export const VAULT_RESEAL_BATCH = 100;
+
 /** The Turnstile action a space-creation challenge is issued (and verified) for. */
 export const CREATE_SPACE_CHALLENGE_ACTION = "create-space";
 
@@ -752,6 +778,13 @@ export interface PendingMessagesResponse {
    * request it already makes, with no round-trip of its own.
    */
   spaceName: SpaceNameRecord | null;
+  /**
+   * The vault's change counter (see `VaultChangesResponse.cursor`). A device
+   * fetches the vault only when this moved past the cursor it holds, so an
+   * unchanged vault costs the poll nothing but this number. Absent from
+   * servers that predate the vault.
+   */
+  vaultSeq?: number;
 }
 
 /** One rotated GroupKey wrapped for one remaining device. */
@@ -811,6 +844,156 @@ export interface UpdateDeviceRoleRequest {
 export interface UpdateDeviceRoleResponse {
   ok: true;
 }
+
+// ---------------------------------------------------------------------------
+// Vault
+// ---------------------------------------------------------------------------
+
+/**
+ * The vault is what a space keeps rather than delivers: folders, notes and
+ * files every device in it can browse, for as long as they are not deleted.
+ *
+ * Each item is a row the server can order and nest but not read. Everything
+ * about it that is the user's own words (its name, a note's text, a file's
+ * type) is sealed in `meta` under the space's GroupKey, and a note's or file's
+ * content is a blob in R2 sealed under a key of its own that only `meta`
+ * carries. After a key rotation any device that can still read an item seals
+ * its `meta` again under the new key (`VaultResealRequest`), so a device that
+ * joins later, and only ever holds the current key, can read the whole vault.
+ */
+export const VAULT_ITEM_KINDS = ["folder", "note", "file"] as const;
+export type VaultItemKind = (typeof VAULT_ITEM_KINDS)[number];
+
+/** What `VaultItemRecord.meta` decrypts to. */
+export interface VaultItemMeta {
+  name: string;
+  /** Raw AES-GCM 256 key of the item's blob (base64url). Notes and files only. */
+  contentKey?: string;
+  /** IV of the blob's ciphertext (base64url). */
+  contentIv?: string;
+  /** Plaintext size in bytes. */
+  size?: number;
+  /** A file's MIME type. */
+  mime?: string;
+  /** The opening of a note's text, so a folder can list notes without downloading each. */
+  excerpt?: string;
+}
+
+/** One vault item as the server keeps it. */
+export interface VaultItemRecord {
+  id: string;
+  /** The folder holding it, or null at the root. */
+  parentId: string | null;
+  kind: VaultItemKind;
+  /** GroupKey epoch `meta` is sealed under. */
+  keyEpoch: number;
+  meta: string;
+  metaIv: string;
+  /** The content blob (`/api/vault/blobs/:key`); null for a folder. */
+  blobKey: string | null;
+  /** Ciphertext bytes of the blob, as the quota counts them. */
+  blobSize: number;
+  /** Bumped by every edit, and what the next edit must name (compare-and-swap). */
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+  /** In the trash since then, or null. A trashed folder hides everything in it. */
+  trashedAt: number | null;
+  /** The space's change counter at this item's latest change. */
+  seq: number;
+}
+
+/**
+ * `GET /api/vault?since=<cursor>[&full=1]`: what changed after `since`. `full`
+ * marks a later page of a listing that started from 0 (or was reset).
+ */
+export interface VaultChangesResponse {
+  /** Items created or changed, oldest change first. */
+  items: VaultItemRecord[];
+  /** Items purged for good: drop them. */
+  removed: string[];
+  /** The newest change this answer covers: the next request's `since`. */
+  cursor: number;
+  /** More changes remain past `cursor`: ask again at once. */
+  more: boolean;
+  /**
+   * `since` is older than what the server still remembers about purges, so
+   * this answer starts over from the beginning: drop the local copy and
+   * rebuild it from this page and the ones after it, which are fetched with
+   * `full=1` so they are not reset again.
+   */
+  reset: boolean;
+  /** What the vault holds, against `VAULT_BYTES_QUOTA` and `VAULT_MAX_ITEMS`. */
+  usage: { bytes: number; items: number };
+}
+
+/** `POST /api/vault/items`. A note or a file names a blob already uploaded. */
+export interface CreateVaultItemRequest {
+  id: string;
+  parentId: string | null;
+  kind: VaultItemKind;
+  /** Must be the space's current epoch, exactly like a message. */
+  keyEpoch: number;
+  meta: string;
+  metaIv: string;
+  blobKey?: string;
+}
+
+/**
+ * `PATCH /api/vault/items/:id`. Every field but `revision` is optional; a
+ * request changes only what it carries. `meta` always travels with the epoch
+ * it was sealed under (the current one), and a new `blobKey` with the `meta`
+ * that holds its key.
+ */
+export interface UpdateVaultItemRequest {
+  /** The revision this edit was made against. Anything else is a `conflict`. */
+  revision: number;
+  parentId?: string | null;
+  keyEpoch?: number;
+  meta?: string;
+  metaIv?: string;
+  blobKey?: string;
+  /** Move to the trash (true) or restore from it (false). */
+  trashed?: boolean;
+}
+
+/** The new state of an item after a write. */
+export interface VaultItemWriteResponse {
+  ok: true;
+  item: VaultItemRecord;
+}
+
+/**
+ * `POST /api/vault/reseal`: `meta` sealed again under the current epoch, after
+ * a rotation. Each one names the revision it re-sealed; an item edited in the
+ * meantime is skipped, since that edit is already under the current key.
+ */
+export interface VaultResealRequest {
+  keyEpoch: number;
+  items: Array<{ id: string; revision: number; meta: string; metaIv: string }>;
+}
+
+export interface VaultResealResponse {
+  ok: true;
+  /** How many items were re-sealed. */
+  resealed: number;
+}
+
+/** `DELETE /api/vault/items/:id`: purged for good, with everything inside it. */
+export interface DeleteVaultItemResponse {
+  ok: true;
+  /** Ids purged: the item and, for a folder, everything nested in it. */
+  removed: string[];
+}
+
+/** The AAD contexts of vault ciphertexts, shared by every client. */
+export const vaultContext = {
+  /** An item's `meta`, bound to its space, its id and its kind. */
+  meta: (groupId: string, itemId: string, kind: VaultItemKind): string =>
+    `vault-meta:${groupId}:${itemId}:${kind}`,
+  /** A content blob, bound to its space and its storage key. */
+  blob: (groupId: string, blobKey: string): string => `vault-blob:${groupId}:${blobKey}`,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Errors

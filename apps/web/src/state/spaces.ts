@@ -11,6 +11,7 @@
  * because a name belongs to the space rather than to the device holding it.
  */
 
+import { clearVault } from "./vaultItems";
 import { signal } from "@preact/signals";
 import {
   GLOBAL_LAST_SPACE,
@@ -138,6 +139,7 @@ export function closeSpace(): void {
   setActiveSpace(null);
   activeSpace.value = null;
   clearSessionState();
+  clearVault();
 }
 
 /**

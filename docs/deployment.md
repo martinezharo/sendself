@@ -17,7 +17,8 @@ The names and bindings are declared in [`apps/worker/wrangler.jsonc`](../apps/wo
 | Resource | Binding | Current name/purpose |
 | --- | --- | --- |
 | D1 | `DB` | `sendself-db`, metadata and delivery state. |
-| R2 | `FILES` | `sendself-files`, encrypted file blobs. |
+| R2 | `FILES` | `sendself-files`, encrypted message attachments. Has a one-day lifecycle rule. |
+| R2 | `VAULT` | `sendself-vault`, encrypted vault notes and files. Must **not** have a lifecycle rule: its content is kept until the user deletes it. |
 | Durable Object | `SPACE_HUB` | One `SpaceHub` instance per space for sync notifications. |
 | Rate limiters | `RL_PUBLIC`, `RL_WRITE`, `RL_UPLOAD` | Edge abuse protection; absent in local dev and Worker tests. |
 | Secrets | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web Push identity. Optional: without them the Worker sends no pushes and the app does not offer notifications. `VAPID_SUBJECT` (a `mailto:` or `https:` contact) defaults to the site URL. |
@@ -32,6 +33,7 @@ Authenticate Wrangler with an account that can manage the Worker, D1, R2, Durabl
 ```bash
 pnpm --filter @sendself/worker exec wrangler d1 create sendself-db
 pnpm --filter @sendself/worker exec wrangler r2 bucket create sendself-files
+pnpm --filter @sendself/worker exec wrangler r2 bucket create sendself-vault
 pnpm --filter @sendself/worker exec wrangler r2 bucket lifecycle add sendself-files expire-24h --expire-days 1
 ```
 
@@ -76,6 +78,19 @@ Creating a space is the only write that needs no prior trust, so it is where a s
    ```
 
 The challenge takes effect as soon as both secrets exist; no deploy is needed. Existing spaces are unaffected. An app version from before this change cannot solve it, so it can no longer create spaces until its service worker updates. To turn it off, delete either secret.
+
+## Staging
+
+`wrangler.jsonc` also declares a `staging` environment: a Worker of its own (`sendself-staging`, served at `https://sendself-staging.olma.workers.dev`) with its own D1 database (`sendself-staging-db`) and buckets (`sendself-staging-files`, with the same one-day lifecycle rule, and `sendself-staging-vault`). It shares nothing with production, so a branch can be tried on a real URL without touching anyone's spaces.
+
+Nothing deploys to it automatically. From the repository root:
+
+```bash
+pnpm --filter @sendself/web build
+pnpm --filter @sendself/worker run deploy:staging
+```
+
+That applies pending migrations to the staging database and publishes the build. It has no Turnstile or push secrets, so creating a space there is unchallenged and notifications are off. Its data is disposable.
 
 ## Release sequence
 

@@ -21,6 +21,8 @@ import {
   syncPushSubscription,
 } from "./state/notifications";
 import { applyHistoryRetention } from "./state/retention";
+import { createNote, loadVault, uploadFiles } from "./state/vaultItems";
+import { downloadBlob } from "./share/download";
 import { NetworkError, api } from "./api/client";
 import { agentSetupPrompt, linkCommand } from "./cli";
 import {
@@ -861,14 +863,7 @@ export async function saveFile(message: LocalMessage): Promise<boolean> {
     return false;
   }
 
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = message.file.name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(blob, message.file.name);
   return true;
 }
 
@@ -915,6 +910,43 @@ export async function copyMessageImage(message: LocalMessage): Promise<void> {
     showToast("Image copied to clipboard");
   } catch {
     showToast("Couldn't copy the image", "error");
+  }
+}
+
+/**
+ * Whether a message can be kept in the vault from here: its text, or its file
+ * once the decrypted copy is on this device (the vault re-encrypts it under a
+ * key of its own, so it needs the plaintext, not the message's ciphertext).
+ */
+export function canSaveToVault(message: LocalMessage): boolean {
+  if (message.file) return message.fileState === "downloaded" && !message.viewOnce;
+  return !!message.text && !message.viewOnce;
+}
+
+/** Keep a message in the vault's top level: a file as a file, text as a note. */
+export async function saveMessageToVault(message: LocalMessage): Promise<void> {
+  // The vault it goes to is the space the message is in. `uploadFiles` pins the
+  // open space when it starts, so the space must not have changed while the
+  // file was being read.
+  const spaceId = activeSpace.value?.id;
+  if (message.file && spaceId) {
+    let blob: Blob | undefined;
+    try {
+      blob = await getFile(message.file.r2Key, spaceId);
+    } catch {
+      blob = undefined;
+    }
+    if (!blob) {
+      showToast("File is no longer available", "error");
+      return;
+    }
+    if (activeSpace.value?.id !== spaceId) return;
+    const file = new File([blob], message.file.name, { type: message.file.mime });
+    if ((await uploadFiles(null, [file])) > 0) showToast("Saved to the vault");
+    return;
+  }
+  if (message.text && (await createNote(null, "", message.text))) {
+    showToast("Saved to the vault as a note");
   }
 }
 
@@ -1209,6 +1241,8 @@ export async function startSession(): Promise<void> {
   // answers offline too — which is exactly when a device is most likely to be
   // queueing actions that depend on having peers.
   await loadIdentities();
+  // The vault's local copy, so it opens instantly; the sync pass catches it up.
+  await loadVault().catch(() => {});
   startSync();
   void ensureSigningIdentity();
   void syncPushSubscription();

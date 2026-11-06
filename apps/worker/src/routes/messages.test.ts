@@ -1,7 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import type { PendingMessagesResponse, SendMessageRequest } from "@sendself/shared";
 import { describe, expect, it } from "vitest";
-import { fileStorageKey } from "../db";
+import { blobStorageKey } from "../blobs";
 import type { SeededDevice } from "../test/helpers";
 import { authHeader, errorCode, seedDevice, seedMessage, seedSpace, uid } from "../test/helpers";
 
@@ -116,7 +116,7 @@ describe("POST /api/messages", () => {
   it("drops an uploaded file when there is nobody to deliver it to", async () => {
     const { groupId, owner } = await seedSpace();
     const key = uid("blob").replace(/[^A-Za-z0-9_-]/g, "");
-    await env.FILES.put(fileStorageKey(groupId, key), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, key), "ciphertext");
 
     await send(owner, {
       fileR2Key: key,
@@ -127,7 +127,7 @@ describe("POST /api/messages", () => {
       iv: undefined,
     });
 
-    expect(await env.FILES.head(fileStorageKey(groupId, key))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, key))).toBeNull();
   });
 
   it("refuses to register a file that was never uploaded", async () => {
@@ -351,12 +351,12 @@ describe("POST /api/messages/:id/ack", () => {
       recipients: [recipient.id],
       fileR2Key: key,
     });
-    await env.FILES.put(fileStorageKey(groupId, key), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, key), "ciphertext");
 
     const response = await ack(recipient, id);
 
     expect(await response.json()).toEqual({ ok: true, deleted: true });
-    expect(await env.FILES.head(fileStorageKey(groupId, key))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, key))).toBeNull();
   });
 
   it("is idempotent for a device that already acked", async () => {
@@ -404,7 +404,7 @@ describe("POST /api/messages (delete for everyone)", () => {
     const { groupId, owner } = await seedSpace();
     const peer = await seedDevice(groupId);
     const key = uid("blob");
-    await env.FILES.put(fileStorageKey(groupId, key), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, key), "ciphertext");
     const target = await seedMessage(groupId, owner.id, {
       recipients: [peer.id],
       fileR2Key: key,
@@ -422,7 +422,7 @@ describe("POST /api/messages (delete for everyone)", () => {
     expect(await env.DB.prepare("SELECT id FROM messages WHERE id = ?").bind(target).first()).toBe(
       null,
     );
-    expect(await env.FILES.head(fileStorageKey(groupId, key))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, key))).toBeNull();
     // The target's delivery bookkeeping goes with it, and the tombstone gets
     // its own so every other device is told.
     const rows = await env.DB.prepare(

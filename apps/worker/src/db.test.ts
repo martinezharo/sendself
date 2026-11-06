@@ -1,15 +1,12 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { MESSAGE_FILES, blobStorageKey, deleteBlob, purgeOrphanBlobs, reserveBlob } from "./blobs";
 import {
   activeDevices,
   deleteMessageById,
-  deleteUpload,
-  fileStorageKey,
   messageRecipients,
   purgeDeliveredMessages,
   purgeExpiredMessages,
-  purgeOrphanUploads,
-  reserveUpload,
 } from "./db";
 import { seedDevice, seedMessage, seedSpace } from "./test/helpers";
 
@@ -32,19 +29,19 @@ async function uploadRow(groupId: string, key: string): Promise<{ size: number }
 }
 
 async function seedUpload(groupId: string, key: string, createdAt: number): Promise<void> {
-  await reserveUpload(env, groupId, key, 10, Number.MAX_SAFE_INTEGER, createdAt);
-  await env.FILES.put(fileStorageKey(groupId, key), "ciphertext");
+  await reserveBlob(env, MESSAGE_FILES, groupId, key, 10, Number.MAX_SAFE_INTEGER, createdAt);
+  await env.FILES.put(blobStorageKey(groupId, key), "ciphertext");
 }
 
-describe("fileStorageKey", () => {
+describe("blobStorageKey", () => {
   it("namespaces the object by group", () => {
-    expect(fileStorageKey("group-a", "key-1")).toBe("group-a/key-1");
+    expect(blobStorageKey("group-a", "key-1")).toBe("group-a/key-1");
   });
 
   it("gives two groups disjoint keys for the same client-chosen key", () => {
     // The client only ever knows the bare key, so this is what stops a device
     // in group A from reaching group B's blob by guessing it.
-    expect(fileStorageKey("a", "shared")).not.toBe(fileStorageKey("b", "shared"));
+    expect(blobStorageKey("a", "shared")).not.toBe(blobStorageKey("b", "shared"));
   });
 });
 
@@ -120,7 +117,7 @@ describe("purgeDeliveredMessages", () => {
       recipients: [member.id],
       fileR2Key: "blob-1",
     });
-    await env.FILES.put(fileStorageKey(groupId, "blob-1"), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, "blob-1"), "ciphertext");
     await env.DB.prepare("UPDATE delivery_status SET downloaded_at = ? WHERE message_id = ?")
       .bind(Date.now(), id)
       .run();
@@ -129,7 +126,7 @@ describe("purgeDeliveredMessages", () => {
 
     expect(await messageExists(id)).toBe(false);
     expect(await deliveryRowCount(id)).toBe(0);
-    expect(await env.FILES.head(fileStorageKey(groupId, "blob-1"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "blob-1"))).toBeNull();
   });
 
   it("keeps a message while any device has not downloaded it", async () => {
@@ -167,13 +164,13 @@ describe("deleteMessageById", () => {
       recipients: [member.id],
       fileR2Key: "blob-2",
     });
-    await env.FILES.put(fileStorageKey(groupId, "blob-2"), "ciphertext");
+    await env.FILES.put(blobStorageKey(groupId, "blob-2"), "ciphertext");
 
     expect(await deleteMessageById(env, id)).toBe(true);
 
     expect(await messageExists(id)).toBe(false);
     expect(await deliveryRowCount(id)).toBe(0);
-    expect(await env.FILES.head(fileStorageKey(groupId, "blob-2"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "blob-2"))).toBeNull();
   });
 
   it("reports false for a message that does not exist", async () => {
@@ -206,48 +203,48 @@ describe("purgeExpiredMessages", () => {
   });
 });
 
-describe("reserveUpload", () => {
+describe("reserveBlob", () => {
   it("records uploads while the space stays within its quota", async () => {
     const { groupId } = await seedSpace();
 
-    expect(await reserveUpload(env, groupId, "a", 60, 100, Date.now())).toBe(true);
-    expect(await reserveUpload(env, groupId, "b", 40, 100, Date.now())).toBe(true);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "a", 60, 100, Date.now())).toBe(true);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "b", 40, 100, Date.now())).toBe(true);
 
     expect(await uploadRow(groupId, "b")).toEqual({ size: 40 });
   });
 
   it("refuses the upload that would cross the quota, and records nothing for it", async () => {
     const { groupId } = await seedSpace();
-    await reserveUpload(env, groupId, "a", 60, 100, Date.now());
+    await reserveBlob(env, MESSAGE_FILES, groupId, "a", 60, 100, Date.now());
 
-    expect(await reserveUpload(env, groupId, "b", 41, 100, Date.now())).toBe(false);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "b", 41, 100, Date.now())).toBe(false);
     expect(await uploadRow(groupId, "b")).toBeNull();
   });
 
   it("counts a re-upload of the same key once, at its new size", async () => {
     const { groupId } = await seedSpace();
-    await reserveUpload(env, groupId, "a", 90, 100, Date.now());
+    await reserveBlob(env, MESSAGE_FILES, groupId, "a", 90, 100, Date.now());
 
-    expect(await reserveUpload(env, groupId, "a", 95, 100, Date.now())).toBe(true);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "a", 95, 100, Date.now())).toBe(true);
     expect(await uploadRow(groupId, "a")).toEqual({ size: 95 });
   });
 
   it("never shrinks a key's reservation, since an overlapping larger write may win", async () => {
     const { groupId } = await seedSpace();
-    await reserveUpload(env, groupId, "a", 50, 100, Date.now());
+    await reserveBlob(env, MESSAGE_FILES, groupId, "a", 50, 100, Date.now());
 
-    expect(await reserveUpload(env, groupId, "a", 1, 100, Date.now())).toBe(true);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "a", 1, 100, Date.now())).toBe(true);
     expect(await uploadRow(groupId, "a")).toEqual({ size: 50 });
     // The space is still charged for the larger write.
-    expect(await reserveUpload(env, groupId, "b", 51, 100, Date.now())).toBe(false);
+    expect(await reserveBlob(env, MESSAGE_FILES, groupId, "b", 51, 100, Date.now())).toBe(false);
   });
 
   it("charges each space only for its own uploads", async () => {
     const a = await seedSpace();
     const b = await seedSpace();
-    await reserveUpload(env, a.groupId, "x", 100, 100, Date.now());
+    await reserveBlob(env, MESSAGE_FILES, a.groupId, "x", 100, 100, Date.now());
 
-    expect(await reserveUpload(env, b.groupId, "x", 100, 100, Date.now())).toBe(true);
+    expect(await reserveBlob(env, MESSAGE_FILES, b.groupId, "x", 100, 100, Date.now())).toBe(true);
   });
 });
 
@@ -256,10 +253,10 @@ describe("upload accounting", () => {
     const { groupId } = await seedSpace();
     await seedUpload(groupId, "blob", Date.now());
 
-    await deleteUpload(env, groupId, "blob");
+    await deleteBlob(env, MESSAGE_FILES, groupId, "blob");
 
     expect(await uploadRow(groupId, "blob")).toBeNull();
-    expect(await env.FILES.head(fileStorageKey(groupId, "blob"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "blob"))).toBeNull();
   });
 
   it("releases the quota when the message carrying the blob is deleted", async () => {
@@ -273,7 +270,7 @@ describe("upload accounting", () => {
   });
 });
 
-describe("purgeOrphanUploads", () => {
+describe("purgeOrphanBlobs", () => {
   it("deletes old uploads no message references, keeping claimed and recent ones", async () => {
     const now = Date.now();
     const { groupId, owner } = await seedSpace();
@@ -282,12 +279,12 @@ describe("purgeOrphanUploads", () => {
     await seedMessage(groupId, owner.id, { fileR2Key: "claimed" });
     await seedUpload(groupId, "in-flight", now);
 
-    await purgeOrphanUploads(env, now - 1_000);
+    await purgeOrphanBlobs(env, MESSAGE_FILES, now - 1_000);
 
     expect(await uploadRow(groupId, "abandoned")).toBeNull();
-    expect(await env.FILES.head(fileStorageKey(groupId, "abandoned"))).toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "abandoned"))).toBeNull();
     expect(await uploadRow(groupId, "claimed")).not.toBeNull();
-    expect(await env.FILES.head(fileStorageKey(groupId, "claimed"))).not.toBeNull();
+    expect(await env.FILES.head(blobStorageKey(groupId, "claimed"))).not.toBeNull();
     expect(await uploadRow(groupId, "in-flight")).not.toBeNull();
   });
 
@@ -298,7 +295,7 @@ describe("purgeOrphanUploads", () => {
     await seedUpload(a.groupId, "same-key", now - 2_000);
     await seedMessage(b.groupId, b.owner.id, { fileR2Key: "same-key" });
 
-    await purgeOrphanUploads(env, now - 1_000);
+    await purgeOrphanBlobs(env, MESSAGE_FILES, now - 1_000);
 
     expect(await uploadRow(a.groupId, "same-key")).toBeNull();
   });

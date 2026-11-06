@@ -35,7 +35,11 @@
     }
   ],
 
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "sendself-files" }],
+  // FILES carries a one-day lifecycle rule; VAULT must never have one.
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "sendself-files" },
+    { "binding": "VAULT", "bucket_name": "sendself-vault" }
+  ],
 
   // One Durable Object per space, holding the devices' WebSockets and fanning
   // out delivery notifications. It stores nothing: the hibernation API keeps an
@@ -78,5 +82,56 @@
 
   "observability": {
     "enabled": true
+  },
+
+  // A test deployment with its own Worker, database and buckets, so a change
+  // can be tried on a real URL without touching anyone's spaces. Deployed by
+  // hand (`pnpm --filter @sendself/worker run deploy:staging`); nothing pushes
+  // to it automatically. No Turnstile or push secrets are set there, so space
+  // creation is unchallenged and notifications are off.
+  "env": {
+    "staging": {
+      "name": "sendself-staging",
+      "workers_dev": true,
+      "routes": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "sendself-staging-db",
+          "database_id": "ba96447a-6b44-4ee2-adbf-7a69a178c2aa",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        { "binding": "FILES", "bucket_name": "sendself-staging-files" },
+        { "binding": "VAULT", "bucket_name": "sendself-staging-vault" }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "SPACE_HUB", "class_name": "SpaceHub" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SpaceHub"] }],
+      "unsafe": {
+        "bindings": [
+          {
+            "name": "RL_PUBLIC",
+            "type": "ratelimit",
+            "namespace_id": "2001",
+            "simple": { "limit": 30, "period": 60 }
+          },
+          {
+            "name": "RL_WRITE",
+            "type": "ratelimit",
+            "namespace_id": "2002",
+            "simple": { "limit": 120, "period": 60 }
+          },
+          {
+            "name": "RL_UPLOAD",
+            "type": "ratelimit",
+            "namespace_id": "2003",
+            "simple": { "limit": 20, "period": 60 }
+          }
+        ]
+      }
+    }
   }
 }

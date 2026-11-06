@@ -6,13 +6,8 @@ import type {
   SendMessageResponse,
 } from "@sendself/shared";
 import { authenticate } from "../auth";
-import {
-  deleteGroupMessage,
-  deleteMessageById,
-  deleteUpload,
-  fileStorageKey,
-  messageRecipients,
-} from "../db";
+import { MESSAGE_FILES, blobStorageKey, deleteBlob } from "../blobs";
+import { deleteGroupMessage, deleteMessageById, messageRecipients } from "../db";
 import { ApiError, json } from "../errors";
 import { optionalString, readJsonObject, requireId, requireInt } from "../http";
 import { notifySpace } from "../realtime";
@@ -132,13 +127,13 @@ export async function sendMessage(c: RouteContext): Promise<Response> {
   // No recipients: nothing to deliver. Drop any uploaded file and skip storage
   // so the server keeps nothing around.
   if (recipients.length === 0) {
-    if (fileR2Key) await deleteUpload(c.env, auth.groupId, fileR2Key);
+    if (fileR2Key) await deleteBlob(c.env, MESSAGE_FILES, auth.groupId, fileR2Key);
     return json({ ok: true } satisfies SendMessageResponse);
   }
 
   // If a file is referenced it must already be uploaded (under this group).
   if (fileR2Key) {
-    const head = await c.env.FILES.head(fileStorageKey(auth.groupId, fileR2Key));
+    const head = await c.env.FILES.head(blobStorageKey(auth.groupId, fileR2Key));
     if (!head) {
       throw new ApiError("bad_request", "Referenced file has not been uploaded");
     }
@@ -248,6 +243,7 @@ export async function pendingMessages(c: RouteContext): Promise<Response> {
     keyEpoch: auth.groupKeyEpoch,
     rotationPending: auth.rotationPending,
     spaceName,
+    vaultSeq: auth.vaultSeq,
   } satisfies PendingMessagesResponse);
 }
 

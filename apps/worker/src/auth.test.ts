@@ -40,6 +40,7 @@ describe("authenticate", () => {
       groupKeyEpoch: 4,
       rotationPending: true,
       hasSigningKey: false,
+      vaultSeq: 0,
     } satisfies AuthContext);
   });
 
@@ -123,6 +124,7 @@ describe("role guards", () => {
     groupKeyEpoch: 1,
     rotationPending: false,
     hasSigningKey: false,
+    vaultSeq: 0,
   });
 
   it("lets owners and admins through requireAdmin", () => {
