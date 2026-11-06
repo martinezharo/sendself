@@ -359,6 +359,9 @@ function TreeItem({
           event.stopPropagation();
           onMenu(anchorBelow(event.currentTarget as HTMLElement));
         }}
+        // Its keys are its own: Enter opens the menu, and Delete or arrows
+        // must not reach the row's tree shortcuts.
+        onKeyDown={(event) => event.stopPropagation()}
       >
         <Ellipsis />
       </button>

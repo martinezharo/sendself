@@ -279,101 +279,109 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
   }
 
   return (
-    <div
-      ref={scroller}
-      class="min-h-0 flex-1 overflow-y-auto"
-      onContextMenu={onBackgroundMenu as unknown as JSX.MouseEventHandler<HTMLDivElement>}
-    >
-      <div class="mx-auto flex min-h-full w-full max-w-[920px] flex-col px-6 pb-4 pt-4 max-md:px-2.5 max-md:pt-2.5">
-        <div class="flex min-h-11 items-center justify-between gap-3 pb-3 max-md:px-1.5">
-          <Location spaceId={spaceId} location={location} />
-          {inTrash
-            ? trashedVaultEntries.value.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  class="flex-none"
-                  onClick={() => setDialog({ kind: "empty-trash" })}
-                >
-                  <Trash2 aria-hidden="true" />
-                  Empty trash
-                </Button>
-              )
-            : !missingFolder && (
-                <Toolbar
-                  onNote={() => actions.note(folderId)}
-                  onUpload={() => actions.upload(folderId)}
-                  onFolder={() => actions.folder(folderId)}
-                />
-              )}
-          <input ref={fileInput} type="file" multiple hidden onChange={onPick} />
-        </div>
-
-        {vaultUploads.value > 0 && (
-          <div
-            role="status"
-            class="mb-2 flex items-center gap-2.5 rounded-lg bg-accent-soft px-3 py-2 text-caption font-medium text-accent"
-          >
-            <Spinner class="size-3.5" />
-            {vaultUploads.value === 1
-              ? "Encrypting and saving 1 file…"
-              : `Encrypting and saving ${vaultUploads.value} files…`}
+    <>
+      <div
+        ref={scroller}
+        class="min-h-0 flex-1 overflow-y-auto"
+        onContextMenu={onBackgroundMenu as unknown as JSX.MouseEventHandler<HTMLDivElement>}
+      >
+        <div class="mx-auto flex min-h-full w-full max-w-[920px] flex-col px-6 pb-4 pt-4 max-md:px-2.5 max-md:pt-2.5">
+          <div class="flex min-h-11 items-center justify-between gap-3 pb-3 max-md:px-1.5">
+            <Location spaceId={spaceId} location={location} />
+            {inTrash
+              ? trashedVaultEntries.value.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    class="flex-none"
+                    onClick={() => setDialog({ kind: "empty-trash" })}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    Empty trash
+                  </Button>
+                )
+              : !missingFolder && (
+                  <Toolbar
+                    onNote={() => actions.note(folderId)}
+                    onUpload={() => actions.upload(folderId)}
+                    onFolder={() => actions.folder(folderId)}
+                  />
+                )}
+            <input ref={fileInput} type="file" multiple hidden onChange={onPick} />
           </div>
-        )}
 
-        {missingFolder ? (
-          <EmptyState
-            icon={<Folder />}
-            title="This folder is gone"
-            text="It was deleted or moved to the trash on one of your devices."
-          >
-            <a
-              class="text-note font-medium text-accent underline-offset-4 hover:underline"
-              href={vaultPath(spaceId, { folderId: null })}
-              onClick={(event) =>
-                followLink(event as unknown as MouseEvent, vaultPath(spaceId, { folderId: null }))
-              }
+          {vaultUploads.value > 0 && (
+            <div
+              role="status"
+              class="mb-2 flex items-center gap-2.5 rounded-lg bg-accent-soft px-3 py-2 text-caption font-medium text-accent"
             >
-              Back to the vault
-            </a>
-          </EmptyState>
-        ) : inTrash ? (
-          <TrashList onMenu={(entry, anchor, atPointer) => setMenu({ entry, anchor, atPointer })} />
-        ) : rows.length === 0 ? (
-          <div {...dropFolder(folderId)} class="flex flex-1 flex-col">
+              <Spinner class="size-3.5" />
+              {vaultUploads.value === 1
+                ? "Encrypting and saving 1 file…"
+                : `Encrypting and saving ${vaultUploads.value} files…`}
+            </div>
+          )}
+
+          {missingFolder ? (
             <EmptyState
-              icon={folderId ? <Folder /> : <FolderLock />}
-              title={folderId ? "This folder is empty" : "Nothing in the vault yet"}
-              text={
-                folderId
-                  ? "Write a note, upload files, or drag items here."
-                  : "Notes and files kept here stay on every device in this space until you delete them. Only your devices can read them."
-              }
-              highlight={vaultDropTarget.value === folderId}
+              icon={<Folder />}
+              title="This folder is gone"
+              text="It was deleted or moved to the trash on one of your devices."
             >
-              <p class="text-caption text-muted max-md:hidden">You can also drop files here.</p>
+              <a
+                class="text-note font-medium text-accent underline-offset-4 hover:underline"
+                href={vaultPath(spaceId, { folderId: null })}
+                onClick={(event) =>
+                  followLink(event as unknown as MouseEvent, vaultPath(spaceId, { folderId: null }))
+                }
+              >
+                Back to the vault
+              </a>
             </EmptyState>
-          </div>
-        ) : (
-          <VaultTree
-            rows={rows}
-            rootId={folderId}
-            scroller={() => scroller.current}
-            canDrop={(entry, target) => canMoveInto(entry, target, records)}
-            onToggle={(id, open) => setExpanded(id, open ?? !expandedFolders.value.has(id))}
-            onOpen={(entry) => void open(entry)}
-            onMenu={(entry, anchor, atPointer) => setMenu({ entry, anchor, atPointer })}
-            onMove={move}
-            onRename={(entry) => setDialog({ kind: "rename", entry })}
-            onTrash={trash}
-            onCopy={(entry) => {
-              if (copyKind(entry)) copyContent(entry);
-            }}
-          />
-        )}
+          ) : inTrash ? (
+            <TrashList
+              onMenu={(entry, anchor, atPointer) => setMenu({ entry, anchor, atPointer })}
+            />
+          ) : rows.length === 0 ? (
+            <div {...dropFolder(folderId)} class="flex flex-1 flex-col">
+              <EmptyState
+                icon={folderId ? <Folder /> : <FolderLock />}
+                title={folderId ? "This folder is empty" : "Nothing in the vault yet"}
+                text={
+                  folderId
+                    ? "Write a note, upload files, or drag items here."
+                    : "Notes and files kept here stay on every device in this space until you delete them. Only your devices can read them."
+                }
+                highlight={vaultDropTarget.value === folderId}
+              >
+                <p class="text-caption text-muted max-md:hidden">You can also drop files here.</p>
+              </EmptyState>
+            </div>
+          ) : (
+            <VaultTree
+              rows={rows}
+              rootId={folderId}
+              scroller={() => scroller.current}
+              canDrop={(entry, target) => canMoveInto(entry, target, records)}
+              onToggle={(id, open) => setExpanded(id, open ?? !expandedFolders.value.has(id))}
+              onOpen={(entry) => void open(entry)}
+              onMenu={(entry, anchor, atPointer) => setMenu({ entry, anchor, atPointer })}
+              onMove={move}
+              onRename={(entry) => setDialog({ kind: "rename", entry })}
+              onTrash={trash}
+              onCopy={(entry) => {
+                if (copyKind(entry)) copyContent(entry);
+              }}
+            />
+          )}
 
-        <VaultFooter spaceId={spaceId} inTrash={inTrash} />
+          <VaultFooter spaceId={spaceId} inTrash={inTrash} />
+        </div>
       </div>
+
+      {/* Menus and dialogs sit outside the scroller: a right-click inside an
+        open note must not reach the background menu, nor a touch in it the
+        drag's scroll lock. */}
 
       {menu?.entry === null && (
         <BackgroundMenu
@@ -478,7 +486,7 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
 
