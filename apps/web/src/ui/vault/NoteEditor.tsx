@@ -95,6 +95,16 @@ export function NoteEditor({
 
   // A ref, not the state: the shortcut can fire twice before a re-render.
   const savingRef = useRef(false);
+  // A save outlives the editor when it is dismissed meanwhile (Escape, then
+  // Discard). Its answer then belongs to no one: `onClose` would close
+  // whatever dialog the vault shows by then, another note included.
+  const openRef = useRef(true);
+  useEffect(
+    () => () => {
+      openRef.current = false;
+    },
+    [],
+  );
 
   /** Every way of saving (button, shortcut, the close prompt) goes through here. */
   async function save(): Promise<void> {
@@ -115,6 +125,7 @@ export function NoteEditor({
     const saved = entry
       ? await saveNote(entry, title, text)
       : await createNote(folderId, title, text);
+    if (!openRef.current) return;
     savingRef.current = false;
     setSaving(false);
     if (saved) onClose();
