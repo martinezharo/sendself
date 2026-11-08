@@ -25,6 +25,16 @@ export interface Env {
   /** Rate limit for file uploads (keyed by device id). */
   RL_UPLOAD: RateLimit;
   /**
+   * Rate limit for promo funnel events (keyed by client IP). Its own, so a
+   * visitor's events never eat into the public limit pairing polls against.
+   */
+  RL_PROMO: RateLimit;
+  /**
+   * The `promo_events` dataset shared with the author's other sites, counting
+   * what visitors who followed a promo for SendSelf went on to do here.
+   */
+  PROMO_ANALYTICS: AnalyticsEngineDataset;
+  /**
    * Web Push (VAPID) identity: an uncompressed P-256 public key and its private
    * scalar, both base64url (`scripts/generate-vapid-keys.mts`). Secrets, so
    * optional: without them the server sends no pushes and the app offers none.

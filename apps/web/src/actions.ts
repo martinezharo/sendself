@@ -77,6 +77,7 @@ import {
   stagedFiles,
   viewOnceArmed,
 } from "./state/composer";
+import { trackPromoStep } from "./promo";
 import { locked } from "./state/lock";
 import { loadSpaceEvents, noteDeviceAdded, reconcileRoster } from "./state/events";
 import {
@@ -154,6 +155,7 @@ export async function createSpace(
     await forgetSpace(space.id);
     throw error;
   }
+  trackPromoStep("create-space");
   return space;
 }
 
@@ -391,6 +393,9 @@ async function pollLink(pending: PendingPairing): Promise<void> {
     void api.pairingDelete(pairingId).catch(() => {});
     await startSession();
     linking.value = null;
+    // The joining side of the same step: a visitor who came from a promo on
+    // this device and linked it into a space started elsewhere.
+    trackPromoStep("add-device");
     navigate(spacePath(space.id));
     showToast("Device linked successfully");
   } catch (error) {
@@ -512,6 +517,7 @@ async function addDevice(payload: PairingQrPayload): Promise<void> {
     trust: "scanned",
     byMe: true,
   });
+  trackPromoStep("add-device");
 }
 
 /** An invitation this device is waiting on (see `InviteSealFields`). */
@@ -715,6 +721,9 @@ export async function sendComposerMessage(content: ComposerContent): Promise<voi
   const text = content.text?.trim() ?? "";
   const files = content.files ?? [];
   if (!text && files.length === 0) return;
+  // On the press of send, not on delivery: the outbox may deliver it from the
+  // service worker, long after this page is gone.
+  trackPromoStep("send-message");
 
   const viewOnce = content.viewOnce ? (true as const) : undefined;
   const sender = {
@@ -1175,6 +1184,9 @@ export async function consumeSharedContent(): Promise<void> {
  */
 export async function applyRoute(): Promise<void> {
   const current = route.value;
+  // Any route but the marketing page is the app: reached from the landing
+  // page's call to action, a static page's link to /app, or a bookmark.
+  if (current.name !== "landing") trackPromoStep("open-app");
   if (locked.value) return;
 
   if (current.name !== "space") {

@@ -92,7 +92,7 @@ export async function enforceRateLimit(limiter: RateLimit | undefined, key: stri
 /** Convenience overload taking the env + binding name. */
 export function rateLimit(
   env: Env,
-  binding: "RL_PUBLIC" | "RL_WRITE" | "RL_UPLOAD",
+  binding: "RL_PUBLIC" | "RL_WRITE" | "RL_UPLOAD" | "RL_PROMO",
   key: string,
 ): Promise<void> {
   return enforceRateLimit(env[binding], key);

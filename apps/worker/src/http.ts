@@ -9,21 +9,21 @@ import { ApiError } from "./errors";
 const MAX_JSON_BODY_SIZE = 2 * 1024 * 1024;
 
 /**
- * Read at most the configured JSON body limit before parsing it.
+ * Read at most `maxBytes` (by default the JSON body limit) before parsing it.
  *
  * Checking Content-Length is useful as a cheap early rejection, but it is an
  * untrusted header and chunked requests do not have one. Reading through the
  * stream keeps the limit effective for both forms instead of letting
  * `Request.json()` buffer an arbitrarily large body first.
  */
-export async function readJson<T>(request: Request): Promise<T> {
+export async function readJson<T>(request: Request, maxBytes = MAX_JSON_BODY_SIZE): Promise<T> {
   const contentLength = request.headers.get("content-length");
   if (contentLength !== null) {
     const length = Number(contentLength);
     if (!Number.isFinite(length) || length < 0) {
       throw new ApiError("bad_request", "Invalid Content-Length");
     }
-    if (length > MAX_JSON_BODY_SIZE) {
+    if (length > maxBytes) {
       throw new ApiError("payload_too_large", "Request body too large");
     }
   }
@@ -40,7 +40,7 @@ export async function readJson<T>(request: Request): Promise<T> {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > MAX_JSON_BODY_SIZE) {
+        if (size > maxBytes) {
           try {
             await reader.cancel();
           } catch {
@@ -68,8 +68,11 @@ export async function readJson<T>(request: Request): Promise<T> {
 }
 
 /** Parse a JSON object body, rejecting null, arrays and primitive JSON values. */
-export async function readJsonObject<T>(request: Request): Promise<T> {
-  const body = await readJson<unknown>(request);
+export async function readJsonObject<T>(
+  request: Request,
+  maxBytes = MAX_JSON_BODY_SIZE,
+): Promise<T> {
+  const body = await readJson<unknown>(request, maxBytes);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     throw new ApiError("bad_request", "JSON body must be an object");
   }

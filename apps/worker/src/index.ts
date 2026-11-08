@@ -16,6 +16,7 @@ import {
   pollPairing,
   requestPairing,
 } from "./routes/pairing";
+import { promoEvent } from "./routes/promo";
 import { pushStatus, pushSubscribe, pushUnsubscribe } from "./routes/push";
 import { updateSpaceName } from "./routes/space";
 import {
@@ -72,6 +73,8 @@ router.patch("/api/devices/:id/role", updateDeviceRole);
 router.get("/api/push", pushStatus);
 router.put("/api/push", pushSubscribe);
 router.delete("/api/push", pushUnsubscribe);
+
+router.post("/api/promo-event", promoEvent);
 
 export { SpaceHub };
 
