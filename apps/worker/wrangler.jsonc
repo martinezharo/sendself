@@ -75,7 +75,7 @@
       {
         "name": "RL_PROMO",
         "type": "ratelimit",
-        "namespace_id": "1004",
+        "namespace_id": "3001",
         "simple": { "limit": 30, "period": 60 }
       }
     ]
@@ -143,7 +143,7 @@
           {
             "name": "RL_PROMO",
             "type": "ratelimit",
-            "namespace_id": "2004",
+            "namespace_id": "4001",
             "simple": { "limit": 30, "period": 60 }
           }
         ]
