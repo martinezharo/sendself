@@ -1,6 +1,7 @@
 import { registerSW } from "virtual:pwa-register";
 import { render } from "preact";
 import { bootstrap } from "./bootstrap";
+import { startPromoTracking } from "./promo";
 import "./styles";
 import { redirectInstalledAppFromLanding, watchInstallability } from "./pwa";
 import { ready, startupError } from "./state/session";
@@ -27,6 +28,9 @@ function registerServiceWorker(): void {
   });
 }
 
+// First: the redirect below rewrites the URL, and a promo link's parameters
+// would go with it.
+startPromoTracking();
 registerServiceWorker();
 redirectInstalledAppFromLanding();
 // Before rendering: Chromium can offer installation as soon as the page loads.

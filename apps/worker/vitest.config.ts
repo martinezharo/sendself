@@ -38,6 +38,7 @@ export default defineConfig(async () => {
           d1Databases: ["DB"],
           r2Buckets: ["FILES", "VAULT"],
           durableObjects: { SPACE_HUB: "SpaceHub" },
+          analyticsEngineDatasets: { PROMO_ANALYTICS: { dataset: "promo_events" } },
           serviceBindings: {
             // Echoes the asset it was asked for, so the tests can tell which
             // document a path is served.

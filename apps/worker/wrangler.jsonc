@@ -71,9 +71,19 @@
         "type": "ratelimit",
         "namespace_id": "1003",
         "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RL_PROMO",
+        "type": "ratelimit",
+        "namespace_id": "3001",
+        "simple": { "limit": 30, "period": 60 }
       }
     ]
   },
+
+  // Promo funnel events (src/routes/promo.ts), in the dataset the author's
+  // other sites write too. Analytics Engine creates it on the first write.
+  "analytics_engine_datasets": [{ "binding": "PROMO_ANALYTICS", "dataset": "promo_events" }],
 
   // Hourly cleanup: expired pairing slots + messages/files older than 24h.
   "triggers": {
@@ -129,9 +139,20 @@
             "type": "ratelimit",
             "namespace_id": "2003",
             "simple": { "limit": 20, "period": 60 }
+          },
+          {
+            "name": "RL_PROMO",
+            "type": "ratelimit",
+            "namespace_id": "4001",
+            "simple": { "limit": 30, "period": 60 }
           }
         ]
-      }
+      },
+      // Its own dataset, so trying the funnel on staging never adds to the
+      // real counts.
+      "analytics_engine_datasets": [
+        { "binding": "PROMO_ANALYTICS", "dataset": "promo_events_staging" }
+      ]
     }
   }
 }

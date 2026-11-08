@@ -6,6 +6,7 @@
  */
 
 export { base64UrlToBuf, bufToBase64Url } from "./base64url";
+export * from "./promo";
 
 // ---------------------------------------------------------------------------
 // Constants
