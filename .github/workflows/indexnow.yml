@@ -1,0 +1,32 @@
+name: IndexNow
+
+# Tells Bing and the other IndexNow search engines about the site after each
+# push to main. See scripts/indexnow.mjs.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    name: Submit URLs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Submit the sitemap to IndexNow
+        run: node scripts/indexnow.mjs
+        env:
+          INDEXNOW_SITE: https://sendself.4oli.com
+          INDEXNOW_KEY: c1ff5f2d10c3ff52d44b06fa07ccbb75
