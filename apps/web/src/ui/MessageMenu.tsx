@@ -7,15 +7,16 @@ import {
   canSaveToVault,
   canShareMessage,
   copyMessageImage,
-  saveMessageToVault,
   copyMessageText,
   deleteMessageEverywhere,
   deleteMessageLocally,
+  saveMessagesToVault,
   shareMessage,
 } from "../actions";
 import type { LocalMessage } from "../types";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator } from "./Menu";
 import { Button, Modal } from "./components";
+import { FolderPicker } from "./vault/dialogs";
 
 /**
  * Per-message context menu, opened from the message's own button, a long-press
@@ -26,7 +27,9 @@ import { Button, Modal } from "./components";
  * at — offering to delete one hidden third of a group would be a surprise.
  * Copy and share still act on the representative message alone: those produce
  * one thing, not N. For that reason "Copy image" is not offered on an album at
- * all — it would copy a photo the user never pointed at.
+ * all — it would copy a photo the user never pointed at. Saving to the vault
+ * takes the whole album, like deleting: a folder holds many files as well as
+ * one.
  */
 export function MessageMenu({
   message,
@@ -47,10 +50,12 @@ export function MessageMenu({
   // the dialog layer, and dismissing the menu first would take the dialog with
   // it.
   const [confirmingGlobalDelete, setConfirmingGlobalDelete] = useState(false);
+  // Picking a vault folder replaces the menu too, for the same reason.
+  const [pickingFolder, setPickingFolder] = useState(false);
 
   const targets = album ?? [message];
   const copyableImage = targets.length === 1 && canCopyImage(message);
-  const savable = targets.length === 1 && canSaveToVault(message);
+  const savable = targets.every(canSaveToVault);
   const hasActions = !!message.text || copyableImage || canShareMessage(message) || savable;
 
   function run(action: (message: LocalMessage) => Promise<void>): void {
@@ -62,6 +67,18 @@ export function MessageMenu({
   function runAll(action: (message: LocalMessage) => Promise<void>): void {
     onClose();
     void Promise.all(targets.map((target) => action(target)));
+  }
+
+  if (pickingFolder) {
+    return (
+      <FolderPicker
+        title={
+          targets.length === 1 ? "Save to the vault" : `Save ${targets.length} files to the vault`
+        }
+        onPick={(parentId) => saveMessagesToVault(targets, parentId)}
+        onClose={onClose}
+      />
+    );
   }
 
   if (confirmingGlobalDelete) {
@@ -113,8 +130,8 @@ export function MessageMenu({
         </MenuItem>
       )}
       {savable && (
-        <MenuItem icon={<FolderLock />} onClick={() => run(saveMessageToVault)}>
-          Save to vault
+        <MenuItem icon={<FolderLock />} onClick={() => setPickingFolder(true)}>
+          Save to vault…
         </MenuItem>
       )}
       {hasActions && <MenuSeparator />}

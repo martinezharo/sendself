@@ -97,11 +97,11 @@ export function canMoveInto(
 /** Every folder an item could be moved into, as a tree: depth and label in order. */
 export function folderOptions(
   children: ReadonlyMap<string | null, readonly VaultEntry[]>,
-  entry: VaultEntry,
+  entry: VaultEntry | undefined,
   records: ReadonlyMap<string, VaultItemRecord>,
 ): Array<{ entry: VaultEntry; depth: number }> {
   const excluded =
-    entry.record.kind === "folder" ? vaultSubtree(records, entry.record.id) : new Set<string>();
+    entry?.record.kind === "folder" ? vaultSubtree(records, entry.record.id) : new Set<string>();
   const options: Array<{ entry: VaultEntry; depth: number }> = [];
   const walk = (parentId: string | null, depth: number): void => {
     if (depth > 64) return;

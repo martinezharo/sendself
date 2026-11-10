@@ -36,8 +36,8 @@ import {
   renameItem,
   restoreItem,
   trashItem,
+  saveFilesToVault,
   trashedVaultEntries,
-  uploadFiles,
   vaultEntries,
   vaultQuota,
   vaultSpace,
@@ -253,9 +253,7 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
     const parentId = uploadInto.current !== undefined ? uploadInto.current : folderId;
     uploadInto.current = undefined;
     if (files.length === 0) return;
-    void uploadFiles(into(parentId), files).then((saved) => {
-      if (saved > 0) showToast(saved === 1 ? "Saved to the vault" : `${saved} files saved`);
-    });
+    void saveFilesToVault(into(parentId), files);
   }
 
   const actions = {

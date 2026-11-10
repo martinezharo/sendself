@@ -484,6 +484,17 @@ export async function uploadFiles(
   return saved;
 }
 
+/** `uploadFiles`, reporting how it went: every way of putting files in the vault says the same. */
+export async function saveFilesToVault(
+  parentId: string | null,
+  files: readonly File[],
+): Promise<number> {
+  const saved = await uploadFiles(parentId, files);
+  if (saved > 0)
+    showToast(saved === 1 ? "Saved to the vault" : `${saved} files saved to the vault`);
+  return saved;
+}
+
 export function renameItem(entry: VaultEntry, name: string): Promise<VaultEntry | undefined> {
   return attempt(async () => {
     const t = target();

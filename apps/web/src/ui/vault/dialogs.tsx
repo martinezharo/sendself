@@ -76,16 +76,42 @@ export function NameDialog({
   );
 }
 
-/**
- * Pick a destination folder from the same tree the vault shows, minus the item
- * itself and anything inside it. The keyboard and screen-reader way to do what
- * a drag does.
- */
+/** Move an item to a folder: the keyboard and screen-reader way to do what a drag does. */
 export function MoveDialog({
   entry,
   onClose,
 }: {
   entry: VaultEntry;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <FolderPicker
+      title={`Move ${entryName(entry)}`}
+      entry={entry}
+      onClose={onClose}
+      onPick={async (parentId) => {
+        const moved = await moveItem(entry, parentId);
+        if (moved) showToast(`Moved ${entryName(entry)}`);
+        return !!moved;
+      }}
+    />
+  );
+}
+
+/**
+ * Pick a folder from the same tree the vault shows. Given the `entry` being
+ * placed, its own folder is marked and it (with anything inside it) is left
+ * out. `onPick` resolves to whether the dialog's work is done.
+ */
+export function FolderPicker({
+  title,
+  entry,
+  onPick,
+  onClose,
+}: {
+  title: string;
+  entry?: VaultEntry;
+  onPick: (parentId: string | null) => Promise<boolean>;
   onClose: () => void;
 }): JSX.Element {
   const [busy, setBusy] = useState(false);
@@ -95,14 +121,11 @@ export function MoveDialog({
     return folderOptions(groupChildren(visibleVaultEntries.value), entry, records);
   }, [entries, entry]);
 
-  async function move(parentId: string | null): Promise<void> {
+  async function pick(parentId: string | null): Promise<void> {
     setBusy(true);
-    const moved = await moveItem(entry, parentId);
+    const done = await onPick(parentId);
     setBusy(false);
-    if (moved) {
-      showToast(`Moved ${entryName(entry)}`);
-      onClose();
-    }
+    if (done) onClose();
   }
 
   const destinations = [
@@ -115,16 +138,16 @@ export function MoveDialog({
     })),
   ];
   return (
-    <Modal title={`Move ${entryName(entry)}`} onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <ul class="-mx-2 flex flex-col" aria-label="Folders">
         {destinations.map((destination) => {
-          const current = destination.id === entry.record.parentId;
+          const current = !!entry && destination.id === entry.record.parentId;
           return (
             <li key={destination.id ?? "root"}>
               <button
                 type="button"
                 disabled={busy || current}
-                onClick={() => void move(destination.id)}
+                onClick={() => void pick(destination.id)}
                 class="flex h-10 w-full items-center gap-2 rounded-lg pr-3 text-left text-note transition hover:bg-surface-3 disabled:cursor-default disabled:hover:bg-transparent"
                 style={{ paddingLeft: `${10 + destination.depth * 18}px` }}
               >

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { createSpace, expect, test } from "./device";
+import { createSpace, expect, settle, test } from "./device";
 
 /** Drag one tree row onto another with the mouse, the way a person would. */
 async function dragRow(page: Page, from: string, to: string): Promise<void> {
@@ -174,4 +174,47 @@ test("moves items by touch, and offers adding and copying from a right-click", a
   await touchDragRow(page, "Wifi", "Inbox");
   await expect(page.getByText("Moved Wifi to Inbox")).toBeVisible();
   await expect(page.getByRole("treeitem", { name: "Wifi" })).toHaveAttribute("aria-level", "2");
+});
+
+test("saves a message from its menu into the vault folder the user picks", async ({ device }) => {
+  const page = await device.launch();
+  const spaceId = await createSpace(page, "Casa", "Portátil");
+  const shot = (name: string) =>
+    process.env.SHOTS_DIR
+      ? page.screenshot({ path: `${process.env.SHOTS_DIR}/${name}.png` })
+      : null;
+
+  await page.getByRole("link", { name: "Vault" }).first().click();
+  await page.getByRole("button", { name: "New folder" }).click();
+  await page.getByLabel("Folder name").fill("Recipes");
+  await page.getByRole("button", { name: "Create folder" }).click();
+  await expect(page.getByRole("treeitem", { name: "Recipes" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Messages" }).first().click();
+  await page.getByPlaceholder("Write a message").fill("Gazpacho: 1 kg tomatoes, 1 cucumber");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const bubble = page.getByText("Gazpacho: 1 kg tomatoes, 1 cucumber");
+  await expect(bubble).toBeVisible();
+  await settle(page);
+
+  await bubble.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Save to vault…" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot("1-menu");
+
+  await page.getByRole("menuitem", { name: "Save to vault…" }).click();
+  await expect(page.getByRole("dialog", { name: "Save to the vault" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot("2-picker");
+
+  await page.getByRole("button", { name: "Recipes" }).click();
+  await expect(page.getByText("Saved to the vault as a note")).toBeVisible();
+  await shot("3-saved");
+
+  await page.goto(`/app/${spaceId}/vault`);
+  await page.getByRole("treeitem", { name: "Recipes" }).click();
+  await expect(
+    page.getByRole("treeitem", { name: "Gazpacho: 1 kg tomatoes, 1 cucumber" }),
+  ).toHaveAttribute("aria-level", "2");
+  await shot("4-vault");
 });

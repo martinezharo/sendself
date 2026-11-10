@@ -21,7 +21,7 @@ import {
   syncPushSubscription,
 } from "./state/notifications";
 import { applyHistoryRetention } from "./state/retention";
-import { createNote, loadVault, uploadFiles } from "./state/vaultItems";
+import { createNote, loadVault, saveFilesToVault } from "./state/vaultItems";
 import { downloadBlob } from "./share/download";
 import { NetworkError, api } from "./api/client";
 import { agentSetupPrompt, linkCommand } from "./cli";
@@ -932,31 +932,37 @@ export function canSaveToVault(message: LocalMessage): boolean {
   return !!message.text && !message.viewOnce;
 }
 
-/** Keep a message in the vault's top level: a file as a file, text as a note. */
-export async function saveMessageToVault(message: LocalMessage): Promise<void> {
-  // The vault it goes to is the space the message is in. `uploadFiles` pins the
-  // open space when it starts, so the space must not have changed while the
-  // file was being read.
+/**
+ * Keep messages in a vault folder (`null`: its top level): files as files,
+ * text as a note. Several messages are an album, saved as one batch. Resolves
+ * to whether everything was saved.
+ */
+export async function saveMessagesToVault(
+  messages: readonly LocalMessage[],
+  parentId: string | null,
+): Promise<boolean> {
+  // The vault it goes to is the space the messages are in. `saveFilesToVault`
+  // pins the open space when it starts, so the space must not have changed
+  // while the files were being read.
   const spaceId = activeSpace.value?.id;
-  if (message.file && spaceId) {
-    let blob: Blob | undefined;
-    try {
-      blob = await getFile(message.file.r2Key, spaceId);
-    } catch {
-      blob = undefined;
-    }
+  if (!spaceId) return false;
+  const files: File[] = [];
+  for (const message of messages) {
+    if (!message.file) continue;
+    const blob = await getFile(message.file.r2Key, spaceId).catch(() => undefined);
     if (!blob) {
       showToast("File is no longer available", "error");
-      return;
+      return false;
     }
-    if (activeSpace.value?.id !== spaceId) return;
-    const file = new File([blob], message.file.name, { type: message.file.mime });
-    if ((await uploadFiles(null, [file])) > 0) showToast("Saved to the vault");
-    return;
+    files.push(new File([blob], message.file.name, { type: message.file.mime }));
   }
-  if (message.text && (await createNote(null, "", message.text))) {
-    showToast("Saved to the vault as a note");
-  }
+  if (activeSpace.value?.id !== spaceId) return false;
+  if (files.length > 0) return (await saveFilesToVault(parentId, files)) === files.length;
+
+  const text = messages.find((message) => message.text)?.text;
+  if (!text || !(await createNote(parentId, "", text))) return false;
+  showToast("Saved to the vault as a note");
+  return true;
 }
 
 /** Whether the Web Share API can plausibly share this message from here. */

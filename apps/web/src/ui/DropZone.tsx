@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import { getDroppedFiles, hasTransferFiles } from "../share/transfer";
 import { stageFiles } from "../state/composer";
 import { route, showSpaceSection } from "../state/route";
-import { entryName, uploadFiles, vaultEntries } from "../state/vaultItems";
+import { entryName, saveFilesToVault, vaultEntries } from "../state/vaultItems";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
 import { folderAt, vaultDropTarget } from "./vault/drop";
@@ -164,8 +164,7 @@ async function acceptDrop(
       showToast("You moved away before the drop was read, so nothing was saved", "error");
       return;
     }
-    const saved = await uploadFiles(folder, files);
-    if (saved > 0) showToast(saved === 1 ? "Saved to the vault" : `${saved} files saved`);
+    await saveFilesToVault(folder, files);
     return;
   }
 
