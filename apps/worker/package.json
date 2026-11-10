@@ -15,6 +15,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply sendself-db --remote"
   },
   "dependencies": {
+    "@martinezharo/promo-funnel": "https://github.com/martinezharo/promo-funnel/archive/refs/tags/v1.0.1.tar.gz",
     "@sendself/shared": "workspace:*"
   },
   "devDependencies": {
