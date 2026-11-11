@@ -25,10 +25,11 @@
 
   <text x="200" y="148" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="30" letter-spacing="8" fill="#f3f3f5" font-weight="600">SENDSELF</text>
 
-  <text x="80" y="320" font-family="'Bricolage Grotesque', system-ui, sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">Share files &amp; text between</text>
-  <text x="80" y="402" font-family="'Bricolage Grotesque', system-ui, sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">your devices, <tspan fill="#ff9166">privately</tspan>.</text>
+  <!-- The bundled variable font's internal family name is used by the rasterizer. -->
+  <text x="80" y="320" font-family="'Bricolage Grotesque 96pt ExtraBold', 'Bricolage Grotesque', sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">Share files &amp; text between</text>
+  <text x="80" y="402" font-family="'Bricolage Grotesque 96pt ExtraBold', 'Bricolage Grotesque', sans-serif" font-size="72" font-weight="700" fill="#f3f3f5" letter-spacing="-2">your devices, <tspan fill="#ff9166">privately</tspan>.</text>
 
-  <text x="80" y="480" font-family="system-ui, sans-serif" font-size="30" fill="#b8b8c0">End-to-end encrypted · Zero-knowledge · No account</text>
+  <text x="80" y="480" font-family="'Hanken Grotesk', sans-serif" font-size="30" fill="#b8b8c0">End-to-end encrypted · Zero-knowledge · No account</text>
 
   <g transform="translate(80, 528)" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="22" fill="#85858f" letter-spacing="2">
     <circle cx="6" cy="14" r="6" fill="#3dd68c"/>

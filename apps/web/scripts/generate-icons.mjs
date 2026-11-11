@@ -1,5 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import sharp from "sharp";
 import {
   MASKABLE_COVERAGE,
@@ -33,7 +34,6 @@ const rasters = [
   { from: "icon-maskable.svg", to: "icon-maskable-192.png", size: 192 },
   { from: "icon-maskable.svg", to: "icon-maskable-512.png", size: 512 },
   { from: appleTouchSource, to: "apple-touch-icon.png", size: 180 },
-  { from: "og.svg", to: "og.png" },
 ];
 
 for (const { from, to, size } of rasters) {
@@ -43,4 +43,26 @@ for (const { from, to, size } of rasters) {
   await pipeline.png({ compressionLevel: 9 }).toFile(out(to));
 }
 
-console.log(`Generated ${Object.keys(sources).length} SVG + ${rasters.length} PNG assets`);
+// WASM and explicit font buffers keep text independent of host fonts and native libraries.
+await initWasm(await readFile(new URL(import.meta.resolve("@resvg/resvg-wasm/index_bg.wasm"))));
+const fontBuffers = await Promise.all(
+  ["bricolage-grotesque", "hanken-grotesk", "jetbrains-mono"].map((name) =>
+    readFile(
+      new URL(
+        import.meta.resolve(`@fontsource-variable/${name}/files/${name}-latin-wght-normal.woff2`),
+      ),
+    ),
+  ),
+);
+const renderer = new Resvg(await readFile(out("og.svg")), {
+  font: { fontBuffers, defaultFontFamily: "Hanken Grotesk" },
+});
+const rendered = renderer.render();
+try {
+  await writeFile(out("og.png"), rendered.asPng());
+} finally {
+  rendered.free();
+  renderer.free();
+}
+
+console.log(`Generated ${Object.keys(sources).length} SVG + ${rasters.length + 1} PNG assets`);
