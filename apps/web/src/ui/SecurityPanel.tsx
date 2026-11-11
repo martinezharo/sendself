@@ -16,7 +16,8 @@ import { NoExportableKeysError, createRecoveryFile, recoveryFileName } from "../
 import { disableLock, enableLock, lockConfigured, lockMethod, lockNow } from "../state/lock";
 import { keyring, session } from "../state/session";
 import { showToast } from "../state/ui";
-import { Button, Modal, SettingRow, Spinner } from "./components";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { Button, Modal, SettingRow, Spinner, useCopy } from "./components";
 
 /**
  * Everything about protecting this device's copy of the space: the at-rest lock
@@ -148,22 +149,20 @@ export function SecurityPanel(): JSX.Element {
       )}
 
       {removeOpen && (
-        <Modal title="Remove the lock?" onClose={() => setRemoveOpen(false)}>
+        <ConfirmDialog
+          title="Remove the lock?"
+          action="Remove it"
+          cancel="Keep the lock"
+          onClose={() => setRemoveOpen(false)}
+          onConfirm={removeLock}
+        >
           <div class="flex gap-3 rounded-card border border-danger/25 bg-danger-soft p-3.5 text-danger">
             <AlertTriangle class="mt-0.5 size-[19px] flex-none" />
             <p class="text-note font-medium leading-5">
               Messages, files and keys go back to being stored unencrypted on this device.
             </p>
           </div>
-          <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-            <Button class="sm:w-auto" variant="secondary" onClick={() => setRemoveOpen(false)}>
-              Keep the lock
-            </Button>
-            <Button class="sm:w-auto" variant="danger" onClick={() => void removeLock()}>
-              Remove it
-            </Button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
 
       {recovery && (
@@ -297,18 +296,8 @@ function RecoveryModal({
   name: string;
   onClose: () => void;
 }): JSX.Element {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
   const [downloaded, setDownloaded] = useState(false);
-
-  async function copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      showToast("Couldn't copy to clipboard", "error");
-    }
-  }
 
   return (
     <Modal title="Your recovery file" onClose={onClose}>
@@ -321,7 +310,7 @@ function RecoveryModal({
         <code class="select-all break-all rounded-card bg-surface-3 px-3.5 py-3 font-mono text-note leading-6 tracking-[0.06em]">
           {code}
         </code>
-        <Button variant="secondary" size="sm" class="self-start" onClick={() => void copy()}>
+        <Button variant="secondary" size="sm" class="self-start" onClick={() => copy(code)}>
           {copied ? <Check /> : <Copy />}
           {copied ? "Copied" : "Copy code"}
         </Button>

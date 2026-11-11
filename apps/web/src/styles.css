@@ -102,49 +102,10 @@
    `color-mix()` of `--c-accent` further down and follows automatically.
    ========================================================================== */
 /* Óxido */
-:root {
+:root,
+[data-palette="rust"] {
   /* Default. Bare `:root` carries it so the app has a brand before
      any preference is read. */
-  --l-accent: #c2410c;
-  --d-accent: #ff7a45;
-  --l-accent-hover: #a5370a;
-  --d-accent-hover: #ff9166;
-  --l-accent-press: #8a2e08;
-  --d-accent-press: #ffa885;
-  --l-on-accent: #ffffff;
-  --d-on-accent: #2a1008;
-  --l-on-accent-muted: #fdf0e9;
-  --d-on-accent-muted: #3d1b10;
-  --l-bg: #f8f4f2;
-  --d-bg: #0c0a09;
-  --l-surface: #ffffff;
-  --d-surface: #171412;
-  --l-surface-2: #fdfaf9;
-  --d-surface-2: #1d1a17;
-  --l-surface-3: #f2ecea;
-  --d-surface-3: #26221f;
-  --l-elevated: #ffffff;
-  --d-elevated: #1f1c19;
-  --l-ink: #1d1917;
-  --d-ink: #f5f1ef;
-  --l-subtle: #57504c;
-  --d-subtle: #bab1ab;
-  --l-muted: #726862;
-  --d-muted: #948b85;
-  --l-line: rgba(29, 25, 23, 0.08);
-  --d-line: rgba(255, 250, 247, 0.08);
-  --l-line-strong: rgba(29, 25, 23, 0.14);
-  --d-line-strong: rgba(255, 250, 247, 0.14);
-  --l-grad-1: #ffffff;
-  --d-grad-1: #191512;
-  --l-grad-2: #f8f3f1;
-  --d-grad-2: #110e0c;
-  --l-grad-3: #f1eae7;
-  --d-grad-3: #0a0908;
-}
-
-/* Named form of the default, so the picker can select it explicitly. */
-[data-palette="rust"] {
   --l-accent: #c2410c;
   --d-accent: #ff7a45;
   --l-accent-hover: #a5370a;

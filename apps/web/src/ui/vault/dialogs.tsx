@@ -183,43 +183,6 @@ export function FolderPicker({
   );
 }
 
-export function ConfirmDialog({
-  title,
-  text,
-  action,
-  onClose,
-  onConfirm,
-}: {
-  title: string;
-  text: string;
-  action: string;
-  onClose: () => void;
-  onConfirm: () => Promise<void>;
-}): JSX.Element {
-  const [busy, setBusy] = useState(false);
-  return (
-    <Modal title={title} onClose={onClose}>
-      <p class="text-body leading-relaxed text-subtle">{text}</p>
-      <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-        <Button class="sm:w-auto" variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          class="sm:w-auto"
-          variant="danger"
-          disabled={busy}
-          onClick={() => {
-            setBusy(true);
-            void onConfirm().finally(() => setBusy(false));
-          }}
-        >
-          {action}
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
 /** An image from the vault, on its own over a dark backdrop. */
 export function ImageViewer({
   name,

@@ -1,12 +1,12 @@
 import { Check, ChevronRight, Copy, LifeBuoy, Link2, Plus, ShieldCheck } from "lucide-preact";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { cancelLinking, createSpace, linking, startLinking } from "../actions";
+import { cancelLinking, createSpace, linking, startLinking } from "../actions/spaces";
 import { solveSpaceChallenge } from "../challenge";
 import { restoreFromRecoveryFile } from "../recovery";
 import { navigate, spacePath } from "../state/route";
 import { showToast } from "../state/ui";
-import { Button, Spinner } from "./components";
+import { Button, Spinner, useCopy } from "./components";
 
 type Mode = "choose" | "create" | "link" | "restore";
 
@@ -307,7 +307,7 @@ interface LinkFlowProps {
 function LinkFlow({ name, setName, busy, onStart, onBack }: LinkFlowProps): JSX.Element {
   const link = linking.value;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
 
   useEffect(() => {
     if (!link) return;
@@ -353,18 +353,6 @@ function LinkFlow({ name, setName, busy, onStart, onBack }: LinkFlowProps): JSX.
     );
   }
 
-  const qrText = link.qrText;
-
-  async function copyCode(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(qrText);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      showToast("Couldn't copy to clipboard", "error");
-    }
-  }
-
   return (
     <div class="flex flex-col items-center gap-5 text-center">
       <p class="text-body leading-relaxed text-subtle">
@@ -386,7 +374,7 @@ function LinkFlow({ name, setName, busy, onStart, onBack }: LinkFlowProps): JSX.
       )}
 
       <div class="flex w-full flex-col gap-2">
-        <Button variant="secondary" type="button" onClick={() => void copyCode()}>
+        <Button variant="secondary" type="button" onClick={() => copy(link.qrText)}>
           {copied ? (
             <>
               <Check /> Code copied

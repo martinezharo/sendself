@@ -12,10 +12,10 @@ import {
   deleteMessageLocally,
   saveMessagesToVault,
   shareMessage,
-} from "../actions";
+} from "../actions/messages";
 import type { LocalMessage } from "../types";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator } from "./Menu";
-import { Button, Modal } from "./components";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { FolderPicker } from "./vault/dialogs";
 
 /**
@@ -64,9 +64,9 @@ export function MessageMenu({
   }
 
   /** Apply a destructive action to every message the menu was opened on. */
-  function runAll(action: (message: LocalMessage) => Promise<void>): void {
+  async function runAll(action: (message: LocalMessage) => Promise<void>): Promise<void> {
     onClose();
-    void Promise.all(targets.map((target) => action(target)));
+    await Promise.all(targets.map((target) => action(target)));
   }
 
   if (pickingFolder) {
@@ -83,8 +83,13 @@ export function MessageMenu({
 
   if (confirmingGlobalDelete) {
     return (
-      <Modal title="Delete on all devices?" onClose={onClose}>
-        <div class="px-5 pb-5 pt-1 text-body leading-relaxed text-muted">
+      <ConfirmDialog
+        title="Delete on all devices?"
+        action="Delete everywhere"
+        onClose={onClose}
+        onConfirm={() => runAll(deleteMessageEverywhere)}
+      >
+        <div class="text-body leading-relaxed text-muted">
           <p>
             {targets.length === 1 ? "This message" : `These ${targets.length} files`} will be
             removed from every device linked to this space, including the ones that are offline
@@ -95,20 +100,8 @@ export function MessageMenu({
               ? "A device that already saved this file elsewhere keeps that copy. This can't be undone."
               : "This can't be undone."}
           </p>
-          <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button class="sm:w-auto" variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              class="sm:w-auto"
-              variant="danger"
-              onClick={() => runAll(deleteMessageEverywhere)}
-            >
-              Delete everywhere
-            </Button>
-          </div>
         </div>
-      </Modal>
+      </ConfirmDialog>
     );
   }
 
@@ -135,7 +128,7 @@ export function MessageMenu({
         </MenuItem>
       )}
       {hasActions && <MenuSeparator />}
-      <MenuItem danger icon={<Trash2 />} onClick={() => runAll(deleteMessageLocally)}>
+      <MenuItem danger icon={<Trash2 />} onClick={() => void runAll(deleteMessageLocally)}>
         Delete on this device
       </MenuItem>
       {/* Hidden entirely when no other device can be holding a copy — an entry

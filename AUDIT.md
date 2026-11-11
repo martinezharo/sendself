@@ -1,11 +1,8 @@
 # Deep Audit — Deferred Design Decisions
 
-Date: 2026-08-07
-
 This audit records findings that were intentionally not changed because the
 correct fix depends on a product, protocol, privacy, or compatibility decision.
-Low-risk correctness, security, and performance fixes from the same review are
-already implemented in the commits on this branch.
+Track actionable follow-up work in [TODO.md](TODO.md).
 
 ## Findings left open
 
@@ -61,16 +58,9 @@ peak memory and enable resumable uploads, but it requires a versioned file
 format, chunk authentication, retry semantics, cleanup rules, and a migration
 plan. The upload endpoint therefore keeps its current known-length contract.
 
-### 6. Local history retention and sync indexing
+### 6. Incremental message sync
 
-Resolved for retention and outbox indexing: each device can choose to keep the
-last month to year of history (default: forever, so nothing changes unless the
-user asks); the cleanup is local only, removes cached files with their
-messages, and never removes an outgoing message that has not been delivered.
-The outbox reads an index of queued ids instead of scanning the history. The
-chat itself still loads the full history (see §7).
-
-Similarly, the existing `since` query parameter is not wired to a timestamp:
+The existing `since` query parameter is not wired to a timestamp:
 pending delivery rows already identify undelivered messages. A safe incremental
 cursor needs a monotonic server sequence rather than the edge-assigned wall
 clock timestamp, plus recovery behavior for gaps and restored devices.
@@ -82,26 +72,8 @@ virtualization. Virtualization and paginated history would improve long-lived
 spaces, but they affect scroll anchoring, message insertion, date separators,
 search, and read position. Those behaviors should be specified together.
 
-### 8. Notifications and ownership lifecycle
+### 8. Ownership lifecycle
 
-Web Push is implemented: opt-in per device, a contentless payload encrypted to
-the browser, subscriptions removed on revocation, on leaving a space and when
-the push service reports them gone, and no push to a device with the space on
-screen. Explicit ownership transfer remains a roadmap feature that needs
+Explicit ownership transfer remains a roadmap feature that needs
 decisions about administrator authority and failure when the original owner
 disappears.
-
-## Verification of the implemented changes
-
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test` — 100 web tests and 282 Worker tests
-- `pnpm build` — production, service worker, SSR, and prerender builds
-- `pnpm audit` — no known vulnerabilities after the toolchain updates
-- Chromium CDP smoke test against the production preview for `/` and `/app`;
-  both rendered successfully with no page exceptions or console errors.
-
-The D1 cleanup changes use bounded batches in line with Cloudflare's documented
-limits and batch execution model:
-<https://developers.cloudflare.com/d1/platform/limits/> and
-<https://developers.cloudflare.com/d1/worker-api/d1-database/>.

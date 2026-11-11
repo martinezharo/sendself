@@ -5,7 +5,7 @@
  * page, so it stashes the shared text + files in the Cache Storage and
  * redirects to `/app?share-target=1`. This module drains that stash; applying
  * it — prefilling the composer, queueing the files — belongs to the space that
- * receives it (see `consumeSharedContent` in actions.ts).
+ * receives it (see `consumeSharedContent` in actions/spaces.ts).
  *
  * Keep `SHARE_CACHE` and the cache keys in sync with src/sw/share-target.ts.
  */

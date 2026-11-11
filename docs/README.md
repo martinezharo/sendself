@@ -18,6 +18,6 @@ If documentation and code disagree, treat the code and its tests as the current 
 - [Worker package notes](../apps/worker/README.md) contains commands specific to the Worker package.
 - [CLI notes](../apps/cli/README.md) cover installing, linking and using the `sendself` CLI.
 - [TODO](../TODO.md) tracks remaining product and engineering work.
-- [Audit](../AUDIT.md) records deferred decisions and the verification that was performed for earlier changes.
+- [Audit](../AUDIT.md) records deferred protocol, privacy, and lifecycle decisions.
 - [Wrangler configuration](../apps/worker/wrangler.jsonc) is the authoritative binding and trigger configuration.
 - [Shared contracts](../packages/shared/src/index.ts) are the authoritative TypeScript API shapes and protocol statement formats.

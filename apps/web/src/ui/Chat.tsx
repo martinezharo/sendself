@@ -22,14 +22,14 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   consumeViewOnce,
   copyMessageText,
-  listDevicesDecrypted,
   releaseViewOnce,
   retryFailedSends,
   retryFileDownload,
   retryMessage,
   saveFile,
   sendStagedComposer,
-} from "../actions";
+} from "../actions/messages";
+import { listDevicesDecrypted } from "../actions/devices";
 import { getFile } from "../db/store";
 import { getClipboardImages } from "../share/transfer";
 import {
