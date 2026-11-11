@@ -1,5 +1,10 @@
 import { effect, untracked } from "@preact/signals";
-import { applyRoute, handleAuthFailure, hasPendingShare, noteSharedContent } from "./actions";
+import {
+  applyRoute,
+  handleAuthFailure,
+  hasPendingShare,
+  noteSharedContent,
+} from "./actions/spaces";
 import { setAuthFailureHandler } from "./api/client";
 import { initAppearance } from "./state/appearance";
 import { assertWebCryptoAvailable } from "@sendself/client/crypto";

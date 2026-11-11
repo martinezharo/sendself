@@ -76,7 +76,7 @@ export interface LocalMessage {
    * It exists only to be *rendered* together. On the wire these stay separate
    * messages with separate delivery rows and separate uploads, because that
    * per-file granularity is the only thing that makes a half-finished
-   * background pass resumable (see TODO §3).
+   * background pass resumable (see sync/outbox.ts).
    */
   batch?: { id: string; index: number; count: number };
   /**
@@ -84,7 +84,7 @@ export interface LocalMessage {
    *
    * Carried inside the encrypted metadata envelope, so the server never learns
    * which messages are the sensitive ones. Consuming it emits an ordinary
-   * "delete for everyone" tombstone — see `consumeViewOnce` in actions.ts.
+   * "delete for everyone" tombstone — see `consumeViewOnce` in actions/messages.ts.
    */
   viewOnce?: true;
   /** Outgoing delivery status (incoming messages are always "sent"). */

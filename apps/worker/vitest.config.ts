@@ -55,6 +55,8 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
+      // Each worker starts workerd; keep local runs within a small machine's memory budget.
+      maxWorkers: 2,
       include: ["src/**/*.test.ts"],
       setupFiles: ["./src/test/apply-migrations.ts"],
     },

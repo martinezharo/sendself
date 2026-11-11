@@ -29,7 +29,8 @@ const syncModule = vi.hoisted(() => ({
 }));
 vi.mock("./sync/sync", () => syncModule);
 
-let actions: typeof import("./actions");
+let spaceActions: typeof import("./actions/spaces");
+let messageActions: typeof import("./actions/messages");
 let route: typeof import("./state/route");
 let session: typeof import("./state/session");
 let spaces: typeof import("./state/spaces");
@@ -52,30 +53,42 @@ beforeEach(async () => {
   vi.resetModules();
   // Imported together after the reset so every module below shares one instance
   // of the registry and of the signals.
-  [actions, route, session, spaces, messagesState, deletions, identity, store, atrest, ui] =
-    await Promise.all([
-      import("./actions"),
-      import("./state/route"),
-      import("./state/session"),
-      import("./state/spaces"),
-      import("./state/messages"),
-      import("./db/deletions"),
-      import("./crypto/identity"),
-      import("./db/store"),
-      import("./db/atrest"),
-      import("./state/ui"),
-    ]);
+  [
+    spaceActions,
+    messageActions,
+    route,
+    session,
+    spaces,
+    messagesState,
+    deletions,
+    identity,
+    store,
+    atrest,
+    ui,
+  ] = await Promise.all([
+    import("./actions/spaces"),
+    import("./actions/messages"),
+    import("./state/route"),
+    import("./state/session"),
+    import("./state/spaces"),
+    import("./state/messages"),
+    import("./db/deletions"),
+    import("./crypto/identity"),
+    import("./db/store"),
+    import("./db/atrest"),
+    import("./state/ui"),
+  ]);
 });
 
 describe("applyRoute", () => {
   it("forgets the space once the app is standing on the list", async () => {
     const created = await spaces.beginSpace("Home");
     route.navigate(route.spacePath(created.id));
-    await actions.applyRoute();
+    await spaceActions.applyRoute();
     expect(await spaces.lastOpenedSpace()).toBe(created.id);
 
     route.navigate(route.APP_PATH);
-    await actions.applyRoute();
+    await spaceActions.applyRoute();
 
     expect(await spaces.lastOpenedSpace()).toBeUndefined();
     expect(spaces.activeSpace.value).toBeNull();
@@ -85,7 +98,7 @@ describe("applyRoute", () => {
     const created = await spaces.beginSpace("Home");
 
     route.navigate(route.spacePath(created.id, "devices"));
-    await actions.applyRoute();
+    await spaceActions.applyRoute();
 
     expect(await spaces.lastOpenedSpace()).toBe(created.id);
     expect(spaces.activeSpace.value?.id).toBe(created.id);
@@ -97,7 +110,7 @@ describe("applyRoute", () => {
     const created = await spaces.beginSpace("Home");
 
     route.navigate("/");
-    await actions.applyRoute();
+    await spaceActions.applyRoute();
 
     expect(await spaces.lastOpenedSpace()).toBe(created.id);
   });
@@ -109,7 +122,7 @@ describe("handleAuthFailure", () => {
     await spaces.openSpace(created.id);
     session.session.value = A_SESSION;
 
-    actions.handleAuthFailure();
+    spaceActions.handleAuthFailure();
 
     expect(session.sessionRevoked.value).toBe(true);
     // The space stays on the device — the user still has to choose to leave it
@@ -124,7 +137,7 @@ describe("handleAuthFailure", () => {
     const created = await spaces.beginSpace("Home");
     session.session.value = null;
 
-    actions.handleAuthFailure();
+    spaceActions.handleAuthFailure();
 
     expect(session.sessionRevoked.value).toBe(false);
     expect(await spaces.lastOpenedSpace()).toBe(created.id);
@@ -157,7 +170,7 @@ describe("view-once messages", () => {
   });
 
   it("retracts from the other devices on open, and keeps the copy being read", async () => {
-    await actions.consumeViewOnce(A_MESSAGE);
+    await messageActions.consumeViewOnce(A_MESSAGE);
 
     // The tombstone is queued for delivery...
     const tombstone = messagesState.messages.value.find((m) => m.deletes === A_MESSAGE.id);
@@ -170,8 +183,8 @@ describe("view-once messages", () => {
   });
 
   it("erases the local copy when the reader closes it", async () => {
-    await actions.consumeViewOnce(A_MESSAGE);
-    await actions.releaseViewOnce(A_MESSAGE);
+    await messageActions.consumeViewOnce(A_MESSAGE);
+    await messageActions.releaseViewOnce(A_MESSAGE);
 
     expect(messagesState.getLocalMessage(A_MESSAGE.id)).toBeUndefined();
   });
@@ -179,7 +192,7 @@ describe("view-once messages", () => {
   it("records the deletion but sends no tombstone when there is nobody to tell", async () => {
     identity.knownDeviceIds.value = ["device"];
 
-    await actions.consumeViewOnce(A_MESSAGE);
+    await messageActions.consumeViewOnce(A_MESSAGE);
 
     expect(messagesState.messages.value.some((m) => m.deletes)).toBe(false);
     expect(await deletions.loadDeletions()).toHaveProperty(A_MESSAGE.id);
@@ -189,7 +202,7 @@ describe("view-once messages", () => {
     const ordinary: LocalMessage = { ...A_MESSAGE, id: "msg-2", viewOnce: undefined };
     await messagesState.upsertMessage(ordinary);
 
-    await actions.consumeViewOnce(ordinary);
+    await messageActions.consumeViewOnce(ordinary);
 
     expect(messagesState.messages.value.some((m) => m.deletes)).toBe(false);
     expect(messagesState.getLocalMessage("msg-2")).toBeDefined();
@@ -253,7 +266,7 @@ describe("saveFile", () => {
     const anchor = stubDownload();
     await store.putFile("key-1", new Blob(["hello"], { type: "text/plain" }));
 
-    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(true);
+    await expect(messageActions.saveFile(A_FILE_MESSAGE)).resolves.toBe(true);
 
     expect(anchor).toMatchObject({ clicks: 1, download: "notes.txt", href: "blob:test" });
     expect(ui.toasts.value).toEqual([]);
@@ -262,7 +275,7 @@ describe("saveFile", () => {
   it("says so when the blob is no longer on this device", async () => {
     stubDownload();
 
-    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
+    await expect(messageActions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
 
     expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
   });
@@ -276,7 +289,7 @@ describe("saveFile", () => {
     atrest.setContentKey(await generateGroupKey());
     stubDownload();
 
-    await expect(actions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
+    await expect(messageActions.saveFile(A_FILE_MESSAGE)).resolves.toBe(false);
 
     expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
   });
@@ -329,37 +342,47 @@ describe("copyMessageImage", () => {
 
   it("is offered for a downloaded image, and for nothing else", () => {
     stubClipboard();
-    expect(actions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(true);
-    expect(actions.canCopyImage({ ...AN_IMAGE_MESSAGE, fileState: "remote" })).toBe(false);
+    expect(messageActions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(true);
+    expect(messageActions.canCopyImage({ ...AN_IMAGE_MESSAGE, fileState: "remote" })).toBe(false);
     expect(
-      actions.canCopyImage({
+      messageActions.canCopyImage({
         ...AN_IMAGE_MESSAGE,
         file: { r2Key: "k", iv: "", name: "a.pdf", size: 1, mime: "application/pdf" },
       }),
     ).toBe(false);
-    expect(actions.canCopyImage({ ...AN_IMAGE_MESSAGE, file: undefined })).toBe(false);
+    expect(messageActions.canCopyImage({ ...AN_IMAGE_MESSAGE, file: undefined })).toBe(false);
   });
 
   it("is not offered where the browser cannot write images", () => {
     vi.stubGlobal("navigator", { clipboard: {} });
-    expect(actions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(false);
+    expect(messageActions.canCopyImage(AN_IMAGE_MESSAGE)).toBe(false);
   });
 
   it("puts the cached image on the clipboard and confirms it", async () => {
     const clipboard = stubClipboard();
     await store.putFile("key-img", new Blob(["png"], { type: "image/png" }));
 
-    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+    await messageActions.copyMessageImage(AN_IMAGE_MESSAGE);
 
     expect(clipboard.written).toHaveLength(1);
     expect(Object.keys(clipboard.written[0] ?? {})).toEqual(["image/png"]);
     expect(ui.toasts.value).toMatchObject([{ kind: "info" }]);
   });
 
+  it("uses the attachment MIME type when the cached blob lost its image type", async () => {
+    const clipboard = stubClipboard();
+    await store.putFile("key-img", new Blob(["png"], { type: "application/octet-stream" }));
+
+    await messageActions.copyMessageImage(AN_IMAGE_MESSAGE);
+
+    expect(Object.keys(clipboard.written[0] ?? {})).toEqual(["image/png"]);
+    expect(ui.toasts.value).toMatchObject([{ message: "Image copied to clipboard" }]);
+  });
+
   it("says so when the blob is no longer on this device", async () => {
     const clipboard = stubClipboard();
 
-    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+    await messageActions.copyMessageImage(AN_IMAGE_MESSAGE);
 
     expect(clipboard.written).toEqual([]);
     expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
@@ -376,9 +399,44 @@ describe("copyMessageImage", () => {
     });
     await store.putFile("key-img", new Blob(["png"], { type: "image/png" }));
 
-    await actions.copyMessageImage(AN_IMAGE_MESSAGE);
+    await messageActions.copyMessageImage(AN_IMAGE_MESSAGE);
 
     expect(ui.toasts.value).toMatchObject([{ kind: "error" }]);
+  });
+});
+
+describe("saving attachments to the vault", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("does not save into another space when the user switches while a file is opening", async () => {
+    const first = await spaces.beginSpace("First");
+    session.session.value = A_SESSION;
+    const vault = await import("./state/vaultItems");
+    const save = vi.spyOn(vault, "saveFilesToVault").mockResolvedValue(1);
+    let finish!: (blob: Blob) => void;
+    const pending = new Promise<Blob>((resolve) => {
+      finish = resolve;
+    });
+    const read = vi.spyOn(store, "getFile").mockReturnValueOnce(pending);
+    const saving = messageActions.saveMessagesToVault(
+      [
+        {
+          id: "attachment",
+          direction: "in",
+          senderDeviceId: "other-device",
+          createdAt: 1,
+          status: "sent",
+          file: { r2Key: "same-key", iv: "", name: "notes.txt", size: 5, mime: "text/plain" },
+        },
+      ],
+      null,
+    );
+    await spaces.beginSpace("Second");
+    finish(new Blob(["first space"]));
+
+    await expect(saving).resolves.toBe(false);
+    expect(read).toHaveBeenCalledWith("same-key", first.id);
+    expect(save).not.toHaveBeenCalled();
   });
 });
 
@@ -407,7 +465,7 @@ describe("retryFileDownload", () => {
   });
 
   it("puts the file back in the queue and kicks the loop that fetches it", async () => {
-    await actions.retryFileDownload(A_FAILED_FILE);
+    await messageActions.retryFileDownload(A_FAILED_FILE);
 
     expect(messagesState.getLocalMessage("file-2")?.fileState).toBe("remote");
     // Both halves matter: the waiting state is what the card shows back
@@ -419,7 +477,7 @@ describe("retryFileDownload", () => {
     const downloaded: LocalMessage = { ...A_FAILED_FILE, id: "file-3", fileState: "downloaded" };
     await messagesState.upsertMessage(downloaded);
 
-    await actions.retryFileDownload(downloaded);
+    await messageActions.retryFileDownload(downloaded);
 
     expect(messagesState.getLocalMessage("file-3")?.fileState).toBe("downloaded");
     expect(syncModule.syncNow).not.toHaveBeenCalled();
@@ -469,7 +527,7 @@ describe("retryFailedSends", () => {
   });
 
   it("re-queues everything that gave up and drops the wait it was serving", async () => {
-    await actions.retryFailedSends();
+    await messageActions.retryFailedSends();
 
     expect(messagesState.getLocalMessage("out-1")).toMatchObject({ status: "queued" });
     // The press means "now": leaving the schedule behind would make it do
@@ -479,13 +537,13 @@ describe("retryFailedSends", () => {
   });
 
   it("revives a stranded tombstone, which has no bubble of its own to ask from", async () => {
-    await actions.retryFailedSends();
+    await messageActions.retryFailedSends();
 
     expect(messagesState.getLocalMessage("out-2")).toMatchObject({ status: "queued" });
   });
 
   it("leaves a message that is merely waiting alone, schedule and all", async () => {
-    await actions.retryFailedSends();
+    await messageActions.retryFailedSends();
 
     // It has not given up: the outbox is still going to send it, and clearing
     // its backoff here would be the app hurrying something nobody asked about.

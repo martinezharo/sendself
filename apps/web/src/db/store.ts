@@ -123,7 +123,7 @@ export const META_KEYRING = "keyring";
 export const META_DEVICE_KEYPAIR = "deviceKeyPair";
 /** This device's ECDSA signing identity (crypto/identity.ts). */
 export const META_SIGNING_KEYPAIR = "signingKeyPair";
-/** True once the signing public key reached the server (see actions.ensureSigningIdentity). */
+/** True once the signing public key reached the server (actions/spaces.ensureSigningIdentity). */
 export const META_SIGNING_KEY_PUBLISHED = "signingKeyPublished";
 /** Pre-signing pins: a plain deviceId → ECDH key map, folded into META_DEVICE_IDENTITIES. */
 export const META_DEVICE_PINS = "devicePins";

@@ -16,7 +16,8 @@ import {
   setHistoryRetention,
 } from "../state/retention";
 import { showToast } from "../state/ui";
-import { Button, Modal, SettingRow, Spinner } from "./components";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { Button, SettingRow, Spinner } from "./components";
 
 /**
  * How this device behaves, as opposed to how it is protected (SecurityPanel):
@@ -178,21 +179,18 @@ function HistoryRow(): JSX.Element {
       />
 
       {pending !== undefined && pending !== null && (
-        <Modal title="Delete older history?" onClose={() => setPending(undefined)}>
+        <ConfirmDialog
+          title="Delete older history?"
+          action="Delete older history"
+          onClose={() => setPending(undefined)}
+          onConfirm={() => apply(pending)}
+        >
           <p class="text-note leading-5 text-subtle">
             Messages and files older than {retentionLabel(pending).toLowerCase()} will be removed
             from this device now, in every space, and from then on as they age. Other devices keep
             their own copy. Messages still waiting to be sent are never removed.
           </p>
-          <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-            <Button class="sm:w-auto" variant="secondary" onClick={() => setPending(undefined)}>
-              Cancel
-            </Button>
-            <Button class="sm:w-auto" variant="danger" onClick={() => void apply(pending)}>
-              Delete older history
-            </Button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
     </>
   );

@@ -49,7 +49,8 @@ import { canCopyImages, copyImageBlob } from "../../share/clipboard-image";
 import { downloadBlob } from "../../share/download";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "../Menu";
 import { Button, FileTypeIcon, Spinner, cx, formatBytes } from "../components";
-import { ConfirmDialog, ImageViewer, MoveDialog, NameDialog } from "./dialogs";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { ImageViewer, MoveDialog, NameDialog } from "./dialogs";
 import { dropFolder, vaultDropTarget } from "./drop";
 import { trashedLabel } from "./format";
 import { NoteEditor } from "./NoteEditor";
@@ -463,26 +464,35 @@ export function Vault({ location }: { location: VaultLocation }): JSX.Element {
       {dialog?.kind === "delete" && (
         <ConfirmDialog
           title="Delete for good?"
-          text={`${entryName(dialog.entry)}${dialog.entry.record.kind === "folder" ? " and everything in it" : ""} will be removed from every device in this space. This can't be undone.`}
           action="Delete for good"
           onClose={() => dismiss(dialog)}
           onConfirm={async () => {
             await deleteForever(dialog.entry);
             dismiss(dialog);
           }}
-        />
+        >
+          <p class="text-body leading-relaxed text-subtle">
+            {entryName(dialog.entry)}
+            {dialog.entry.record.kind === "folder" ? " and everything in it" : ""} will be removed
+            from every device in this space. This can't be undone.
+          </p>
+        </ConfirmDialog>
       )}
       {dialog?.kind === "empty-trash" && (
         <ConfirmDialog
           title="Empty the trash?"
-          text="Everything in the trash will be removed from every device in this space. This can't be undone."
           action="Empty trash"
           onClose={() => dismiss(dialog)}
           onConfirm={async () => {
             await emptyTrash();
             dismiss(dialog);
           }}
-        />
+        >
+          <p class="text-body leading-relaxed text-subtle">
+            Everything in the trash will be removed from every device in this space. This can't be
+            undone.
+          </p>
+        </ConfirmDialog>
       )}
     </>
   );

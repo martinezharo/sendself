@@ -153,7 +153,7 @@ async function doFlush(
   if (!session || !keyring) return result;
   const auth: Auth = { token: session.deviceAuthToken };
   // A session that predates sender authenticity has no signing key until the
-  // page mints one (actions.ensureSigningIdentity). Sending unsigned in the
+  // page mints one (actions/spaces.ensureSigningIdentity). Sending unsigned in the
   // meantime is the whole reason the upgrade costs the user nothing.
   const identity = { groupId: session.groupId, senderDeviceId: session.deviceId };
   const sign: Signer | undefined = signingKeyPair

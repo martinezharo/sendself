@@ -31,13 +31,14 @@ import {
   listDevicesDecrypted,
   revokeDevice,
   updateDeviceRole,
-} from "../actions";
-import { type Scanner, startScanner } from "../qr/scan";
+} from "../actions/devices";
+import type { Scanner } from "../qr/scan";
 import { session } from "../state/session";
 import { showToast } from "../state/ui";
 import { Menu, type MenuAnchor, MenuItem, MenuSeparator, anchorBelow } from "./Menu";
 import { DevicePreferences } from "./DevicePreferences";
 import { SecurityPanel } from "./SecurityPanel";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { AGENT_INSTRUCTIONS } from "../cli";
 import {
   Button,
@@ -326,7 +327,12 @@ export function DeviceManager(): JSX.Element {
       )}
 
       {pendingRevoke && (
-        <Modal title="Revoke this device?" onClose={() => setPendingRevoke(null)}>
+        <ConfirmDialog
+          title="Revoke this device?"
+          action="Revoke device"
+          onClose={() => setPendingRevoke(null)}
+          onConfirm={() => confirmRevoke(pendingRevoke)}
+        >
           <p class="text-note leading-5 text-subtle">
             <strong class="text-ink">{pendingRevoke.name}</strong> loses access, and this space gets
             a new encryption key so it can't read anything sent from now on.
@@ -338,27 +344,18 @@ export function DeviceManager(): JSX.Element {
               already downloaded stays on it.
             </p>
           </div>
-          <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-            <Button class="sm:w-auto" variant="secondary" onClick={() => setPendingRevoke(null)}>
-              Cancel
-            </Button>
-            <Button
-              class="sm:w-auto"
-              variant="danger"
-              onClick={() => void confirmRevoke(pendingRevoke)}
-            >
-              Revoke device
-            </Button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
 
       {pendingRoleChange && (
-        <Modal
+        <ConfirmDialog
           title={
             pendingRoleChange.role === "admin" ? "Remove admin access?" : "Make administrator?"
           }
           onClose={() => setPendingRoleChange(null)}
+          action={pendingRoleChange.role === "admin" ? "Make member" : "Make admin"}
+          variant={pendingRoleChange.role === "admin" ? "secondary" : "primary"}
+          onConfirm={() => changeRole(pendingRoleChange)}
         >
           <div class="flex gap-3 rounded-card border border-line bg-surface-2 p-3.5">
             <ShieldCheck class="mt-0.5 size-[19px] flex-none text-accent" aria-hidden="true" />
@@ -376,23 +373,7 @@ export function DeviceManager(): JSX.Element {
               )}
             </p>
           </div>
-          <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-            <Button
-              class="sm:w-auto"
-              variant="secondary"
-              onClick={() => setPendingRoleChange(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              class="sm:w-auto"
-              variant={pendingRoleChange.role === "admin" ? "secondary" : "primary"}
-              onClick={() => void changeRole(pendingRoleChange)}
-            >
-              {pendingRoleChange.role === "admin" ? "Make member" : "Make admin"}
-            </Button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
     </div>
   );

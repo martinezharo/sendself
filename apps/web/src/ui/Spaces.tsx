@@ -1,7 +1,7 @@
 import { ArrowRight, Download, LockKeyhole, MessagesSquare, Plus, X } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { hasPendingShare } from "../actions";
+import { hasPendingShare } from "../actions/spaces";
 import { type SpaceRecord, UNNAMED_SPACE } from "../db/spaces";
 import { lockConfigured, lockNow } from "../state/lock";
 import { followLink, spacePath } from "../state/route";

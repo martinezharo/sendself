@@ -224,8 +224,8 @@ permissions, target SDK, share target).
 
 ## Known limitations
 
-- **Web Push is not implemented yet** (`TODO.md`). The wrapper declares the
-  notification delegation service, but the site never requests permission.
+- **Notifications require Web Push configuration** on the server and permission
+  on the device. See [deployment](deployment.md#web-push-keys) for VAPID setup.
 - **Share target on Android** requires a TWA provider that implements Chrome's
   share target support. The wrapper passes the declaration; if the provider does
   not support it, the browser PWA still receives shares.

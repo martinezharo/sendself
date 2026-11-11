@@ -109,7 +109,7 @@ export async function persistSession(
   secretsChanged?.();
 }
 
-/** Mirror a signing identity minted after the fact (see actions.ensureSigningIdentity). */
+/** Mirror a signing identity minted after the fact (actions/spaces.ensureSigningIdentity). */
 export function applySigningKeyPair(pair: CryptoKeyPair): void {
   signingKeyPair.value = pair;
   secretsChanged?.();

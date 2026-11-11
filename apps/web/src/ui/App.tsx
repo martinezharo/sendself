@@ -12,7 +12,8 @@ import {
 } from "lucide-preact";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { leaveSpace, resumeAfterUnlock } from "../actions";
+import { leaveSpace, resumeAfterUnlock } from "../actions/spaces";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { UNNAMED_SPACE } from "../db/spaces";
 import { lockConfigured, lockNow, locked } from "../state/lock";
 import {
@@ -258,7 +259,13 @@ function SpaceView({
       {renaming && <RenameSpaceModal name={spaceName} onClose={() => setRenaming(false)} />}
 
       {confirmLeaveOpen && (
-        <Modal title="Leave this space?" onClose={() => setConfirmLeaveOpen(false)}>
+        <ConfirmDialog
+          title="Leave this space?"
+          action="Leave space"
+          cancel="Stay"
+          onClose={() => setConfirmLeaveOpen(false)}
+          onConfirm={confirmLeave}
+        >
           <div class="flex gap-3 rounded-card border border-danger/25 bg-danger-soft p-3.5 text-danger">
             <AlertTriangle class="mt-0.5 size-[19px] flex-none" />
             <p class="text-note font-medium leading-5">
@@ -269,19 +276,7 @@ function SpaceView({
             Other devices in the space will keep their access, and your other spaces on this device
             are untouched. You can link this device again later from another device.
           </p>
-          <div class="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-            <Button
-              class="sm:w-auto"
-              variant="secondary"
-              onClick={() => setConfirmLeaveOpen(false)}
-            >
-              Stay
-            </Button>
-            <Button class="sm:w-auto" variant="danger" onClick={() => void confirmLeave()}>
-              Leave space
-            </Button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
 
       {sessionRevoked.value && <RevokedNotice />}

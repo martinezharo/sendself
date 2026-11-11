@@ -24,7 +24,7 @@
  */
 
 import { INITIAL_KEY_EPOCH } from "@sendself/shared";
-import { startSession } from "./actions";
+import { startSession } from "./actions/spaces";
 import { PRE_REBRAND_ID } from "./legacy";
 import {
   importDeviceKeyPair,

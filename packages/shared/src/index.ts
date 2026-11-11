@@ -181,15 +181,6 @@ export interface DeviceDescriptor {
   signingPublicKey?: string;
 }
 
-/**
- * The device's human-readable name, encrypted with the GroupKey so the server
- * never sees it in the clear (it is PII). `iv` is the AES-GCM IV (base64url).
- */
-export interface EncryptedName {
-  encryptedName: string;
-  nameIv: string;
-}
-
 export const DEVICE_ROLES = ["owner", "admin", "member"] as const;
 export type DeviceRole = (typeof DEVICE_ROLES)[number];
 export type AssignableDeviceRole = Exclude<DeviceRole, "owner">;
